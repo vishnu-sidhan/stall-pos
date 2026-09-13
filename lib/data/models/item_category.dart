@@ -82,8 +82,11 @@ class CategoryOption {
 /// (e.g., container charge, takeaway packaging fee, or multi-category options).
 @immutable
 class ItemCategory {
+  static const general = ItemCategory(id: 'cat_general', name: 'General');
+
   final String id;
   final String name;
+  final String? displayName;
   final double additionalCost;
   final String? costReason;
   final int? colorHex;
@@ -97,6 +100,7 @@ class ItemCategory {
   const ItemCategory({
     required this.id,
     required this.name,
+    this.displayName,
     this.additionalCost = 0.0,
     this.costReason,
     this.colorHex,
@@ -104,6 +108,30 @@ class ItemCategory {
     this.isEnabled = true,
     this.options = const [],
   });
+
+  /// Factory helper for instantiating an [ItemCategory] from a simple name string.
+  factory ItemCategory.named(String name, {String? displayName, int? colorHex}) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || trimmed.toLowerCase() == 'general') {
+      if ((displayName != null && displayName.trim().isNotEmpty) || colorHex != null) {
+        return ItemCategory.general.copyWith(displayName: displayName, colorHex: colorHex);
+      }
+      return ItemCategory.general;
+    }
+    return ItemCategory(
+      id: 'cat_${trimmed.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
+      name: trimmed,
+      displayName: displayName,
+      colorHex: colorHex,
+    );
+  }
+
+  /// Short display name for POS screen cards, headings, and brackets.
+  /// Falls back to [name] if [displayName] is not explicitly set.
+  String get effectiveDisplayName =>
+      (displayName != null && displayName!.trim().isNotEmpty)
+          ? displayName!.trim()
+          : name.trim();
 
   /// Whether this category has multiple sub-categories or options
   /// (e.g., configured [options] or slash variants like 'Steam / Fried / Pan Fried').
@@ -180,6 +208,8 @@ class ItemCategory {
   ItemCategory copyWith({
     String? id,
     String? name,
+    String? displayName,
+    bool clearDisplayName = false,
     double? additionalCost,
     String? costReason,
     bool clearCostReason = false,
@@ -192,6 +222,7 @@ class ItemCategory {
     return ItemCategory(
       id: id ?? this.id,
       name: name ?? this.name,
+      displayName: clearDisplayName ? null : (displayName ?? this.displayName),
       additionalCost: additionalCost ?? this.additionalCost,
       costReason: clearCostReason ? null : (costReason ?? this.costReason),
       colorHex: clearColor ? null : (colorHex ?? this.colorHex),
@@ -204,6 +235,8 @@ class ItemCategory {
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
+        if (displayName != null && displayName!.trim().isNotEmpty)
+          'displayName': displayName!.trim(),
         'additionalCost': additionalCost,
         if (costReason != null && costReason!.trim().isNotEmpty)
           'costReason': costReason!.trim(),
@@ -218,6 +251,9 @@ class ItemCategory {
     return ItemCategory(
       id: map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
+      displayName: map['displayName']?.toString().trim().isNotEmpty == true
+          ? map['displayName'].toString().trim()
+          : null,
       additionalCost: (map['additionalCost'] as num?)?.toDouble() ?? 0.0,
       costReason: map['costReason']?.toString().trim().isNotEmpty == true
           ? map['costReason'].toString().trim()
@@ -240,6 +276,7 @@ class ItemCategory {
           runtimeType == other.runtimeType &&
           id == other.id &&
           name.toLowerCase().trim() == other.name.toLowerCase().trim() &&
+          displayName == other.displayName &&
           additionalCost == other.additionalCost &&
           costReason == other.costReason &&
           colorHex == other.colorHex &&
@@ -251,6 +288,7 @@ class ItemCategory {
   int get hashCode => Object.hash(
         id,
         name.toLowerCase().trim(),
+        displayName,
         additionalCost,
         costReason,
         colorHex,
@@ -261,5 +299,5 @@ class ItemCategory {
 
   @override
   String toString() =>
-      'ItemCategory(id: $id, name: $name, options: ${options.length}, additionalCost: $additionalCost, reason: $costReason)';
+      'ItemCategory(id: $id, name: $name, displayName: $displayName, options: ${options.length}, additionalCost: $additionalCost, reason: $costReason)';
 }

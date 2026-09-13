@@ -21,7 +21,12 @@ void main() {
     final now = DateTime.now();
     final customStallStorage = InMemoryStallStorage(
       initialMenu: [
-        const MenuItem(id: 'm1', name: 'Cloud Burger', price: 99.0, category: 'Food'),
+        const MenuItem(
+          id: 'm1',
+          name: 'Cloud Burger',
+          price: 99.0,
+          category: ItemCategory(id: 'cat_food', name: 'Food'),
+        ),
       ],
       initialToken: 42,
     );
@@ -69,7 +74,12 @@ void main() {
     expect(await storage.loadNextToken(), 1);
 
     await storage.saveMenu([
-      const MenuItem(id: '1', name: 'Dosa', price: 50.0, category: 'Tiffin'),
+      const MenuItem(
+        id: '1',
+        name: 'Dosa',
+        price: 50.0,
+        category: ItemCategory(id: 'cat_tiffin', name: 'Tiffin'),
+      ),
     ]);
     expect((await storage.loadMenu()).length, 1);
 
@@ -140,7 +150,12 @@ void main() {
 class _MockCloudStallStorage implements StallStorage {
   int nextTokenValue = 99;
   List<MenuItem> menu = [
-    const MenuItem(id: 'api_1', name: 'Cloud Pizza', price: 250.0, category: 'Pizza'),
+    const MenuItem(
+      id: 'api_1',
+      name: 'Cloud Pizza',
+      price: 250.0,
+      category: ItemCategory(id: 'cat_pizza', name: 'Pizza'),
+    ),
   ];
   List<StallOrder> orders = [];
   final List<StallOrder> archives = [];

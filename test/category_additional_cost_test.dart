@@ -157,15 +157,19 @@ void main() {
     });
 
     test('MenuItem supports custom displayName, serialization, and copyWith', () {
-      const itemWithCustom = MenuItem(
+      const itemWithCategoryDisplayName = MenuItem(
         id: 'item_1',
-        name: 'Veg Steamed Momos',
-        displayName: 'Momos',
-        category: 'Momos',
+        name: 'Veg Momos',
+        category: ItemCategory(
+          id: 'cat_momos',
+          name: 'Fried Momos / Pan Fried Momos / Kurkure Momos',
+          displayName: 'Momos',
+        ),
         price: 80,
       );
-      expect(itemWithCustom.displayName, 'Momos (Momos)');
-      expect(itemWithCustom.customDisplayName, 'Momos');
+      expect(itemWithCategoryDisplayName.displayName, 'Veg Momos (Momos)');
+      expect(itemWithCategoryDisplayName.categoryDisplayName, 'Momos');
+      expect(itemWithCategoryDisplayName.categoryName, 'Fried Momos / Pan Fried Momos / Kurkure Momos');
 
       const itemWithoutCustom = MenuItem(
         id: 'item_2',
@@ -173,29 +177,18 @@ void main() {
         price: 80,
       );
       expect(itemWithoutCustom.displayName, 'Veg Steamed Momos (General)');
-      expect(itemWithoutCustom.customDisplayName, isNull);
+      expect(itemWithoutCustom.categoryDisplayName, 'General');
 
-      const itemWithBlank = MenuItem(
-        id: 'item_3',
-        name: 'Veg Steamed Momos',
-        displayName: '   ',
-        price: 80,
-      );
-      expect(itemWithBlank.displayName, 'Veg Steamed Momos (General)');
-
-      final copied = itemWithCustom.copyWith(price: 90);
-      expect(copied.displayName, 'Momos (Momos)');
+      final copied = itemWithCategoryDisplayName.copyWith(price: 90);
+      expect(copied.displayName, 'Veg Momos (Momos)');
       expect(copied.price, 90);
 
-      final cleared = itemWithCustom.copyWith(clearDisplayName: true);
-      expect(cleared.customDisplayName, isNull);
-      expect(cleared.displayName, 'Veg Steamed Momos (Momos)');
-
-      final json = itemWithCustom.toJson();
-      expect(json['displayName'], 'Momos');
+      final json = itemWithCategoryDisplayName.toJson();
+      expect(json['category'], 'Fried Momos / Pan Fried Momos / Kurkure Momos');
+      expect(json['categoryObject']['displayName'], 'Momos');
       final fromJson = MenuItem.fromJson(json);
-      expect(fromJson.customDisplayName, 'Momos');
-      expect(fromJson.displayName, 'Momos (Momos)');
+      expect(fromJson.displayName, 'Veg Momos (Momos)');
+      expect(fromJson.categoryDisplayName, 'Momos');
     });
   });
 
@@ -208,25 +201,25 @@ void main() {
         id: 'item_chai',
         name: 'Masala Chai',
         price: 20.0,
-        category: 'Beverages',
+        category: ItemCategory(id: 'cat_bev', name: 'Beverages'),
       ),
       const MenuItem(
         id: 'item_samosa',
         name: 'Veg Samosa',
         price: 25.0,
-        category: 'Snacks',
+        category: ItemCategory(id: 'cat_snacks', name: 'Snacks'),
       ),
       const MenuItem(
         id: 'item_momos',
         name: 'Veg Momos',
         price: 60.0,
-        category: 'Steam / Fried / Pan Fried',
+        category: ItemCategory(id: 'cat_momos', name: 'Steam / Fried / Pan Fried'),
       ),
       const MenuItem(
         id: 'addon_ginger',
         name: 'Extra Ginger',
         price: 5.0,
-        category: 'Addon',
+        category: ItemCategory(id: 'cat_addon', name: 'Addon'),
         isAddon: true,
         linkedCategory: 'Beverages',
       ),
@@ -292,7 +285,7 @@ void main() {
 
       final friedCartItemId = controller.cart.keys.first;
       final friedItem = controller.findItem(friedCartItemId);
-      expect(friedItem.category, 'Fried');
+      expect(friedItem.categoryName, 'Fried');
       final friedBreakdown = controller.getCartItemBreakdown(friedCartItemId);
       expect(friedBreakdown?.categoryAdditionalCost, 10.0);
       expect(controller.cartTotal, 70.0); // 60 base + 10 fried
@@ -373,7 +366,12 @@ void main() {
             body: CategoryAccordionCard(
               catName: 'Beverages',
               items: const [
-                MenuItem(id: '1', name: 'Coffee', price: 30, category: 'Beverages'),
+                MenuItem(
+                  id: '1',
+                  name: 'Coffee',
+                  price: 30,
+                  category: ItemCategory(id: 'cat_bev', name: 'Beverages'),
+                ),
               ],
               isExpanded: true,
               costDescription: '+₹5 Packaging',
@@ -403,7 +401,12 @@ void main() {
             body: CategoryAccordionCard(
               catName: 'Steam / Fried / Pan Fried',
               items: const [
-                MenuItem(id: '1', name: 'Veg Momos', price: 60, category: 'Steam / Fried / Pan Fried'),
+                MenuItem(
+                  id: '1',
+                  name: 'Veg Momos',
+                  price: 60,
+                  category: ItemCategory(id: 'cat_momos', name: 'Steam / Fried / Pan Fried'),
+                ),
               ],
               isExpanded: true,
               costDescription: 'Fried (+₹10), Pan Fried (+₹20)',
@@ -423,7 +426,12 @@ void main() {
     testWidgets('CategoryConfigDialog updates category additional cost',
         (tester) async {
       final storage = InMemoryStallStorage(initialMenu: [
-        const MenuItem(id: '1', name: 'Chai', price: 20, category: 'Beverages'),
+        const MenuItem(
+          id: '1',
+          name: 'Chai',
+          price: 20,
+          category: ItemCategory(id: 'cat_bev', name: 'Beverages'),
+        ),
       ]);
       final controller = OrderController(storageService: storage);
       await controller.loadPersistedData();
@@ -475,7 +483,7 @@ void main() {
           id: '1',
           name: 'Veg Momos',
           price: 60,
-          category: 'Steam / Fried / Pan Fried',
+          category: ItemCategory(id: 'cat_momos', name: 'Steam / Fried / Pan Fried'),
         ),
       ]);
       final controller = OrderController(storageService: storage);
@@ -509,10 +517,10 @@ void main() {
       expect(find.text('Fried'), findsOneWidget);
       expect(find.text('Pan Fried'), findsOneWidget);
 
-      // Enter cost 10 for Fried (index 1), and 20 for Pan Fried (index 2)
+      // Enter cost 10 for Fried (index 2), and 20 for Pan Fried (index 3)
       final costFields = find.byType(TextField);
-      await tester.enterText(costFields.at(1), '10');
-      await tester.enterText(costFields.at(2), '20');
+      await tester.enterText(costFields.at(2), '10');
+      await tester.enterText(costFields.at(3), '20');
 
       await tester.tap(find.text('Save Changes'));
       await tester.pumpAndSettle();
@@ -524,8 +532,18 @@ void main() {
     testWidgets('ManageCategoriesDialog lists categories and allows searching and editing',
         (tester) async {
       final storage = InMemoryStallStorage(initialMenu: [
-        const MenuItem(id: '1', name: 'Chai', price: 20, category: 'Beverages'),
-        const MenuItem(id: '2', name: 'Samosa', price: 25, category: 'Snacks'),
+        const MenuItem(
+          id: '1',
+          name: 'Chai',
+          price: 20,
+          category: ItemCategory(id: 'cat_bev', name: 'Beverages'),
+        ),
+        const MenuItem(
+          id: '2',
+          name: 'Samosa',
+          price: 25,
+          category: ItemCategory(id: 'cat_snacks', name: 'Snacks'),
+        ),
       ]);
       final controller = OrderController(storageService: storage);
       await controller.loadPersistedData();
@@ -578,7 +596,12 @@ void main() {
     testWidgets('CartBottomSheet displays category fee in split and summary footer',
         (tester) async {
       final storage = InMemoryStallStorage(initialMenu: [
-        const MenuItem(id: '1', name: 'Chai', price: 20, category: 'Beverages'),
+        const MenuItem(
+          id: '1',
+          name: 'Chai',
+          price: 20,
+          category: ItemCategory(id: 'cat_bev', name: 'Beverages'),
+        ),
       ]);
       final controller = OrderController(storageService: storage);
       await controller.loadPersistedData();
@@ -626,62 +649,70 @@ void main() {
       expect(find.text('₹25'), findsWidgets);
     });
 
-    test('MenuItem displayName returns customDisplayName or falls back to name', () {
-      final momos = const MenuItem(
+    test('ItemCategory displayName and MenuItem displayName work as expected', () {
+      const categoryWithDisplay = ItemCategory(
+        id: 'cat_momos',
+        name: 'Fried Momos / Pan Fried Momos / Kurkure Momos / Peri-Peri Momos',
+        displayName: 'Momos',
+      );
+      expect(categoryWithDisplay.effectiveDisplayName, 'Momos');
+
+      const momos = MenuItem(
         id: '1',
         name: 'Veg Steamed Momos',
         price: 80,
-        category: 'Momos',
-        displayName: 'Momos',
+        category: categoryWithDisplay,
       );
-      expect(momos.displayName, 'Momos (Momos)');
-      expect(momos.customDisplayName, 'Momos');
+      expect(momos.displayName, 'Veg Steamed Momos (Momos)');
+      expect(momos.categoryName, 'Fried Momos / Pan Fried Momos / Kurkure Momos / Peri-Peri Momos');
+      expect(momos.categoryDisplayName, 'Momos');
 
-      final noCustom = const MenuItem(
+      const categoryNoDisplay = ItemCategory(
+        id: 'cat_bev',
+        name: 'Beverages',
+      );
+      expect(categoryNoDisplay.effectiveDisplayName, 'Beverages');
+
+      const noCustom = MenuItem(
         id: '2',
-        name: 'Veg Steamed Momos',
-        price: 80,
-        category: 'Momos',
+        name: 'Chai',
+        price: 20,
+        category: categoryNoDisplay,
       );
-      expect(noCustom.displayName, 'Veg Steamed Momos (Momos)');
-      expect(noCustom.customDisplayName, isNull);
+      expect(noCustom.displayName, 'Chai (Beverages)');
 
-      final blank = const MenuItem(
-        id: '3',
-        name: 'Veg Steamed Momos',
-        price: 80,
-        category: 'Momos',
+      const categoryBlankDisplay = ItemCategory(
+        id: 'cat_snacks',
+        name: 'Snacks',
         displayName: '   ',
       );
-      expect(blank.displayName, 'Veg Steamed Momos (Momos)');
+      expect(categoryBlankDisplay.effectiveDisplayName, 'Snacks');
 
       final copied = momos.copyWith(price: 90);
-      expect(copied.displayName, 'Momos (Momos)');
-      expect(copied.customDisplayName, 'Momos');
-
-      final cleared = momos.copyWith(clearDisplayName: true);
-      expect(cleared.customDisplayName, isNull);
-      expect(cleared.displayName, 'Veg Steamed Momos (Momos)');
+      expect(copied.displayName, 'Veg Steamed Momos (Momos)');
+      expect(copied.price, 90);
 
       final json = momos.toJson();
-      expect(json['displayName'], 'Momos');
+      expect(json['category'], 'Fried Momos / Pan Fried Momos / Kurkure Momos / Peri-Peri Momos');
+      expect(json['categoryObject']?['displayName'], 'Momos');
       final fromJson = MenuItem.fromJson(json);
-      expect(fromJson.customDisplayName, 'Momos');
-      expect(fromJson.displayName, 'Momos (Momos)');
+      expect(fromJson.displayName, 'Veg Steamed Momos (Momos)');
+      expect(fromJson.categoryName, 'Fried Momos / Pan Fried Momos / Kurkure Momos / Peri-Peri Momos');
+      expect(fromJson.categoryDisplayName, 'Momos');
     });
 
-    test('AggregatedOrderItem displayName uses itemDisplayName or falls back to itemName', () {
-      final aggItem = const AggregatedOrderItem(
+    test('AggregatedOrderItem displayName uses categoryDisplayName or falls back to category', () {
+      const aggItem = AggregatedOrderItem(
         itemId: '1',
         itemName: 'Veg Steamed Momos',
-        category: 'Momos',
+        category: 'Fried Momos / Pan Fried Momos / Kurkure Momos / Peri-Peri Momos',
         totalQuantity: 2,
         tickets: [OrderTicketQuantity(token: 101, quantity: 2)],
-        itemDisplayName: 'Momos',
+        categoryDisplayName: 'Momos',
       );
-      expect(aggItem.displayName, 'Momos (Momos)');
+      expect(aggItem.displayName, 'Veg Steamed Momos (Momos)');
 
-      final aggNoAlias = const AggregatedOrderItem(
+      const aggNoAlias = AggregatedOrderItem(
         itemId: '2',
         itemName: 'Veg Steamed Momos',
         category: 'Momos',
@@ -691,38 +722,44 @@ void main() {
       expect(aggNoAlias.displayName, 'Veg Steamed Momos (Momos)');
     });
 
-    test('OrderController respects MenuItem custom display name in menu, filteredMenu, and findItem', () async {
+    test('OrderController respects ItemCategory display name in menu, filteredMenu, and findItem', () async {
       final storage = InMemoryStallStorage(initialMenu: [
         const MenuItem(
           id: 'item_momos',
           name: 'Veg Steamed Momos',
           price: 80,
-          category: 'Momos',
-          displayName: 'Momos',
+          category: ItemCategory(
+            id: 'cat_momos',
+            name: 'Fried Momos / Pan Fried Momos / Kurkure Momos',
+            displayName: 'Momos',
+          ),
         ),
       ]);
       final controller = OrderController(storageService: storage);
       await controller.loadPersistedData();
 
-      expect(controller.menu.first.displayName, 'Momos (Momos)');
-      expect(controller.filteredMenu.first.displayName, 'Momos (Momos)');
-      expect(controller.findItem('item_momos').displayName, 'Momos (Momos)');
+      expect(controller.menu.first.displayName, 'Veg Steamed Momos (Momos)');
+      expect(controller.filteredMenu.first.displayName, 'Veg Steamed Momos (Momos)');
+      expect(controller.findItem('item_momos').displayName, 'Veg Steamed Momos (Momos)');
 
       // Add to cart and verify cart findItem
       controller.addToCart(controller.findItem('item_momos'));
       final orderItem = controller.findItem('item_momos');
-      expect(orderItem.displayName, 'Momos (Momos)');
+      expect(orderItem.displayName, 'Veg Steamed Momos (Momos)');
     });
 
-    testWidgets('MenuItemCard and CartBottomSheet render MenuItem custom displayName',
+    testWidgets('MenuItemCard and CartBottomSheet render ItemCategory display name in brackets',
         (tester) async {
       final storage = InMemoryStallStorage(initialMenu: [
         const MenuItem(
           id: 'item_momos',
           name: 'Veg Steamed Momos',
-          displayName: 'Momos',
           price: 80,
-          category: 'Momos',
+          category: ItemCategory(
+            id: 'cat_momos',
+            name: 'Fried Momos / Pan Fried Momos / Kurkure Momos',
+            displayName: 'Momos',
+          ),
         ),
       ]);
       final controller = OrderController(storageService: storage);
@@ -745,8 +782,8 @@ void main() {
         ),
       );
 
-      // Verify card displays 'Momos (Momos)'
-      expect(find.text('Momos (Momos)'), findsOneWidget);
+      // Verify card displays 'Veg Steamed Momos (Momos)'
+      expect(find.text('Veg Steamed Momos (Momos)'), findsOneWidget);
 
       // 2. Add to cart and verify in CartBottomSheet
       controller.addToCart(controller.findItem('item_momos'));
@@ -775,8 +812,8 @@ void main() {
       await tester.tap(find.text('Open Cart'));
       await tester.pumpAndSettle();
 
-      // Verify item title in cart displays 'Momos (Momos)'
-      expect(find.text('Momos (Momos)'), findsOneWidget);
+      // Verify item title in cart displays 'Veg Steamed Momos (Momos)'
+      expect(find.text('Veg Steamed Momos (Momos)'), findsOneWidget);
     });
 
     test('OrderController normalizeCategoryKey handles uneven whitespace around slashes', () {
@@ -801,7 +838,12 @@ void main() {
             body: CategoryAccordionCard(
               catName: 'Fried Momos / Pan Fried Momos / Kurkure Momos / Peri-Peri Momos',
               items: const [
-                MenuItem(id: '1', name: 'Veg Momos', price: 150, category: 'Momos'),
+                MenuItem(
+                  id: '1',
+                  name: 'Veg Momos',
+                  price: 150,
+                  category: ItemCategory(id: 'cat_momos', name: 'Momos'),
+                ),
               ],
               isExpanded: true,
               costDescription: 'Fried Momos (+₹10), Pan Fried Momos (+₹20), Kurkure Momos (+₹30), Peri-Peri Momos (+₹40)',
@@ -829,16 +871,21 @@ void main() {
         const MenuItem(
           id: 'item_chicken',
           name: 'Chicken Momos',
-          displayName: 'Chicken',
           price: 180,
-          category: 'Fried Momos / Pan Fried Momos / Kurkure Momos / Peri-Peri Momos',
+          category: ItemCategory(
+            id: 'cat_momos',
+            name: 'Fried Momos / Pan Fried Momos / Kurkure Momos / Peri-Peri Momos',
+            displayName: 'Momos',
+          ),
         ),
         const MenuItem(
           id: 'item_gobi',
-          name: 'Gobi Manchuria Gravy',
-          displayName: 'Gobi Manchuria',
+          name: 'Gobi Manchuria',
           price: 170,
-          category: 'Starters',
+          category: ItemCategory(
+            id: 'cat_starters',
+            name: 'Starters',
+          ),
         ),
       ]);
       final controller = OrderController(storageService: storage);
@@ -858,20 +905,20 @@ void main() {
       // Cart item key: item_chicken_cat_Kurkure Momos
       final cartItemKey = controller.cart.keys.first;
       final resolvedCartItem = controller.findItem(cartItemKey);
-      expect(resolvedCartItem.displayName, 'Chicken (Kurkure Momos)');
+      expect(resolvedCartItem.displayName, 'Chicken Momos (Kurkure Momos)');
 
       // 3. Punch order and verify Active Orders item list has category in brackets
       final orderResult = await controller.punchOrUpdateOrder(customerName: null);
       final order = controller.orders.firstWhere((o) => o.token == orderResult.token);
       final activeItems = controller.getOrderItemsWithCategory(order);
       expect(activeItems.length, 1);
-      expect(activeItems.first.displayName, 'Chicken (Kurkure Momos)');
+      expect(activeItems.first.displayName, 'Chicken Momos (Kurkure Momos)');
 
       // 4. Confirm payment so order is in Item Summary
       await controller.confirmPayment(token: order.token, paymentMethod: 'Cash');
       final aggregated = controller.combinedActiveOrders;
       expect(aggregated.length, 1);
-      expect(aggregated.first.displayName, 'Chicken (Kurkure Momos)');
+      expect(aggregated.first.displayName, 'Chicken Momos (Kurkure Momos)');
     });
   });
 }

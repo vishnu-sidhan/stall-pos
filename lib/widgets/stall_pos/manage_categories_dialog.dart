@@ -212,6 +212,9 @@ class _ManageCategoriesDialogState extends State<ManageCategoriesDialog> {
                               final catColor = widget.getCategoryColor(cat);
                               final hasCost = config != null && config.hasAdditionalCost;
                               final isCostActive = hasCost && config.isEnabled;
+                              final hasCustomDisplayName = config?.displayName != null &&
+                                  config!.displayName!.trim().isNotEmpty;
+                              final displayTitle = config?.effectiveDisplayName ?? cat;
                               return ListTile(
                                 dense: true,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -225,7 +228,7 @@ class _ManageCategoriesDialogState extends State<ManageCategoriesDialog> {
                                   ),
                                 ),
                                 title: Text(
-                                  cat,
+                                  displayTitle,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 15,
@@ -237,6 +240,18 @@ class _ManageCategoriesDialogState extends State<ManageCategoriesDialog> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
+                                      if (hasCustomDisplayName)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 2),
+                                          child: Text(
+                                            'Category: $cat',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontStyle: FontStyle.italic,
+                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ),
                                       Row(
                                         children: [
                                           if (isCostActive)

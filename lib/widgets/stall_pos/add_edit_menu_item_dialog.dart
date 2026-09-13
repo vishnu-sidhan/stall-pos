@@ -18,21 +18,18 @@ class AddEditMenuItemDialog {
   }) {
     final isEditing = existingItem != null;
     final nameCtrl = TextEditingController(text: existingItem?.name ?? '');
-    final displayNameCtrl = TextEditingController(
-      text: existingItem?.customDisplayName ?? '',
-    );
     final priceCtrl = TextEditingController(
       text: existingItem != null ? existingItem.price.toStringAsFixed(0) : '',
     );
     String selectedCat =
-        existingItem?.category ??
+        existingItem?.categoryName ??
         (controller.selectedCategory != 'All'
             ? controller.selectedCategory
             : 'General');
     final categoryCtrl = TextEditingController(text: selectedCat);
     final linkedCategoryCtrl = TextEditingController(
       text: existingItem?.linkedCategory ??
-          (existingItem?.isAddon == true ? existingItem?.category ?? '' : ''),
+          (existingItem?.isAddon == true ? existingItem?.categoryName ?? '' : ''),
     );
     int? selectedColorHex = existingItem?.colorHex;
     bool isAddon = existingItem?.isAddon ?? false;
@@ -79,17 +76,6 @@ class AddEditMenuItemDialog {
                       labelText: 'Price (₹) *',
                       hintText: 'e.g. 50',
                       prefixText: '₹ ',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: displayNameCtrl,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Display Name (Optional)',
-                      hintText: 'e.g. Momos, Chai',
-                      helperText:
-                          'Short clean name for POS buttons & tickets. Defaults to Item Name.',
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -392,19 +378,14 @@ class AddEditMenuItemDialog {
                           ? linkedCategoryCtrl.text.trim()
                           : category)
                       : null;
-                  final customDisplayName = displayNameCtrl.text.trim().isNotEmpty
-                      ? displayNameCtrl.text.trim()
-                      : null;
-
                   if (name.isNotEmpty && price > 0) {
+                    final catObj = controller.resolveItemCategory(category);
                     if (isEditing) {
                       controller.updateMenuItem(
                         existingItem.copyWith(
                           name: name,
-                          displayName: customDisplayName,
-                          clearDisplayName: customDisplayName == null,
                           price: price,
-                          category: category,
+                          category: catObj,
                           colorHex: resolvedColor,
                           isAddon: isAddon,
                           linkedCategory: effectiveLinkedCategory,
@@ -416,9 +397,8 @@ class AddEditMenuItemDialog {
                         MenuItem(
                           id: DateTime.now().millisecondsSinceEpoch.toString(),
                           name: name,
-                          displayName: customDisplayName,
                           price: price,
-                          category: category,
+                          category: catObj,
                           colorHex: resolvedColor,
                           isAddon: isAddon,
                           linkedCategory: effectiveLinkedCategory,
@@ -470,12 +450,12 @@ class AddEditMenuItemDialog {
                     decoration: BoxDecoration(
                       color: item.colorHex != null
                           ? Color(item.colorHex!)
-                          : getCategoryColor(item.category),
+                          : getCategoryColor(item.categoryName),
                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Text('${item.category} • ₹${item.price.toStringAsFixed(0)}'),
+                  Text('${item.categoryName} • ₹${item.price.toStringAsFixed(0)}'),
                 ],
               ),
               trailing: IconButton(

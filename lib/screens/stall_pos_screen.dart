@@ -92,7 +92,7 @@ class _StallPosScreenState extends State<StallPosScreen>
     for (final cat in allCategories) {
       final normalized = cat.trim().toLowerCase();
       for (final m in _menu) {
-        if (m.category.trim().toLowerCase() == normalized &&
+        if (m.categoryName.trim().toLowerCase() == normalized &&
             m.colorHex != null) {
           if (!usedColors.contains(m.colorHex!)) {
             result[cat] = m.colorHex!;
@@ -162,13 +162,13 @@ class _StallPosScreenState extends State<StallPosScreen>
       }
 
       final matchingCategoryItems = baseItems
-          .where((b) => item.isApplicableToCategory(b.category))
+          .where((b) => item.isApplicableToCategory(b.categoryName))
           .toList();
 
       if (matchingCategoryItems.isEmpty) {
         final targetCatName = item.linkedCategory?.isNotEmpty == true
             ? item.linkedCategory!
-            : item.category;
+            : item.categoryName;
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -931,9 +931,11 @@ class _StallPosScreenState extends State<StallPosScreen>
 
   Widget _buildCategoryAccordionCard(String category, List<MenuItem> items) {
     final catConfig = _controller.getCategoryConfig(category);
+    final displayName = _controller.getCategoryDisplayName(category);
 
     return CategoryAccordionCard(
       catName: category,
+      displayName: displayName,
       items: items,
       isExpanded: !_collapsedCategories.contains(category),
       costDescription: catConfig?.costDescription,
@@ -1001,13 +1003,14 @@ class _StallPosScreenState extends State<StallPosScreen>
                 final catColor = _getCategoryColor(cat);
                 final catConfig = _controller.getCategoryConfig(cat);
                 final hasCost = catConfig?.hasAdditionalCost == true;
+                final displayCat = cat == 'All' ? 'All' : _controller.getCategoryDisplayName(cat);
 
                 return Tooltip(
                   message: cat == 'All'
                       ? 'Show all items'
                       : (hasCost
-                          ? '$cat • ${catConfig!.costDescription} (Long press to edit)'
-                          : '$cat (Long press to edit surcharge)'),
+                          ? '$displayCat • ${catConfig!.costDescription} (Long press to edit)'
+                          : '$displayCat (Long press to edit surcharge)'),
                   child: GestureDetector(
                     onLongPress: cat == 'All'
                         ? null
@@ -1030,8 +1033,8 @@ class _StallPosScreenState extends State<StallPosScreen>
                             ),
                       label: Text(
                         hasCost
-                            ? '$cat (+₹${catConfig!.additionalCost.toStringAsFixed(catConfig.additionalCost.truncateToDouble() == catConfig.additionalCost ? 0 : 2)})'
-                            : cat,
+                            ? '$displayCat (+₹${catConfig!.additionalCost.toStringAsFixed(catConfig.additionalCost.truncateToDouble() == catConfig.additionalCost ? 0 : 2)})'
+                            : displayCat,
                         style: TextStyle(
                           fontWeight: isSelected
                               ? FontWeight.bold

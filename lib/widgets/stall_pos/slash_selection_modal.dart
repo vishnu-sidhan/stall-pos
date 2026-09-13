@@ -125,7 +125,7 @@ class SlashSelectionModal {
     final categoryVariants = item.slashCategoryVariants;
     final baseItems = isAddon
         ? controller.cartBaseItems.where((b) {
-            if (!item.isApplicableToCategory(b.category)) return false;
+            if (!item.isApplicableToCategory(b.categoryName)) return false;
             if (hasNameVariants) {
               return nameVariants.any((v) =>
                   controller.getAddonItemCount(b.id, item.id, resolvedAddonName: v) <
@@ -145,11 +145,11 @@ class SlashSelectionModal {
 
     // Regular item selection state
     String selectedName = nameVariants.isNotEmpty ? nameVariants.first : item.name;
-    String selectedCategory = categoryVariants.isNotEmpty ? categoryVariants.first : item.category;
+    String selectedCategory = categoryVariants.isNotEmpty ? categoryVariants.first : item.categoryName;
 
     final itemColor = item.colorHex != null
         ? Color(item.colorHex!)
-        : getCategoryColor(item.category);
+        : getCategoryColor(item.categoryName);
 
     showModalBottomSheet(
       context: context,
@@ -922,7 +922,7 @@ class AddonsForCartItemModal {
     VoidCallback? onUpdated,
   }) {
     final cartItem = controller.findItem(cartItemId);
-    final availableAddons = controller.getAddonsForCategory(cartItem.category);
+    final availableAddons = controller.getAddonsForCategory(cartItem.categoryName);
     if (availableAddons.isEmpty) return;
 
     if (!controller.canAddAnyAddon(cartItemId)) {

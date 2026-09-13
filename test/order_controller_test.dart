@@ -115,7 +115,7 @@ void main() {
 
       final originalOrder = controller.orders.first;
       expect(originalOrder.token, 101);
-      expect(originalOrder.itemsSummary, '2x Masala Chai');
+      expect(originalOrder.itemsSummary, '2x Masala Chai (Beverages)');
       expect(originalOrder.total, 40.0);
       expect(controller.nextToken, 102);
 
@@ -470,7 +470,7 @@ void main() {
         id: 'item_or',
         name: 'Tea / Coffee / Green Tea',
         price: 30.0,
-        category: 'Hot Drinks',
+        category: ItemCategory.named('Hot Drinks'),
       );
       await controller.addMenuItem(orItem);
 
@@ -484,7 +484,7 @@ void main() {
       final found = controller.findItem('item_or_var_Coffee');
       expect(found.name, 'Coffee');
       expect(found.price, 30.0);
-      expect(found.category, 'Hot Drinks');
+      expect(found.categoryName, 'Hot Drinks');
     });
 
     test('preserves categories containing slash as single intact filter chips', () {
@@ -492,7 +492,7 @@ void main() {
         id: 'item_combo_cat',
         name: 'French Fries',
         price: 60.0,
-        category: 'Snacks / Fast Food',
+        category: ItemCategory.named('Snacks / Fast Food'),
       );
       controller.addMenuItem(itemComboCat);
 
@@ -509,7 +509,7 @@ void main() {
         id: 'addon_cheese',
         name: 'Extra Cheese',
         price: 20.0,
-        category: 'Addons',
+        category: ItemCategory.named('Addons'),
         isAddon: true,
       );
       expect(addon.effectiveIsAddon, isTrue);
@@ -525,13 +525,13 @@ void main() {
         id: 'item_burger',
         name: 'Veg Burger',
         price: 80.0,
-        category: 'Fast Food',
+        category: ItemCategory.named('Fast Food'),
       );
       final addon = MenuItem(
         id: 'addon_cheese',
         name: 'Extra Cheese',
         price: 20.0,
-        category: 'Addons',
+        category: ItemCategory.named('Addons'),
         isAddon: true,
       );
 
@@ -576,13 +576,13 @@ void main() {
         id: 'item_burger_kitchen',
         name: 'Veg Burger',
         price: 80.0,
-        category: 'Fast Food',
+        category: ItemCategory.named('Fast Food'),
       );
       final addon = MenuItem(
         id: 'addon_cheese_kitchen',
         name: 'Extra Cheese',
         price: 20.0,
-        category: 'Addons',
+        category: ItemCategory.named('Addons'),
         isAddon: true,
       );
 
@@ -615,13 +615,13 @@ void main() {
         id: 'item_rice_noodles',
         name: 'Fried Rice / Hakka Noodles',
         price: 120.0,
-        category: 'Rice / Noodles',
+        category: ItemCategory.named('Rice / Noodles'),
       );
       final addonCheeseMayo = MenuItem(
         id: 'addon_cheese_mayo',
         name: 'Cheese / Mayo',
         price: 30.0,
-        category: 'Extras',
+        category: ItemCategory.named('Extras'),
         isAddon: true,
       );
 
@@ -631,28 +631,28 @@ void main() {
       // 1. Resolve variant name only
       final varItem = controller.findItem('item_rice_noodles_var_Fried Rice');
       expect(varItem.name, 'Fried Rice');
-      expect(varItem.category, 'Rice / Noodles');
+      expect(varItem.categoryName, 'Rice / Noodles');
       expect(varItem.price, 120.0);
       expect(varItem.displayName, 'Fried Rice (Rice / Noodles)');
 
       // 2. Resolve category only
       final catItem = controller.findItem('item_rice_noodles_cat_Rice');
       expect(catItem.name, 'Fried Rice / Hakka Noodles');
-      expect(catItem.category, 'Rice');
+      expect(catItem.categoryName, 'Rice');
       expect(catItem.price, 120.0);
       expect(catItem.displayName, 'Fried Rice / Hakka Noodles (Rice)');
 
       // 3. Resolve both variant name and category
       final bothItem = controller.findItem('item_rice_noodles_var_Fried Rice_cat_Rice');
       expect(bothItem.name, 'Fried Rice');
-      expect(bothItem.category, 'Rice');
+      expect(bothItem.categoryName, 'Rice');
       expect(bothItem.price, 120.0);
       expect(bothItem.displayName, 'Fried Rice (Rice)');
 
       // 4. Resolve composite item with addon variant
       final composite = controller.findItem('item_rice_noodles_var_Fried Rice_cat_Rice+addon_cheese_mayo_var_Cheese');
       expect(composite.name, '[Cheese] Fried Rice');
-      expect(composite.category, 'Rice');
+      expect(composite.categoryName, 'Rice');
       expect(composite.price, 150.0);
       expect(composite.displayName, '[Cheese] Fried Rice (Rice)');
     });
@@ -662,13 +662,13 @@ void main() {
         id: 'item_noodles',
         name: 'Noodles',
         price: 100.0,
-        category: 'Rice / Noodles',
+        category: ItemCategory.named('Rice / Noodles'),
       );
       final dip = MenuItem(
         id: 'addon_dip',
         name: 'Red / Green Chutney',
         price: 15.0,
-        category: 'Extras',
+        category: ItemCategory.named('Extras'),
         isAddon: true,
       );
 
@@ -713,13 +713,13 @@ void main() {
         id: 'item_burger_xtimes',
         name: 'Veg Burger',
         price: 80.0,
-        category: 'Fast Food',
+        category: ItemCategory.named('Fast Food'),
       );
       final cheese = MenuItem(
         id: 'addon_cheese_xtimes',
         name: 'Extra Cheese',
         price: 20.0,
-        category: 'Addons',
+        category: ItemCategory.named('Addons'),
         isAddon: true,
       );
 
@@ -764,20 +764,20 @@ void main() {
         id: 'item_burger_multi',
         name: 'Veg Burger',
         price: 80.0,
-        category: 'Fast Food',
+        category: ItemCategory.named('Fast Food'),
       );
       final cheese = MenuItem(
         id: 'addon_cheese_multi',
         name: 'Cheese',
         price: 25.0,
-        category: 'Addons',
+        category: ItemCategory.named('Addons'),
         isAddon: true,
       );
       final mayo = MenuItem(
         id: 'addon_mayo_multi',
         name: 'Mayo',
         price: 15.0,
-        category: 'Addons',
+        category: ItemCategory.named('Addons'),
         isAddon: true,
       );
 
@@ -831,13 +831,13 @@ void main() {
         id: 'item_rice',
         name: 'Fried Rice',
         price: 120.0,
-        category: 'Rice / Noodles',
+        category: ItemCategory.named('Rice / Noodles'),
       );
       final noodles = MenuItem(
         id: 'item_noodles_alone',
         name: 'Hakka Noodles',
         price: 110.0,
-        category: 'Rice / Noodles',
+        category: ItemCategory.named('Rice / Noodles'),
       );
 
       await controller.addMenuItem(rice);
@@ -1006,10 +1006,10 @@ void main() {
 
     test('getCartItemBreakdown and cart totals calculate split between item and addons', () {
       final controller = OrderController();
-      final burger = MenuItem(id: 'item_burger', name: 'Veg Burger', price: 80.0, category: 'Fast Food');
-      final cheese = MenuItem(id: 'item_cheese', name: 'Extra Cheese', price: 20.0, category: 'Addons', isAddon: true);
-      final mayo = MenuItem(id: 'item_mayo', name: 'Mayo', price: 15.0, category: 'Addons', isAddon: true);
-      final tea = MenuItem(id: 'item_tea', name: 'Tea', price: 10.0, category: 'Beverages');
+      final burger = MenuItem(id: 'item_burger', name: 'Veg Burger', price: 80.0, category: ItemCategory.named('Fast Food'));
+      final cheese = MenuItem(id: 'item_cheese', name: 'Extra Cheese', price: 20.0, category: ItemCategory.named('Addons'), isAddon: true);
+      final mayo = MenuItem(id: 'item_mayo', name: 'Mayo', price: 15.0, category: ItemCategory.named('Addons'), isAddon: true);
+      final tea = MenuItem(id: 'item_tea', name: 'Tea', price: 10.0, category: ItemCategory.named('Beverages'));
       controller.setMenu([burger, cheese, mayo, tea]);
 
       // Standalone item breakdown is null
@@ -1050,7 +1050,7 @@ void main() {
           id: 'addon_ginger',
           name: 'Extra Ginger',
           price: 5.0,
-          category: 'Addons',
+          category: ItemCategory(id: 'cat_addons', name: 'Addons'),
           isAddon: true,
           linkedCategory: 'Beverages',
         );
@@ -1064,7 +1064,7 @@ void main() {
           id: 'addon_cheese',
           name: 'Extra Cheese',
           price: 20.0,
-          category: 'Extras',
+          category: ItemCategory(id: 'cat_extras', name: 'Extras'),
           isAddon: true,
           linkedCategory: 'Fast Food / Snacks',
         );
@@ -1078,7 +1078,7 @@ void main() {
           id: 'addon_bag',
           name: 'Eco Carry Bag',
           price: 10.0,
-          category: 'Packaging',
+          category: ItemCategory(id: 'cat_pkg', name: 'Packaging'),
           isAddon: true,
           linkedCategory: 'All',
         );
@@ -1091,7 +1091,7 @@ void main() {
           id: 'addon_cream',
           name: 'Whipped Cream',
           price: 15.0,
-          category: 'Desserts',
+          category: ItemCategory(id: 'cat_desserts', name: 'Desserts'),
           isAddon: true,
         );
         expect(inheritedAddon.effectiveLinkedCategories, ['Desserts']);
@@ -1103,7 +1103,7 @@ void main() {
           id: 'addon_legacy',
           name: 'Generic Extra',
           price: 10.0,
-          category: 'Addons',
+          category: ItemCategory(id: 'cat_addons', name: 'Addons'),
           isAddon: true,
         );
         expect(legacyAddon.effectiveLinkedCategories, ['All']);
@@ -1115,7 +1115,7 @@ void main() {
           id: 'item_1',
           name: 'Ketchup',
           price: 5.0,
-          category: 'Condiments',
+          category: ItemCategory(id: 'cat_condiments', name: 'Condiments'),
           isAddon: true,
           linkedCategory: 'Snacks / Fast Food',
         );
@@ -1135,19 +1135,19 @@ void main() {
           id: 'item_burger',
           name: 'Veg Burger',
           price: 80.0,
-          category: 'Fast Food',
+          category: ItemCategory.named('Fast Food'),
         );
         final tea = MenuItem(
           id: 'item_tea',
           name: 'Masala Chai',
           price: 20.0,
-          category: 'Beverages',
+          category: ItemCategory.named('Beverages'),
         );
         final cheese = MenuItem(
           id: 'addon_cheese',
           name: 'Extra Cheese',
           price: 25.0,
-          category: 'Extras',
+          category: ItemCategory.named('Extras'),
           isAddon: true,
           linkedCategory: 'Fast Food',
         );
@@ -1155,7 +1155,7 @@ void main() {
           id: 'addon_ginger',
           name: 'Ginger',
           price: 5.0,
-          category: 'Extras',
+          category: ItemCategory.named('Extras'),
           isAddon: true,
           linkedCategory: 'Beverages',
         );

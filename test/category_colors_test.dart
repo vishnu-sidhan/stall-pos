@@ -119,7 +119,7 @@ void main() {
         id: 'item_1',
         name: 'Masala Chai',
         price: 25.0,
-        category: 'Hot Beverages',
+        category: ItemCategory(id: 'cat_hot_bev', name: 'Hot Beverages'),
         colorHex: 0xFFEA580C,
       );
 
@@ -128,7 +128,7 @@ void main() {
 
       final restored = MenuItem.fromJson(json);
       expect(restored.colorHex, 0xFFEA580C);
-      expect(restored.category, 'Hot Beverages');
+      expect(restored.categoryName, 'Hot Beverages');
     });
 
     test('deserialization assigns random category color when color is not defined', () {

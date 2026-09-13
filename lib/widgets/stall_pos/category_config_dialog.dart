@@ -58,6 +58,7 @@ class CategoryConfigDialog extends StatefulWidget {
 
 class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
   late final ItemCategory _existingConfig;
+  late final TextEditingController _displayNameCtrl;
   late final TextEditingController _costCtrl;
   late final TextEditingController _reasonCtrl;
   late final List<_OptionEntry> _optionEntries;
@@ -75,6 +76,9 @@ class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
           additionalCost: 0.0,
         );
 
+    _displayNameCtrl = TextEditingController(
+      text: _existingConfig.displayName ?? '',
+    );
     _costCtrl = TextEditingController(
       text: _existingConfig.additionalCost > 0
           ? (_existingConfig.additionalCost.truncateToDouble() == _existingConfig.additionalCost
@@ -110,6 +114,7 @@ class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
     for (final opt in _optionEntries) {
       opt.dispose();
     }
+    _displayNameCtrl.dispose();
     _costCtrl.dispose();
     _reasonCtrl.dispose();
     super.dispose();
@@ -223,10 +228,25 @@ class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Configure category option / variant charges (e.g. Steam / Fried / Pan Fried for Momos), packaging fees, and accent colors.',
+                'Configure category display name, option / variant charges (e.g. Steam / Fried / Pan Fried for Momos), packaging fees, and accent colors.',
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Category Display Name Field
+              TextField(
+                controller: _displayNameCtrl,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: 'Display Name for POS Screen (Optional)',
+                  hintText: 'e.g. Momos, Beverages, Rice',
+                  helperText: 'Shown on POS category buttons and in item name brackets.',
+                  prefixIcon: const Icon(Icons.badge_outlined, size: 20),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  isDense: true,
                 ),
               ),
               const SizedBox(height: 14),
@@ -526,8 +546,14 @@ class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
               );
             }).toList();
 
+            final cleanDisplayName = _displayNameCtrl.text.trim().isNotEmpty
+                ? _displayNameCtrl.text.trim()
+                : null;
+
             final updated = _existingConfig.copyWith(
               name: widget.categoryName.trim(),
+              displayName: cleanDisplayName,
+              clearDisplayName: cleanDisplayName == null,
               additionalCost: parsedCost >= 0 ? parsedCost : 0.0,
               costReason: cleanReason,
               clearCostReason: cleanReason == null,

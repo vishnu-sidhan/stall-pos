@@ -477,7 +477,7 @@ class _CsvImportDialogState<T> extends State<CsvImportDialog<T>>
                 if (item is MenuItem) {
                   final catColor = item.colorHex != null
                       ? Color(item.colorHex!)
-                      : Color(CategoryColorHelper.getColorForCategory(item.category));
+                      : Color(CategoryColorHelper.getColorForCategory(item.categoryName));
 
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),

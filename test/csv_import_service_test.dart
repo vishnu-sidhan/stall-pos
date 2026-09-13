@@ -16,15 +16,15 @@ Paneer Roll,80.50,Fast Food''';
       expect(result.skippedRowsCount, 0);
       expect(result.items[0].name, 'Masala Chai');
       expect(result.items[0].price, 20.0);
-      expect(result.items[0].category, 'Beverages');
+      expect(result.items[0].categoryName, 'Beverages');
 
       expect(result.items[1].name, 'Veg Samosa');
       expect(result.items[1].price, 25.0);
-      expect(result.items[1].category, 'Snacks');
+      expect(result.items[1].categoryName, 'Snacks');
 
       expect(result.items[2].name, 'Paneer Roll');
       expect(result.items[2].price, 80.50);
-      expect(result.items[2].category, 'Fast Food');
+      expect(result.items[2].categoryName, 'Fast Food');
     });
 
     test('handles RFC 4180 quotes and commas inside fields', () {
@@ -37,7 +37,7 @@ Paneer Roll,80.50,Fast Food''';
       expect(result.items.length, 2);
       expect(result.items[0].name, 'Chai, Special Masala');
       expect(result.items[0].price, 30.0);
-      expect(result.items[0].category, 'Hot Drinks, Tea');
+      expect(result.items[0].categoryName, 'Hot Drinks, Tea');
 
       expect(result.items[1].name, 'Double "Deluxe" Burger');
       expect(result.items[1].price, 150.0);
@@ -54,7 +54,7 @@ Water Bottle,20''';
       expect(result.items.length, 3);
       expect(result.items[0].name, 'Coffee');
       expect(result.items[0].price, 40.0);
-      expect(result.items[0].category, 'General');
+      expect(result.items[0].categoryName, 'General');
 
       expect(result.items[1].price, 2.50);
       expect(result.items[2].price, 20.0);
@@ -113,8 +113,8 @@ Veg Puff,35,Snacks''';
       expect(result.items[0].colorHex, equals(result.items[1].colorHex));
 
       // Different category can have a different color
-      expect(result.items[0].category, 'Beverages');
-      expect(result.items[2].category, 'Snacks');
+      expect(result.items[0].categoryName, 'Beverages');
+      expect(result.items[2].categoryName, 'Snacks');
     });
 
     test('guarantees unique and distinct colors for all imported categories', () {
@@ -132,7 +132,7 @@ Combo,120,Combos''';
 
       final categoryColors = <String, int>{};
       for (final item in result.items) {
-        categoryColors[item.category] = item.colorHex!;
+        categoryColors[item.categoryName] = item.colorHex!;
       }
 
       // 7 categories must produce 7 strictly unique colors

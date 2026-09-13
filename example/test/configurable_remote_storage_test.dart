@@ -111,7 +111,12 @@ void main() {
     test('loadMenu falls back to offline cache when network fails', () async {
       final fallback = InMemoryStallStorage(
         initialMenu: [
-          const MenuItem(id: 'offline_1', name: 'Cached Samosa', price: 20.0, category: 'Snacks'),
+          const MenuItem(
+            id: 'offline_1',
+            name: 'Cached Samosa',
+            price: 20.0,
+            category: ItemCategory(id: 'cat_snacks', name: 'Snacks'),
+          ),
         ],
       );
 

@@ -12,8 +12,18 @@ void main() {
     final service = StallStorageService();
 
     final items = [
-      const MenuItem(id: '101', name: 'Masala Dosa', price: 80, category: 'South Indian'),
-      const MenuItem(id: '102', name: 'Cold Coffee', price: 60, category: 'Beverages'),
+      const MenuItem(
+        id: '101',
+        name: 'Masala Dosa',
+        price: 80,
+        category: ItemCategory(id: 'cat_south_indian', name: 'South Indian'),
+      ),
+      const MenuItem(
+        id: '102',
+        name: 'Cold Coffee',
+        price: 60,
+        category: ItemCategory(id: 'cat_beverages', name: 'Beverages'),
+      ),
     ];
 
     await service.saveMenu(items);
@@ -21,9 +31,9 @@ void main() {
 
     expect(loaded.length, 2);
     expect(loaded[0].name, 'Masala Dosa');
-    expect(loaded[0].category, 'South Indian');
+    expect(loaded[0].categoryName, 'South Indian');
     expect(loaded[1].name, 'Cold Coffee');
-    expect(loaded[1].category, 'Beverages');
+    expect(loaded[1].categoryName, 'Beverages');
   });
 
   test('StallStorageService manages orders, completion, and clearing completed orders', () async {

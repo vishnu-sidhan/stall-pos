@@ -1,4 +1,5 @@
 import '../../theme/category_colors.dart';
+import 'item_category.dart';
 export 'item_category.dart';
 
 // Data models for the Stall POS screen and orders.
@@ -6,9 +7,8 @@ export 'item_category.dart';
 class MenuItem {
   final String id;
   final String name;
-  final String? _displayName;
   final double price;
-  final String category;
+  final ItemCategory category;
   final int? colorHex;
   final bool isAddon;
   final String? linkedCategory;
@@ -17,21 +17,23 @@ class MenuItem {
     required this.id,
     required this.name,
     required this.price,
-    String? displayName,
-    this.category = 'General',
+    this.category = ItemCategory.general,
     this.colorHex,
     this.isAddon = false,
     this.linkedCategory,
-  }) : _displayName = displayName;
+  });
 
-  /// Custom display name if explicitly configured, else null.
-  String? get customDisplayName => _displayName;
+  /// Name of the category as a String helper.
+  String get categoryName => category.name;
+
+  /// Effective display name of the category.
+  String get categoryDisplayName => category.effectiveDisplayName;
 
   /// Check if this item qualifies as an add-on either via explicit flag
   /// or category name containing 'addon' or 'extra'.
   bool get effectiveIsAddon {
     if (isAddon) return true;
-    final cat = category.toLowerCase();
+    final cat = category.name.toLowerCase();
     return cat.contains('addon') || cat.contains('add-on') || cat == 'extras' || cat == 'extra';
   }
 
@@ -47,7 +49,7 @@ class MenuItem {
           .where((s) => s.isNotEmpty)
           .toList();
     }
-    final cat = category.toLowerCase().trim();
+    final cat = category.name.toLowerCase().trim();
     if (!cat.contains('addon') &&
         !cat.contains('add-on') &&
         cat != 'extras' &&
@@ -74,16 +76,13 @@ class MenuItem {
   }
 
   /// Clean display name for POS cards, order tickets, and receipts.
-  /// Returns custom [displayName] (or [name]) with [category] in brackets.
+  /// Returns item name with category's effective display name in brackets.
   String get displayName {
-    final base = (_displayName != null && _displayName.trim().isNotEmpty)
-        ? _displayName.trim()
-        : name.trim();
-    final cat = category.trim();
-    if (cat.isNotEmpty && !base.endsWith('($cat)')) {
-      return '$base ($cat)';
+    final cat = category.effectiveDisplayName.trim();
+    if (cat.isNotEmpty && !name.endsWith('($cat)')) {
+      return '$name ($cat)';
     }
-    return base;
+    return name;
   }
 
   /// Backwards-compatible alias for [displayName].
@@ -103,12 +102,12 @@ class MenuItem {
   }
 
   /// Whether the category contains '/' indicating multiple or-categories.
-  bool get hasSlashCategoryVariants => category.contains('/');
+  bool get hasSlashCategoryVariants => category.name.contains('/');
 
   /// List of separated category names when split by '/'.
   List<String> get slashCategoryVariants {
-    if (!hasSlashCategoryVariants) return [category];
-    return category
+    if (!hasSlashCategoryVariants) return [category.name];
+    return category.name
         .split('/')
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
@@ -126,14 +125,12 @@ class MenuItem {
     String? id,
     String? name,
     double? price,
-    String? category,
+    ItemCategory? category,
     int? colorHex,
     bool clearColor = false,
     bool? isAddon,
     String? linkedCategory,
     bool clearLinkedCategory = false,
-    String? displayName,
-    bool clearDisplayName = false,
   }) {
     return MenuItem(
       id: id ?? this.id,
@@ -145,9 +142,6 @@ class MenuItem {
       linkedCategory: clearLinkedCategory
           ? null
           : (linkedCategory ?? this.linkedCategory),
-      displayName: clearDisplayName
-          ? null
-          : (displayName ?? _displayName),
     );
   }
 
@@ -155,19 +149,35 @@ class MenuItem {
         'id': id,
         'name': name,
         'price': price,
-        'category': category,
+        'category': category.name,
+        'categoryObject': category.toJson(),
         if (colorHex != null) 'colorHex': colorHex,
         if (isAddon) 'isAddon': isAddon,
         if (linkedCategory != null && linkedCategory!.trim().isNotEmpty)
           'linkedCategory': linkedCategory,
-        if (_displayName != null && _displayName.trim().isNotEmpty)
-          'displayName': _displayName,
       };
 
   factory MenuItem.fromJson(Map<String, dynamic> map) {
-    final category = (map['category']?.toString().trim().isNotEmpty == true)
-        ? map['category']!.toString().trim()
-        : 'General';
+    ItemCategory parsedCategory;
+    if (map['categoryObject'] is Map) {
+      parsedCategory = ItemCategory.fromJson(
+        Map<String, dynamic>.from(map['categoryObject'] as Map),
+      );
+    } else if (map['category'] is Map) {
+      parsedCategory = ItemCategory.fromJson(
+        Map<String, dynamic>.from(map['category'] as Map),
+      );
+    } else if (map['category'] is String &&
+        (map['category'] as String).trim().isNotEmpty) {
+      final raw = (map['category'] as String).trim();
+      parsedCategory = ItemCategory(
+        id: 'cat_${raw.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
+        name: raw,
+      );
+    } else {
+      parsedCategory = ItemCategory.general;
+    }
+
     final parsedColor = map['colorHex'] != null
         ? (map['colorHex'] as num?)?.toInt()
         : CategoryColorHelper.parseColor(map['color']);
@@ -178,20 +188,15 @@ class MenuItem {
     final linkedCategory = (linkedCategoryRaw != null && linkedCategoryRaw.isNotEmpty)
         ? linkedCategoryRaw
         : null;
-    final displayNameRaw = map['displayName']?.toString().trim() ??
-        map['display_name']?.toString().trim();
-    final displayName = (displayNameRaw != null && displayNameRaw.isNotEmpty)
-        ? displayNameRaw
-        : null;
+
     return MenuItem(
       id: map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
       price: (map['price'] as num?)?.toDouble() ?? 0.0,
-      category: category,
-      colorHex: parsedColor ?? CategoryColorHelper.getColorForCategory(category),
+      category: parsedCategory,
+      colorHex: parsedColor ?? CategoryColorHelper.getColorForCategory(parsedCategory.name),
       isAddon: isAddonExplicit,
       linkedCategory: linkedCategory,
-      displayName: displayName,
     );
   }
 }
@@ -439,7 +444,7 @@ class AggregatedOrderItem {
   final int totalQuantity;
   final List<OrderTicketQuantity> tickets;
   final int? colorHex;
-  final String? itemDisplayName;
+  final String? categoryDisplayName;
 
   const AggregatedOrderItem({
     required this.itemId,
@@ -448,19 +453,18 @@ class AggregatedOrderItem {
     required this.totalQuantity,
     required this.tickets,
     this.colorHex,
-    this.itemDisplayName,
+    this.categoryDisplayName,
   });
 
-  /// Display name of the item, using itemDisplayName or itemName with category in brackets.
+  /// Display name of the item, using itemName with effective category in brackets.
   String get displayName {
-    final base = (itemDisplayName != null && itemDisplayName!.trim().isNotEmpty)
-        ? itemDisplayName!.trim()
-        : itemName.trim();
-    final cat = category.trim();
-    if (cat.isNotEmpty && !base.endsWith('($cat)')) {
-      return '$base ($cat)';
+    final cat = (categoryDisplayName != null && categoryDisplayName!.trim().isNotEmpty)
+        ? categoryDisplayName!.trim()
+        : category.trim();
+    if (cat.isNotEmpty && !itemName.endsWith('($cat)')) {
+      return '$itemName ($cat)';
     }
-    return base;
+    return itemName;
   }
 }
 

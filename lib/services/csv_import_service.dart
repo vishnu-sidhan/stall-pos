@@ -211,7 +211,7 @@ Budget Delta,0,10,,true,0xFFDC2626''';
         id: 'item_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}',
         name: name,
         price: price,
-        category: category,
+        category: ItemCategory.named(category, colorHex: assignedColor),
         colorHex: assignedColor,
         isAddon: isAddon,
         linkedCategory: linkedCategory,

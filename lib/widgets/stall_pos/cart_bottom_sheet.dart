@@ -151,7 +151,7 @@ class CartBottomSheet {
                             final breakdown = entry.breakdown;
                             final catColor = item.colorHex != null
                                 ? Color(item.colorHex!)
-                                : getCategoryColor(item.category);
+                                : getCategoryColor(item.categoryName);
                             final itemTotal = item.price * qty;
 
                             return Row(
@@ -292,7 +292,7 @@ class CartBottomSheet {
                                           ),
                                         ),
                                       ],
-                                      if (controller.hasAddonsForCategory(item.category)) ...[
+                                      if (controller.hasAddonsForCategory(item.categoryName)) ...[
                                         const SizedBox(height: 4),
                                         if (!controller.canAddAnyAddon(item.id))
                                           Container(

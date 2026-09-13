@@ -32,7 +32,7 @@ class MenuItemCard extends StatelessWidget {
 
     final itemColor = item.colorHex != null
         ? Color(item.colorHex!)
-        : getCategoryColor(item.category);
+        : getCategoryColor(item.categoryName);
 
     return InkWell(
       key: ValueKey(item.id),

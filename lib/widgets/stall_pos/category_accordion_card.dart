@@ -5,6 +5,7 @@ import '../../data/models/stall_models.dart';
 /// Collapsible accordion card representing a menu category in the POS register.
 class CategoryAccordionCard extends StatelessWidget {
   final String catName;
+  final String? displayName;
   final List<MenuItem> items;
   final bool isExpanded;
   final VoidCallback onToggle;
@@ -16,6 +17,7 @@ class CategoryAccordionCard extends StatelessWidget {
   const CategoryAccordionCard({
     super.key,
     required this.catName,
+    this.displayName,
     required this.items,
     required this.isExpanded,
     required this.onToggle,
@@ -73,7 +75,9 @@ class CategoryAccordionCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          catName,
+                          (displayName != null && displayName!.trim().isNotEmpty)
+                              ? displayName!.trim()
+                              : catName,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
