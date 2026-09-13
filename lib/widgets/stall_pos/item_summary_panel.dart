@@ -112,8 +112,16 @@ class ItemSummaryPanel extends StatelessWidget {
                             ),
                           ),
                           ...item.tickets.map((t) {
+                            final tooltipNote = [
+                              'Order #${t.token}',
+                              if (t.isParcel) 'Parcel',
+                              if (t.orderNotes != null && t.orderNotes!.trim().isNotEmpty)
+                                'Note: ${t.orderNotes!.trim()}',
+                              'Tap to mark done',
+                            ].join(' • ');
+
                             return Tooltip(
-                              message: 'Tap to mark done for Order #${t.token}',
+                              message: tooltipNote,
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
@@ -141,14 +149,18 @@ class ItemSummaryPanel extends StatelessWidget {
                                       vertical: 3,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.surfaceContainerHighest,
+                                      color: t.isParcel
+                                          ? Colors.purple.shade50
+                                          : Theme.of(
+                                              context,
+                                            ).colorScheme.surfaceContainerHighest,
                                       borderRadius: BorderRadius.circular(6),
                                       border: Border.all(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.outlineVariant.withAlpha(100),
+                                        color: t.isParcel
+                                            ? Colors.purple.shade200
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.outlineVariant.withAlpha(100),
                                       ),
                                     ),
                                     child: Row(
@@ -161,10 +173,11 @@ class ItemSummaryPanel extends StatelessWidget {
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          '#${t.token} (${t.quantity})',
-                                          style: const TextStyle(
+                                          '#${t.token}${t.isParcel ? ' 📦' : ''} (${t.quantity})',
+                                          style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.bold,
+                                            color: t.isParcel ? Colors.purple.shade900 : null,
                                           ),
                                         ),
                                       ],

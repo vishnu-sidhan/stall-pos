@@ -47,9 +47,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          if (_currentIndex != index) {
+            ScaffoldMessenger.of(context).clearSnackBars();
+            setState(() {
+              _currentIndex = index;
+            });
+          }
         },
         destinations: const [
           NavigationDestination(

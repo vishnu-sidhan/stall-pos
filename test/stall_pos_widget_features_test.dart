@@ -411,6 +411,54 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Completion SnackBar dismisses automatically and on tab switch',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
+      await tester.pumpAndSettle();
+
+      // Switch to Active Orders tab
+      await tester.tap(find.text('Active Orders'));
+      await tester.pumpAndSettle();
+
+      // Order #101 has 1 item. Complete it to trigger toast with UNDO action
+      await tester.tap(find.byKey(const ValueKey('order_101_item_item_1')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Order #101 marked completed!'), findsOneWidget);
+
+      // Switching to POS / Register tab immediately clears the snackbar
+      await tester.tap(find.text('POS / Register'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Order #101 marked completed!'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Completion SnackBar dismisses automatically after timeout without tab switch',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
+      await tester.pumpAndSettle();
+
+      // Switch to Active Orders tab
+      await tester.tap(find.text('Active Orders'));
+      await tester.pumpAndSettle();
+
+      // Order #101 has 1 item. Complete it to trigger toast with UNDO action
+      await tester.tap(find.byKey(const ValueKey('order_101_item_item_1')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Order #101 marked completed!'), findsOneWidget);
+
+      // Wait 3.5 seconds for duration to expire
+      await tester.pump(const Duration(milliseconds: 3500));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Order #101 marked completed!'), findsNothing);
+    },
+  );
+
   testWidgets('Theme toggle switches between Light and Dark mode', (
     WidgetTester tester,
   ) async {
@@ -1256,5 +1304,91 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'Parcel toggle, predefined notes quick-add, and display in active orders and item summary',
+    (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      SharedPreferences.setMockInitialValues({
+        'stall_menu': jsonEncode([
+          {
+            'id': 'item_roll',
+            'name': 'Paneer Roll',
+            'price': 100.0,
+            'category': 'Snacks',
+          },
+        ]),
+        'stall_orders': jsonEncode([]),
+        'stall_next_token': 201,
+      });
+
+      await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
+      await tester.pumpAndSettle();
+
+      // 1. Check default predefined note chips are rendered
+      expect(find.text('Less Spicy'), findsWidgets);
+      expect(find.text('Pack Separately'), findsWidgets);
+
+      // 2. Add custom predefined note via '+ Note'
+      await tester.drag(find.text('Less Spicy'), const Offset(-300, 0));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('+ Note'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New Predefined Note'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).last, 'No Onion');
+      await tester.tap(find.text('Save & Apply'));
+      await tester.pumpAndSettle();
+
+      // The new note chip should now be rendered and applied
+      expect(find.text('No Onion'), findsWidgets);
+
+      // 3. Toggle Dine In to Parcel
+      await tester.tap(find.text('Parcel'));
+      await tester.pumpAndSettle();
+
+      // 4. Tap 'Less Spicy' chip to toggle it on too
+      await tester.tap(find.text('Less Spicy'));
+      await tester.pumpAndSettle();
+
+      // 5. Add Paneer Roll to cart
+      await tester.tap(find.text('Paneer Roll (Snacks)'));
+      await tester.pumpAndSettle();
+
+      // 6. Punch order
+      await tester.tap(find.text('PUNCH ORDER (#201) • ₹100'));
+      await tester.pumpAndSettle();
+
+      // 7. Switch to Active Orders tab
+      await tester.tap(find.text('Active Orders'));
+      await tester.pumpAndSettle();
+
+      // Check Active Orders tab has order card with PARCEL badge and Note banner
+      expect(find.text('📦 PARCEL'), findsOneWidget);
+      expect(find.textContaining('No Onion'), findsWidgets);
+      expect(find.textContaining('Less Spicy'), findsWidgets);
+
+      // Confirm Payment on #201 so it enters preparation queue
+      await tester.tap(find.byKey(const ValueKey('confirm_payment_btn_201')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm Payment & Complete'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+
+      // 8. Check Item Summary shows parcel emoji 📦
+      await tester.tap(find.text('Item Summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('#201 📦'), findsOneWidget);
+    },
+  );
 }
+
 

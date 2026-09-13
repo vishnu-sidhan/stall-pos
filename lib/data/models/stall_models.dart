@@ -216,6 +216,8 @@ class StallOrder {
   final Map<String, int> paidItems;
   final Map<String, int> completedItems;
   final Map<String, Map<String, dynamic>> itemSnapshots;
+  final bool isParcel;
+  final String? orderNotes;
 
   StallOrder({
     required this.token,
@@ -232,6 +234,8 @@ class StallOrder {
     this.paidItems = const {},
     this.completedItems = const {},
     this.itemSnapshots = const {},
+    this.isParcel = false,
+    this.orderNotes,
   });
 
   String get displayCustomerName {
@@ -240,6 +244,18 @@ class StallOrder {
     }
     return 'Walk-in Customer';
   }
+
+  /// Whether this order has custom instructions or notes
+  bool get hasNotes => (orderNotes != null && orderNotes!.trim().isNotEmpty);
+
+  /// Human-readable order type label
+  String get orderTypeLabel => isParcel ? 'Parcel' : 'Dine In';
+
+  /// Formatted note including parcel indication and any custom instructions
+  String get effectiveOrderNote => [
+        if (isParcel) 'Parcel',
+        if (hasNotes) orderNotes!.trim(),
+      ].join(' • ');
 
   /// Balance amount remaining to be paid
   double get remainingDue => (total - paidAmount) > 0 ? (total - paidAmount) : 0.0;
@@ -320,6 +336,9 @@ class StallOrder {
     Map<String, int>? paidItems,
     Map<String, int>? completedItems,
     Map<String, Map<String, dynamic>>? itemSnapshots,
+    bool? isParcel,
+    String? orderNotes,
+    bool clearOrderNotes = false,
   }) {
     return StallOrder(
       token: token ?? this.token,
@@ -336,6 +355,8 @@ class StallOrder {
       paidItems: paidItems ?? this.paidItems,
       completedItems: completedItems ?? this.completedItems,
       itemSnapshots: itemSnapshots ?? this.itemSnapshots,
+      isParcel: isParcel ?? this.isParcel,
+      orderNotes: clearOrderNotes ? null : (orderNotes ?? this.orderNotes),
     );
   }
 
@@ -354,6 +375,8 @@ class StallOrder {
         'paidItems': paidItems,
         if (completedItems.isNotEmpty) 'completedItems': completedItems,
         if (itemSnapshots.isNotEmpty) 'itemSnapshots': itemSnapshots,
+        if (isParcel) 'isParcel': isParcel,
+        if (orderNotes != null) 'orderNotes': orderNotes,
       };
 
   factory StallOrder.fromJson(Map<String, dynamic> map) {
@@ -418,6 +441,8 @@ class StallOrder {
       paidItems: parsedPaidItems,
       completedItems: parsedCompletedItems,
       itemSnapshots: parsedSnapshots,
+      isParcel: map['isParcel'] == true,
+      orderNotes: map['orderNotes']?.toString() ?? map['notes']?.toString(),
     );
   }
 }
@@ -429,10 +454,14 @@ typedef Order = StallOrder;
 class OrderTicketQuantity {
   final int token;
   final int quantity;
+  final bool isParcel;
+  final String? orderNotes;
 
   const OrderTicketQuantity({
     required this.token,
     required this.quantity,
+    this.isParcel = false,
+    this.orderNotes,
   });
 }
 

@@ -44,4 +44,10 @@ abstract class StallStorage {
 
   /// Persists category configurations.
   Future<void> saveCategories(List<ItemCategory> categories) async {}
+
+  /// Loads predefined quick notes for orders.
+  Future<List<String>> loadPredefinedNotes() async => const [];
+
+  /// Persists predefined quick notes for orders.
+  Future<void> savePredefinedNotes(List<String> notes) async {}
 }

@@ -358,4 +358,24 @@ class ConfigurableRemoteStorage implements StallStorage {
       await fallbackStorage.saveCategories(categories);
     }
   }
+
+  List<String>? _cachedPredefinedNotes;
+
+  @override
+  Future<List<String>> loadPredefinedNotes() async {
+    if (_cachedPredefinedNotes != null) return _cachedPredefinedNotes!;
+    if (enableOfflineCache) {
+      _cachedPredefinedNotes = await fallbackStorage.loadPredefinedNotes();
+      return _cachedPredefinedNotes!;
+    }
+    return [];
+  }
+
+  @override
+  Future<void> savePredefinedNotes(List<String> notes) async {
+    _cachedPredefinedNotes = List.from(notes);
+    if (enableOfflineCache) {
+      await fallbackStorage.savePredefinedNotes(notes);
+    }
+  }
 }

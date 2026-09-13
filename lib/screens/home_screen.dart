@@ -90,6 +90,8 @@ class HomeScreen extends StatelessWidget {
         content: Text('Deleted "${deletedCounter.title}"'),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        persist: false,
+        duration: const Duration(seconds: 4),
         action: SnackBarAction(
           label: 'UNDO',
           textColor: Theme.of(context).colorScheme.primary,

@@ -39,6 +39,8 @@ class _StallPosScreenState extends State<StallPosScreen>
   late TabController _mobileTabController;
   late TabController _desktopTabController;
   final TextEditingController _customerNameController = TextEditingController();
+  final TextEditingController _orderNotesController = TextEditingController();
+  bool _isParcel = false;
   final Set<String> _collapsedCategories = <String>{};
 
   @override
@@ -58,6 +60,26 @@ class _StallPosScreenState extends State<StallPosScreen>
 
     _mobileTabController = TabController(length: 3, vsync: this);
     _desktopTabController = TabController(length: 2, vsync: this);
+    _mobileTabController.addListener(_onTabChanged);
+    _desktopTabController.addListener(_onTabChanged);
+  }
+
+  int _lastMobileTabIndex = 0;
+  int _lastDesktopTabIndex = 0;
+
+  void _onTabChanged() {
+    if (_mobileTabController.index != _lastMobileTabIndex) {
+      _lastMobileTabIndex = _mobileTabController.index;
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+    }
+    if (_desktopTabController.index != _lastDesktopTabIndex) {
+      _lastDesktopTabIndex = _desktopTabController.index;
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+    }
   }
 
   @override
@@ -66,9 +88,12 @@ class _StallPosScreenState extends State<StallPosScreen>
     if (_internalController) {
       _controller.dispose();
     }
+    _mobileTabController.removeListener(_onTabChanged);
+    _desktopTabController.removeListener(_onTabChanged);
     _mobileTabController.dispose();
     _desktopTabController.dispose();
     _customerNameController.dispose();
+    _orderNotesController.dispose();
     super.dispose();
   }
 
@@ -147,7 +172,7 @@ class _StallPosScreenState extends State<StallPosScreen>
     if (item.effectiveIsAddon) {
       final baseItems = _controller.cartBaseItems;
       if (baseItems.isEmpty) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -169,7 +194,7 @@ class _StallPosScreenState extends State<StallPosScreen>
         final targetCatName = item.linkedCategory?.isNotEmpty == true
             ? item.linkedCategory!
             : item.categoryName;
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -194,7 +219,7 @@ class _StallPosScreenState extends State<StallPosScreen>
       }).toList();
 
       if (eligibleBaseItems.isEmpty) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -220,7 +245,7 @@ class _StallPosScreenState extends State<StallPosScreen>
         targetCartItemId: target.id,
         addon: item,
       );
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Added [${item.name}] to ${target.displayName}'),
@@ -258,19 +283,215 @@ class _StallPosScreenState extends State<StallPosScreen>
       onCheckout: () => _fireOrder(),
       onClearCart: _clearCart,
       onPayAndPunch: () => _fireOrder(immediatePayment: true),
+      customerNameController: _customerNameController,
+      orderNotesController: _orderNotesController,
+      isParcel: _isParcel,
+      onParcelChanged: (val) => setState(() => _isParcel = val),
+      onAddPredefinedNote: _showAddPredefinedNoteDialog,
     );
   }
-
-
 
   void _clearCart() {
     _controller.clearCart();
     _customerNameController.clear();
+    _orderNotesController.clear();
+    setState(() {
+      _isParcel = false;
+    });
   }
 
   void _cancelEdit() {
     _controller.cancelEditing();
     _customerNameController.clear();
+    _orderNotesController.clear();
+    setState(() {
+      _isParcel = false;
+    });
+  }
+
+  void _showCustomNoteDialog() {
+    final noteController = TextEditingController(text: _orderNotesController.text);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.notes_rounded),
+            SizedBox(width: 8),
+            Text('Order Notes'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Add instructions or special requests for this order:',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteController,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                hintText: 'e.g. Less spicy, pack separately...',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              onSubmitted: (val) {
+                _orderNotesController.text = val.trim();
+                setState(() {});
+                Navigator.pop(ctx);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          if (_orderNotesController.text.isNotEmpty)
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              onPressed: () {
+                _orderNotesController.clear();
+                setState(() {});
+                Navigator.pop(ctx);
+              },
+              child: const Text('Clear Note'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              _orderNotesController.text = noteController.text.trim();
+              setState(() {});
+              Navigator.pop(ctx);
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddPredefinedNoteDialog() {
+    final noteController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.playlist_add_rounded),
+            SizedBox(width: 8),
+            Text('New Predefined Note'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Add a quick note that will appear in suggestion chips for fast checkout:',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteController,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                hintText: 'e.g. Extra Chutney, No Sugar',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              onSubmitted: (val) {
+                final text = val.trim();
+                if (text.isNotEmpty) {
+                  _controller.addPredefinedNote(text);
+                  _appendQuickNote(text);
+                  Navigator.pop(ctx);
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = noteController.text.trim();
+              if (text.isNotEmpty) {
+                _controller.addPredefinedNote(text);
+                _appendQuickNote(text);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Save & Apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeletePredefinedNoteDialog(String note) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Quick Note?'),
+        content: Text('Do you want to remove "$note" from predefined quick notes?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () {
+              _controller.removePredefinedNote(note);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _appendQuickNote(String note) {
+    final current = _orderNotesController.text.trim();
+    if (current.isEmpty) {
+      _orderNotesController.text = note;
+    } else {
+      final parts = current.split(',').map((s) => s.trim()).toList();
+      if (!parts.any((s) => s.toLowerCase() == note.toLowerCase())) {
+        _orderNotesController.text = '$current, $note';
+      }
+    }
+    setState(() {});
+  }
+
+  void _toggleQuickNote(String note) {
+    final current = _orderNotesController.text.trim();
+    final parts = current.isEmpty
+        ? <String>[]
+        : current.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    final exists = parts.any((s) => s.toLowerCase() == note.toLowerCase());
+    if (exists) {
+      parts.removeWhere((s) => s.toLowerCase() == note.toLowerCase());
+      _orderNotesController.text = parts.join(', ');
+    } else {
+      parts.add(note);
+      _orderNotesController.text = parts.join(', ');
+    }
+    setState(() {});
   }
 
   // ---------------------------------------------------------------------------
@@ -282,6 +503,10 @@ class _StallPosScreenState extends State<StallPosScreen>
 
     final isEdit = _controller.isEditing;
     final custName = _customerNameController.text.trim();
+    final orderNotes = _orderNotesController.text.trim().isNotEmpty
+        ? _orderNotesController.text.trim()
+        : null;
+    final isParcel = _isParcel;
 
     HapticFeedback.heavyImpact();
 
@@ -308,8 +533,12 @@ class _StallPosScreenState extends State<StallPosScreen>
         final outcome = await _controller.punchOrUpdateOrder(
           customerName: custName.isNotEmpty ? custName : null,
           isPaid: false,
+          isParcel: isParcel,
+          orderNotes: orderNotes,
         );
         _customerNameController.clear();
+        _orderNotesController.clear();
+        setState(() => _isParcel = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -329,8 +558,12 @@ class _StallPosScreenState extends State<StallPosScreen>
         paidAmount: total,
         paidItems: Map.from(_controller.cart),
         paymentMethod: result.paymentMethod,
+        isParcel: isParcel,
+        orderNotes: orderNotes,
       );
       _customerNameController.clear();
+      _orderNotesController.clear();
+      setState(() => _isParcel = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -385,8 +618,12 @@ class _StallPosScreenState extends State<StallPosScreen>
             paidItems: existingOrder.paidItems.isNotEmpty
                 ? existingOrder.paidItems
                 : existingOrder.items,
+            isParcel: isParcel,
+            orderNotes: orderNotes,
           );
           _customerNameController.clear();
+          _orderNotesController.clear();
+          setState(() => _isParcel = false);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -407,8 +644,12 @@ class _StallPosScreenState extends State<StallPosScreen>
             paidAmount: currentCartTotal,
             paidItems: Map.from(_controller.cart),
             paymentMethod: result.paymentMethod,
+            isParcel: isParcel,
+            orderNotes: orderNotes,
           );
           _customerNameController.clear();
+          _orderNotesController.clear();
+          setState(() => _isParcel = false);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -429,8 +670,12 @@ class _StallPosScreenState extends State<StallPosScreen>
           isPaid: true,
           paidAmount: currentCartTotal,
           paidItems: Map.from(_controller.cart),
+          isParcel: isParcel,
+          orderNotes: orderNotes,
         );
         _customerNameController.clear();
+        _orderNotesController.clear();
+        setState(() => _isParcel = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -449,9 +694,13 @@ class _StallPosScreenState extends State<StallPosScreen>
     final outcome = await _controller.punchOrUpdateOrder(
       customerName: custName.isNotEmpty ? custName : null,
       isPaid: isEdit ? null : false,
+      isParcel: isParcel,
+      orderNotes: orderNotes,
     );
 
     _customerNameController.clear();
+    _orderNotesController.clear();
+    setState(() => _isParcel = false);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -493,33 +742,52 @@ class _StallPosScreenState extends State<StallPosScreen>
           content: Text(
             'Payment confirmed for Order #${order.token} via ${result.paymentMethod}!',
           ),
-          behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
   }
 
   void _editOrder(StallOrder order) {
+    if (_controller.isEditing) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Already editing Order #${_controller.editingOrderId}. Finish or cancel before editing another.',
+          ),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          persist: false,
+          action: SnackBarAction(
+            label: 'Cancel Current',
+            onPressed: _cancelEdit,
+          ),
+        ),
+      );
+      return;
+    }
+
     if (_controller.cart.isNotEmpty) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Discard Current Cart?'),
-          content: Text(
-            'You have items in your current cart. Editing Order #${order.token} will replace your current cart.',
+          content: const Text(
+            'You have unpunched items in your cart. Starting to edit this order will replace your current cart.',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
+              child: const Text('Keep Current Cart'),
             ),
             FilledButton(
               onPressed: () {
                 Navigator.pop(ctx);
                 _performEditOrder(order);
               },
-              child: const Text('Discard & Edit'),
+              child: const Text('Edit Order'),
             ),
           ],
         ),
@@ -532,6 +800,10 @@ class _StallPosScreenState extends State<StallPosScreen>
   void _performEditOrder(StallOrder order) {
     final custName = _controller.startEditingOrder(order);
     _customerNameController.text = custName;
+    _orderNotesController.text = order.orderNotes ?? '';
+    setState(() {
+      _isParcel = order.isParcel;
+    });
     _mobileTabController.index = 0;
     ScaffoldMessenger.of(context).clearSnackBars();
 
@@ -581,7 +853,7 @@ class _StallPosScreenState extends State<StallPosScreen>
   void _completeOrder(int token) {
     HapticFeedback.lightImpact();
     _controller.markOrderCompleted(token);
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Order #$token marked completed!'),
@@ -599,7 +871,7 @@ class _StallPosScreenState extends State<StallPosScreen>
       quantity: quantity,
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -617,6 +889,7 @@ class _StallPosScreenState extends State<StallPosScreen>
             );
           },
         ),
+        persist: false,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
       ),
@@ -627,7 +900,7 @@ class _StallPosScreenState extends State<StallPosScreen>
     HapticFeedback.mediumImpact();
     final completedTokens = await _controller.completeAggregatedItem(itemId);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -650,7 +923,7 @@ class _StallPosScreenState extends State<StallPosScreen>
       );
       if (!mounted) return;
       if (wasOrderCompleted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Order #$token marked completed!'),
@@ -660,6 +933,7 @@ class _StallPosScreenState extends State<StallPosScreen>
                 _controller.uncompleteOrderItem(token: token, itemId: itemId);
               },
             ),
+            persist: false,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 3),
           ),
@@ -1066,37 +1340,39 @@ class _StallPosScreenState extends State<StallPosScreen>
           flex: 6,
           child: _menu.isEmpty
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.restaurant_menu_rounded,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'No menu items yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.restaurant_menu_rounded,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.outline,
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Tap + in the top bar to add your first item',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontSize: 14,
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No menu items yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: _openCsvImport,
-                        icon: const Icon(Icons.upload_file_rounded, size: 18),
-                        label: const Text('Upload CSV Menu'),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tap + in the top bar to add your first item',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        OutlinedButton.icon(
+                          onPressed: _openCsvImport,
+                          icon: const Icon(Icons.file_upload_outlined),
+                          label: const Text('Upload CSV Menu'),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               : grouped.isEmpty
@@ -1119,7 +1395,7 @@ class _StallPosScreenState extends State<StallPosScreen>
 
         // Cart Drawer / Summary
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             boxShadow: [
@@ -1176,24 +1452,139 @@ class _StallPosScreenState extends State<StallPosScreen>
                   ),
                 ),
 
-              // Customer Name Input
+              // Customer Name & Order Mode (Dine In / Parcel)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: TextField(
-                  controller: _customerNameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: InputDecoration(
-                    labelText: 'Customer Name (Optional)',
-                    hintText: 'Customer Name (Optional)',
-                    prefixIcon: const Icon(Icons.person_outline, size: 20),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: TextField(
+                        controller: _customerNameController,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: InputDecoration(
+                          labelText: 'Customer Name (Optional)',
+                          hintText: 'Customer Name (Optional)',
+                          prefixIcon: const Icon(Icons.person_outline, size: 20),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
+                    const SizedBox(width: 8),
+                    SegmentedButton<bool>(
+                      style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      segments: const [
+                        ButtonSegment<bool>(
+                          value: false,
+                          icon: Icon(Icons.restaurant, size: 14),
+                          label: Text('Dine In', style: TextStyle(fontSize: 11)),
+                        ),
+                        ButtonSegment<bool>(
+                          value: true,
+                          icon: Icon(Icons.takeout_dining, size: 14),
+                          label: Text('Parcel', style: TextStyle(fontSize: 11)),
+                        ),
+                      ],
+                      selected: {_isParcel},
+                      onSelectionChanged: (Set<bool> newSelection) {
+                        setState(() {
+                          _isParcel = newSelection.first;
+                        });
+                      },
                     ),
+                  ],
+                ),
+              ),
+
+              // Quick Notes Bar (Custom Note + Predefined Quick Toggle Chips)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: SizedBox(
+                  height: 32,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      if (_orderNotesController.text.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: InputChip(
+                            avatar: const Icon(Icons.sticky_note_2_outlined, size: 14),
+                            label: Text(
+                              _orderNotesController.text,
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            selected: true,
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            onPressed: _showCustomNoteDialog,
+                            onDeleted: () {
+                              _orderNotesController.clear();
+                              setState(() {});
+                            },
+                          ),
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ActionChip(
+                            avatar: const Icon(Icons.note_alt_outlined, size: 14),
+                            label: const Text('Add Note', style: TextStyle(fontSize: 11)),
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            onPressed: _showCustomNoteDialog,
+                          ),
+                        ),
+                      ..._controller.predefinedNotes.map((note) {
+                        final isApplied = _orderNotesController.text
+                            .toLowerCase()
+                            .contains(note.toLowerCase());
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Tooltip(
+                            message: 'Tap to toggle • Long press to remove',
+                            child: GestureDetector(
+                              onLongPress: () => _showDeletePredefinedNoteDialog(note),
+                              child: FilterChip(
+                                label: Text(
+                                  note,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: isApplied ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                                selected: isApplied,
+                                onSelected: (_) => _toggleQuickNote(note),
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                      ActionChip(
+                        avatar: const Icon(Icons.note_add_outlined, size: 14),
+                        label: const Text(
+                          '+ Note',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: _showAddPredefinedNoteDialog,
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                      ),
+                    ],
                   ),
                 ),
               ),

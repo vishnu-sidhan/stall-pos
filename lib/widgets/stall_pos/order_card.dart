@@ -143,73 +143,101 @@ class _OrderCardState extends State<OrderCard> {
                         ],
                       ),
                       const SizedBox(height: 3),
-                      if (isConfirmedPayment)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade100,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            order.hasPartialPayment
-                                ? 'Paid ₹${order.paidAmount.toStringAsFixed(0)} • ${order.paymentMethod ?? 'UPI'}'
-                                : 'Paid • ${order.paymentMethod ?? 'UPI'}',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.green.shade900,
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 3,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (order.isParcel)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.purple.shade50,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: Colors.purple.shade300,
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Text(
+                                '📦 PARCEL',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.purple.shade900,
+                                ),
+                              ),
                             ),
-                          ),
-                        )
-                      else
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade100,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            order.hasPartialPayment
-                                ? '₹${order.remainingDue.toStringAsFixed(0)} Due • Paid ₹${order.paidAmount.toStringAsFixed(0)}'
-                                : 'Payment Pending',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.orange.shade900,
+                          if (isConfirmedPayment)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                order.hasPartialPayment
+                                    ? 'Paid ₹${order.paidAmount.toStringAsFixed(0)} • ${order.paymentMethod ?? 'UPI'}'
+                                    : 'Paid • ${order.paymentMethod ?? 'UPI'}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.green.shade900,
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade100,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                order.hasPartialPayment
+                                    ? '₹${order.remainingDue.toStringAsFixed(0)} Due • Paid ₹${order.paidAmount.toStringAsFixed(0)}'
+                                    : 'Payment Pending',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.orange.shade900,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      if (isConfirmedPayment && order.completedItemsCount > 0) ...[
-                        const SizedBox(height: 3),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: order.isCompleted
-                                ? Colors.green.shade100
-                                : Colors.blue.shade100,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'Ready ${order.completedItemsCount}/${order.totalItemsCount}',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: order.isCompleted
-                                  ? Colors.green.shade900
-                                  : Colors.blue.shade900,
+                          if (isConfirmedPayment && order.completedItemsCount > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: order.isCompleted
+                                    ? Colors.green.shade100
+                                    : Colors.blue.shade100,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'Ready ${order.completedItemsCount}/${order.totalItemsCount}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: order.isCompleted
+                                      ? Colors.green.shade900
+                                      : Colors.blue.shade900,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -228,6 +256,39 @@ class _OrderCardState extends State<OrderCard> {
                 ),
               ],
             ),
+            if (order.hasNotes) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade400, width: 1),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.note_alt_outlined,
+                      size: 15,
+                      color: Colors.amber.shade900,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        order.orderNotes!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.amber.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
 
             // Vertical list of items with categories

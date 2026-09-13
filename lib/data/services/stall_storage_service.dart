@@ -9,6 +9,7 @@ class StallStorageService implements StallStorage {
   static const String _ordersKey = 'stall_orders';
   static const String _tokenKey = 'stall_next_token';
   static const String _categoriesKey = 'stall_categories';
+  static const String _predefinedNotesKey = 'stall_predefined_notes';
 
   final SharedPreferences? _prefs;
 
@@ -201,5 +202,29 @@ class StallStorageService implements StallStorage {
       _categoriesKey,
       jsonEncode(categories.map((e) => e.toJson()).toList()),
     );
+  }
+
+  /// Loads predefined quick notes for orders.
+  @override
+  Future<List<String>> loadPredefinedNotes() async {
+    final prefs = await _getPrefs();
+    final rawList = prefs.getStringList(_predefinedNotesKey);
+    if (rawList != null) return rawList;
+
+    final rawJson = prefs.getString(_predefinedNotesKey);
+    if (rawJson != null) {
+      try {
+        final List decoded = jsonDecode(rawJson) as List;
+        return decoded.map((e) => e.toString()).toList();
+      } catch (_) {}
+    }
+    return [];
+  }
+
+  /// Saves predefined quick notes for orders.
+  @override
+  Future<void> savePredefinedNotes(List<String> notes) async {
+    final prefs = await _getPrefs();
+    await prefs.setStringList(_predefinedNotesKey, notes);
   }
 }

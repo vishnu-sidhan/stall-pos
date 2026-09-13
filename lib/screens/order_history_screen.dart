@@ -127,10 +127,14 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
         final tokenRaw = o.token.toString();
         final custName = o.displayCustomerName.toLowerCase();
         final summary = o.itemsSummary.toLowerCase();
+        final notes = (o.orderNotes ?? '').toLowerCase();
+        final isParcelMatch = o.isParcel && 'parcel'.contains(_searchQuery);
         final match = tokenStr.contains(_searchQuery) ||
             tokenRaw.contains(_searchQuery) ||
             custName.contains(_searchQuery) ||
-            summary.contains(_searchQuery);
+            summary.contains(_searchQuery) ||
+            notes.contains(_searchQuery) ||
+            isParcelMatch;
         if (!match) return false;
       }
 
@@ -608,6 +612,32 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(width: 6),
+                // Parcel / Dine In pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: order.isParcel
+                        ? Colors.purple.shade50
+                        : theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: order.isParcel
+                          ? Colors.purple.shade300
+                          : theme.colorScheme.outlineVariant.withAlpha(120),
+                    ),
+                  ),
+                  child: Text(
+                    order.isParcel ? '📦 Parcel' : '🍽️ Dine In',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: order.isParcel
+                          ? Colors.purple.shade900
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
                 if (durationStr.isNotEmpty) ...[
                   const SizedBox(width: 8),
                   Text(
@@ -660,6 +690,34 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                 ],
               ],
             ),
+            if (order.hasNotes) ...[
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.amber.shade300, width: 0.8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.note_alt_outlined, size: 13, color: Colors.amber.shade900),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        order.orderNotes!,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.amber.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 6),
 
             // Items breakdown

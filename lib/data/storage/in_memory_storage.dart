@@ -10,16 +10,19 @@ class InMemoryStallStorage implements StallStorage {
   List<StallOrder> _orders = [];
   final List<StallOrder> _archivedOrders = [];
   List<ItemCategory> _categories = [];
+  List<String> _predefinedNotes = [];
   int _nextToken = 1;
 
   InMemoryStallStorage({
     List<MenuItem>? initialMenu,
     List<StallOrder>? initialOrders,
     List<ItemCategory>? initialCategories,
+    List<String>? initialPredefinedNotes,
     int initialToken = 1,
   })  : _menu = initialMenu != null ? List.from(initialMenu) : [],
         _orders = initialOrders != null ? List.from(initialOrders) : [],
         _categories = initialCategories != null ? List.from(initialCategories) : [],
+        _predefinedNotes = initialPredefinedNotes != null ? List.from(initialPredefinedNotes) : [],
         _nextToken = initialToken;
 
   @override
@@ -109,6 +112,15 @@ class InMemoryStallStorage implements StallStorage {
   @override
   Future<void> saveCategories(List<ItemCategory> categories) async {
     _categories = List.from(categories);
+  }
+
+  @override
+  Future<List<String>> loadPredefinedNotes() async =>
+      List.unmodifiable(_predefinedNotes);
+
+  @override
+  Future<void> savePredefinedNotes(List<String> notes) async {
+    _predefinedNotes = List.from(notes);
   }
 }
 

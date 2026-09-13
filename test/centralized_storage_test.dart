@@ -194,10 +194,17 @@ class _MockCloudStallStorage implements StallStorage {
   Future<void> clearAllOrders({bool resetToken = false}) async {}
 
   List<ItemCategory> categories = [];
+  List<String> predefinedNotes = [];
 
   @override
   Future<List<ItemCategory>> loadCategories() async => categories;
 
   @override
   Future<void> saveCategories(List<ItemCategory> cats) async => categories = cats;
+
+  @override
+  Future<List<String>> loadPredefinedNotes() async => predefinedNotes;
+
+  @override
+  Future<void> savePredefinedNotes(List<String> notes) async => predefinedNotes = notes;
 }

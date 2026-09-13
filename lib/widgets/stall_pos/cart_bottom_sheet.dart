@@ -14,8 +14,15 @@ class CartBottomSheet {
     required VoidCallback onCheckout,
     required VoidCallback onClearCart,
     VoidCallback? onPayAndPunch,
+    TextEditingController? customerNameController,
+    TextEditingController? orderNotesController,
+    bool isParcel = false,
+    ValueChanged<bool>? onParcelChanged,
+    VoidCallback? onAddPredefinedNote,
   }) {
     if (controller.cart.isEmpty) return;
+
+    bool currentIsParcel = isParcel;
 
     showModalBottomSheet(
       context: context,
@@ -534,6 +541,131 @@ class CartBottomSheet {
                                       ),
                                     ),
                                   ],
+                                ),
+                              ],
+                              const SizedBox(height: 8),
+                              const Divider(height: 1),
+                              const SizedBox(height: 8),
+                            ],
+
+                            // Order Mode (Dine In / Parcel) & Notes in Cart Bottom Sheet
+                            if (onParcelChanged != null || orderNotesController != null) ...[
+                              Row(
+                                children: [
+                                  if (customerNameController != null)
+                                    Expanded(
+                                      child: TextField(
+                                        controller: customerNameController,
+                                        textCapitalization: TextCapitalization.words,
+                                        decoration: InputDecoration(
+                                          hintText: 'Customer Name (Optional)',
+                                          prefixIcon: const Icon(Icons.person_outline, size: 18),
+                                          isDense: true,
+                                          contentPadding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 8,
+                                          ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  if (customerNameController != null && onParcelChanged != null)
+                                    const SizedBox(width: 8),
+                                  if (onParcelChanged != null)
+                                    SegmentedButton<bool>(
+                                      segments: const [
+                                        ButtonSegment<bool>(
+                                          value: false,
+                                          icon: Icon(Icons.restaurant, size: 14),
+                                          label: Text('Dine In', style: TextStyle(fontSize: 11)),
+                                        ),
+                                        ButtonSegment<bool>(
+                                          value: true,
+                                          icon: Icon(Icons.takeout_dining, size: 14),
+                                          label: Text('Parcel', style: TextStyle(fontSize: 11)),
+                                        ),
+                                      ],
+                                      selected: {currentIsParcel},
+                                      onSelectionChanged: (set) {
+                                        currentIsParcel = set.first;
+                                        onParcelChanged(currentIsParcel);
+                                        setSheetState(() {});
+                                      },
+                                    ),
+                                ],
+                              ),
+                              if (orderNotesController != null) ...[
+                                const SizedBox(height: 6),
+                                TextField(
+                                  controller: orderNotesController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Order Notes (e.g. Less spicy, pack separately...)',
+                                    prefixIcon: const Icon(Icons.notes_rounded, size: 18),
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    suffixIcon: orderNotesController.text.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(Icons.clear, size: 16),
+                                            onPressed: () {
+                                              orderNotesController.clear();
+                                              setSheetState(() {});
+                                            },
+                                          )
+                                        : null,
+                                  ),
+                                  onChanged: (_) => setSheetState(() {}),
+                                ),
+                                const SizedBox(height: 6),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      ...controller.predefinedNotes.map((note) {
+                                        final isApplied = orderNotesController.text
+                                            .toLowerCase()
+                                            .contains(note.toLowerCase());
+                                        return Padding(
+                                          padding: const EdgeInsets.only(right: 4),
+                                          child: FilterChip(
+                                            label: Text(note, style: const TextStyle(fontSize: 11)),
+                                            selected: isApplied,
+                                            visualDensity: VisualDensity.compact,
+                                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                                            onSelected: (selected) {
+                                              final current = orderNotesController.text.trim();
+                                              final parts = current.isEmpty
+                                                  ? <String>[]
+                                                  : current.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+                                              if (parts.any((s) => s.toLowerCase() == note.toLowerCase())) {
+                                                parts.removeWhere((s) => s.toLowerCase() == note.toLowerCase());
+                                                orderNotesController.text = parts.join(', ');
+                                              } else {
+                                                parts.add(note);
+                                                orderNotesController.text = parts.join(', ');
+                                              }
+                                              setSheetState(() {});
+                                            },
+                                          ),
+                                        );
+                                      }),
+                                      if (onAddPredefinedNote != null)
+                                        ActionChip(
+                                          avatar: const Icon(Icons.note_add_outlined, size: 14),
+                                          label: const Text('Add Note', style: TextStyle(fontSize: 11)),
+                                          visualDensity: VisualDensity.compact,
+                                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                                          onPressed: onAddPredefinedNote,
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               ],
                               const SizedBox(height: 8),

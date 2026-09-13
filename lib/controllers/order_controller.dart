@@ -9,9 +9,18 @@ import '../data/storage/app_storage.dart';
 class OrderController extends ChangeNotifier {
   final StallStorage _storageService;
 
+  static const List<String> defaultPredefinedNotes = [
+    'Parcel',
+    'Less Spicy',
+    'Extra Spicy',
+    'No Onion/Garlic',
+    'Pack Separately',
+  ];
+
   List<MenuItem> _menu = [];
   List<StallOrder> _orders = [];
   List<ItemCategory> _categoryConfigs = [];
+  List<String> _predefinedNotes = List.from(defaultPredefinedNotes);
   final Map<String, int> _cart = {}; // menuItem.id -> quantity
   int _nextToken = 1;
   int? _editingOrderId;
@@ -29,12 +38,41 @@ class OrderController extends ChangeNotifier {
   List<MenuItem> get menu => List.unmodifiable(_menu);
   List<StallOrder> get orders => List.unmodifiable(_orders);
   List<ItemCategory> get categoryConfigs => List.unmodifiable(_categoryConfigs);
+  List<String> get predefinedNotes => List.unmodifiable(_predefinedNotes);
   Map<String, int> get cart => Map.unmodifiable(_cart);
   int get nextToken => _nextToken;
   int? get editingOrderId => _editingOrderId;
   bool get isEditing => _editingOrderId != null;
+  StallOrder? get editingOrder =>
+      _editingOrderId != null ? _orders.where((o) => o.token == _editingOrderId).firstOrNull : null;
   String get selectedCategory => _selectedCategory;
   StallStorage get storageService => _storageService;
+
+  /// Adds a custom predefined note to the quick list and persists it.
+  Future<void> addPredefinedNote(String note) async {
+    final trimmed = note.trim();
+    if (trimmed.isEmpty) return;
+    if (!_predefinedNotes.any((n) => n.toLowerCase() == trimmed.toLowerCase())) {
+      _predefinedNotes.add(trimmed);
+      await _storageService.savePredefinedNotes(_predefinedNotes);
+      notifyListeners();
+    }
+  }
+
+  /// Removes a predefined note from the quick list and persists the update.
+  Future<void> removePredefinedNote(String note) async {
+    final trimmed = note.trim();
+    _predefinedNotes.removeWhere((n) => n.toLowerCase() == trimmed.toLowerCase());
+    await _storageService.savePredefinedNotes(_predefinedNotes);
+    notifyListeners();
+  }
+
+  /// Resets predefined quick notes to system defaults.
+  Future<void> resetPredefinedNotes() async {
+    _predefinedNotes = List.from(defaultPredefinedNotes);
+    await _storageService.savePredefinedNotes(_predefinedNotes);
+    notifyListeners();
+  }
 
   /// Normalizes category key by trimming segments around '/' slashes to prevent whitespace discrepancies
   /// (e.g. 'Momos /  Fried Momos' -> 'momos / fried momos').
@@ -628,7 +666,14 @@ class OrderController extends ChangeNotifier {
             ),
           );
           acc.totalQty += remainingQty;
-          acc.tickets.add(OrderTicketQuantity(token: order.token, quantity: remainingQty));
+          acc.tickets.add(
+            OrderTicketQuantity(
+              token: order.token,
+              quantity: remainingQty,
+              isParcel: order.isParcel,
+              orderNotes: order.orderNotes,
+            ),
+          );
         });
       } else if (order.isPaid && order.itemsSummary.isNotEmpty) {
         // Fallback parser for legacy or raw summaries: e.g. "3x Masala Chai, 2x Veg Samosa"
@@ -660,7 +705,14 @@ class OrderController extends ChangeNotifier {
               ),
             );
             acc.totalQty += qty;
-            acc.tickets.add(OrderTicketQuantity(token: order.token, quantity: qty));
+            acc.tickets.add(
+              OrderTicketQuantity(
+                token: order.token,
+                quantity: qty,
+                isParcel: order.isParcel,
+                orderNotes: order.orderNotes,
+              ),
+            );
           }
         }
       }
@@ -767,6 +819,12 @@ class OrderController extends ChangeNotifier {
     _orders = List<StallOrder>.from(await _storageService.loadOrders());
     _nextToken = await _storageService.loadNextToken();
     _categoryConfigs = List<ItemCategory>.from(await _storageService.loadCategories());
+    final loadedNotes = await _storageService.loadPredefinedNotes();
+    if (loadedNotes.isNotEmpty) {
+      _predefinedNotes = List<String>.from(loadedNotes);
+    } else {
+      _predefinedNotes = List<String>.from(defaultPredefinedNotes);
+    }
     await _syncCategoriesWithMenu();
     _isLoading = false;
     notifyListeners();
@@ -1261,6 +1319,8 @@ class OrderController extends ChangeNotifier {
     bool? isPaid,
     double? paidAmount,
     Map<String, int>? paidItems,
+    bool isParcel = false,
+    String? orderNotes,
   }) async {
     if (_cart.isEmpty) {
       throw StateError('Cannot punch an empty order');
@@ -1290,6 +1350,10 @@ class OrderController extends ChangeNotifier {
     final cleanCustomerName =
         (customerName != null && customerName.trim().isNotEmpty)
             ? customerName.trim()
+            : null;
+    final cleanOrderNotes =
+        (orderNotes != null && orderNotes.trim().isNotEmpty)
+            ? orderNotes.trim()
             : null;
 
     if (_editingOrderId != null) {
@@ -1366,6 +1430,9 @@ class OrderController extends ChangeNotifier {
           completedItems: updatedCompleted,
           paymentMethod: updatedPaymentMethod,
           itemSnapshots: {...existing.itemSnapshots, ...currentSnapshots},
+          isParcel: isParcel,
+          orderNotes: cleanOrderNotes,
+          clearOrderNotes: cleanOrderNotes == null,
         );
       }
 
@@ -1389,6 +1456,8 @@ class OrderController extends ChangeNotifier {
         paymentMethod: paymentMethod,
         items: Map.from(_cart),
         itemSnapshots: currentSnapshots,
+        isParcel: isParcel,
+        orderNotes: cleanOrderNotes,
       );
 
       _orders.add(newOrder);
