@@ -65,12 +65,15 @@ void main() {
         additionalCost: 5.0,
         costReason: 'Packaging Fee',
         colorHex: 0xFF1D4ED8,
-        isPerItem: true,
         isEnabled: true,
       );
 
       expect(category.costDescription, '+₹5 Packaging Fee');
       expect(category.hasAdditionalCost, isTrue);
+      expect(category.resolvedColorHex, 0xFF1D4ED8);
+      expect(category.color, const Color(0xFF1D4ED8));
+      expect(category.matches('beverages'), isTrue);
+      expect(category.matches('Other'), isFalse);
 
       final json = category.toJson();
       expect(json['id'], 'cat_beverages');

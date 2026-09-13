@@ -33,6 +33,7 @@ class AddEditMenuItemDialog {
     );
     int? selectedColorHex = existingItem?.colorHex;
     bool isAddon = existingItem?.isAddon ?? false;
+    bool isAvailable = existingItem?.isAvailable ?? true;
 
     final existingCategories = categories.where((c) => c != 'All').toList();
     if (!existingCategories.contains('General')) {
@@ -79,6 +80,24 @@ class AddEditMenuItemDialog {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Available for Order',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: const Text(
+                      'When turned off, item is hidden from POS take-order register',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                    value: isAvailable,
+                    onChanged: (val) {
+                      setDialogState(() {
+                        isAvailable = val;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text(
@@ -209,10 +228,10 @@ class AddEditMenuItemDialog {
                           categoryCtrl.text.trim().toLowerCase() ==
                           cat.trim().toLowerCase();
                       final catColor = getCategoryColor(cat);
-                      final catCost = controller.getCategoryCost(cat);
-                      final labelText = catCost > 0
-                          ? '$cat (+₹${catCost.toStringAsFixed(0)})'
-                          : cat;
+                      final catConfig = controller.getCategoryConfig(cat);
+                      final hasCost = catConfig?.hasAdditionalCost == true;
+                      final displayCat = controller.getCategoryDisplayName(cat);
+
                       return ChoiceChip(
                         avatar: Container(
                           width: 8,
@@ -222,16 +241,25 @@ class AddEditMenuItemDialog {
                             shape: BoxShape.circle,
                           ),
                         ),
-                        label: Text(labelText, style: const TextStyle(fontSize: 12)),
+                        label: Text(
+                          hasCost
+                              ? '$displayCat (+₹${catConfig!.additionalCost.toStringAsFixed(catConfig.additionalCost.truncateToDouble() == catConfig.additionalCost ? 0 : 2)})'
+                              : displayCat,
+                          style: const TextStyle(fontSize: 12),
+                        ),
                         selected: isCurrent,
                         selectedColor: catColor.withAlpha(50),
                         side: BorderSide(
-                          color: isCurrent ? catColor : catColor.withAlpha(80),
+                          color: isCurrent ? catColor : Colors.grey.shade300,
+                          width: isCurrent ? 1.5 : 1.0,
                         ),
                         onSelected: (selected) {
                           if (selected) {
                             setDialogState(() {
                               categoryCtrl.text = cat;
+                              if (isAddon && linkedCategoryCtrl.text.trim().isEmpty) {
+                                linkedCategoryCtrl.text = cat;
+                              }
                             });
                           }
                         },
@@ -245,109 +273,111 @@ class AddEditMenuItemDialog {
                     decoration: const InputDecoration(
                       labelText: 'Or enter custom category',
                       hintText: 'e.g. Beverages, Snacks, Dessert',
+                      isDense: true,
                     ),
                     onChanged: (_) => setDialogState(() {}),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      const Text(
-                        'Category & Item Color',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: currentEffectiveColor,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1.5),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        selectedColorHex == null ? 'Auto / Random' : 'Custom',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Item Color Accent',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 8),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: ActionChip(
-                            avatar: Icon(
-                              Icons.auto_awesome,
-                              size: 14,
-                              color: selectedColorHex == null
-                                  ? Theme.of(context).colorScheme.primary
-                                  : null,
-                            ),
-                            label: const Text(
-                              'Auto',
-                              style: TextStyle(fontSize: 11),
-                            ),
-                            backgroundColor: selectedColorHex == null
-                                ? Theme.of(context).colorScheme.primaryContainer
-                                : null,
-                            onPressed: () {
-                              setDialogState(() {
-                                selectedColorHex = null;
-                              });
-                            },
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      ActionChip(
+                        avatar: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: getCategoryColor(effectiveCategory),
+                            shape: BoxShape.circle,
                           ),
                         ),
-                        ...CategoryColorHelper.palette.map((colorVal) {
-                          final isSelected = selectedColorHex == colorVal;
-                          final color = Color(colorVal);
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 3),
-                            child: GestureDetector(
-                              onTap: () {
-                                setDialogState(() {
-                                  selectedColorHex = colorVal;
-                                });
-                              },
-                              child: Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface
-                                        : Colors.transparent,
-                                    width: 2.5,
-                                  ),
-                                ),
-                                child: isSelected
-                                    ? Icon(
-                                        Icons.check,
-                                        size: 16,
-                                        color:
-                                            CategoryColorHelper.getContrastingTextColor(
-                                              color,
-                                            ),
-                                      )
-                                    : null,
+                        label: const Text(
+                          'Use Category Color',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        side: BorderSide(
+                          color: selectedColorHex == null
+                              ? Theme.of(ctx).colorScheme.primary
+                              : Colors.grey.shade300,
+                          width: selectedColorHex == null ? 2 : 1,
+                        ),
+                        onPressed: () {
+                          setDialogState(() => selectedColorHex = null);
+                        },
+                      ),
+                      ...CategoryColorHelper.palette.map((colorVal) {
+                        final isSelected = selectedColorHex == colorVal;
+                        final color = Color(colorVal);
+                        return GestureDetector(
+                          onTap: () {
+                            setDialogState(() => selectedColorHex = colorVal);
+                          },
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected ? Colors.black : Colors.white,
+                                width: isSelected ? 2.5 : 1.5,
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withAlpha(40),
+                                  blurRadius: 3,
+                                ),
+                              ],
                             ),
-                          );
-                        }),
+                            child: isSelected
+                                ? const Icon(
+                                    Icons.check,
+                                    size: 16,
+                                    color: Colors.white,
+                                  )
+                                : null,
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: currentEffectiveColor.withAlpha(25),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: currentEffectiveColor, width: 1.5),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: currentEffectiveColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            nameCtrl.text.trim().isEmpty
+                                ? 'Preview Card Color'
+                                : '${nameCtrl.text.trim()} • ₹${priceCtrl.text.trim().isEmpty ? '0' : priceCtrl.text.trim()}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: currentEffectiveColor,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -362,9 +392,10 @@ class AddEditMenuItemDialog {
               FilledButton(
                 onPressed: () {
                   final name = nameCtrl.text.trim();
-                  final price = double.tryParse(priceCtrl.text.trim()) ?? 0;
-                  var category = categoryCtrl.text.trim();
-                  if (category.isEmpty) category = 'General';
+                  final price = double.tryParse(priceCtrl.text.trim()) ?? 0.0;
+                  final category = categoryCtrl.text.trim().isEmpty
+                      ? 'General'
+                      : categoryCtrl.text.trim();
                   final resolvedColor =
                       selectedColorHex ??
                       resolvedCategoryColors[category] ??
@@ -388,6 +419,7 @@ class AddEditMenuItemDialog {
                           category: catObj,
                           colorHex: resolvedColor,
                           isAddon: isAddon,
+                          isAvailable: isAvailable,
                           linkedCategory: effectiveLinkedCategory,
                           clearLinkedCategory: !isAddon,
                         ),
@@ -401,6 +433,7 @@ class AddEditMenuItemDialog {
                           category: catObj,
                           colorHex: resolvedColor,
                           isAddon: isAddon,
+                          isAvailable: isAvailable,
                           linkedCategory: effectiveLinkedCategory,
                         ),
                       );
@@ -456,6 +489,22 @@ class AddEditMenuItemDialog {
                   ),
                   const SizedBox(width: 6),
                   Text('${item.categoryName} • ₹${item.price.toStringAsFixed(0)}'),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: item.isAvailable ? Colors.green.withAlpha(30) : Colors.red.withAlpha(30),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      item.isAvailable ? 'Available' : 'Unavailable',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: item.isAvailable ? Colors.green.shade800 : Colors.red.shade800,
+                      ),
+                    ),
+                  ),
                 ],
               ),
               trailing: IconButton(
@@ -464,6 +513,29 @@ class AddEditMenuItemDialog {
               ),
             ),
             const Divider(height: 1),
+            ListTile(
+              leading: Icon(
+                item.isAvailable ? Icons.remove_circle_outline : Icons.check_circle_outline,
+                color: item.isAvailable ? Colors.orange : Colors.green,
+              ),
+              title: Text(
+                item.isAvailable ? 'Mark Unavailable Today' : 'Mark Available Today',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: item.isAvailable ? Colors.orange.shade800 : Colors.green.shade800,
+                ),
+              ),
+              subtitle: Text(
+                item.isAvailable
+                    ? 'Hides this item from POS take-order menu'
+                    : 'Restores this item to POS take-order menu',
+                style: const TextStyle(fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                controller.toggleItemAvailability(item.id);
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
               title: const Text('Edit Item Details'),

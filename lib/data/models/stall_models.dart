@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../../theme/category_colors.dart';
 import 'item_category.dart';
 export 'item_category.dart';
@@ -12,6 +13,7 @@ class MenuItem {
   final int? colorHex;
   final bool isAddon;
   final String? linkedCategory;
+  final bool isAvailable;
 
   const MenuItem({
     required this.id,
@@ -21,6 +23,7 @@ class MenuItem {
     this.colorHex,
     this.isAddon = false,
     this.linkedCategory,
+    this.isAvailable = true,
   });
 
   /// Name of the category as a String helper.
@@ -131,6 +134,7 @@ class MenuItem {
     bool? isAddon,
     String? linkedCategory,
     bool clearLinkedCategory = false,
+    bool? isAvailable,
   }) {
     return MenuItem(
       id: id ?? this.id,
@@ -142,6 +146,7 @@ class MenuItem {
       linkedCategory: clearLinkedCategory
           ? null
           : (linkedCategory ?? this.linkedCategory),
+      isAvailable: isAvailable ?? this.isAvailable,
     );
   }
 
@@ -155,6 +160,7 @@ class MenuItem {
         if (isAddon) 'isAddon': isAddon,
         if (linkedCategory != null && linkedCategory!.trim().isNotEmpty)
           'linkedCategory': linkedCategory,
+        'isAvailable': isAvailable,
       };
 
   factory MenuItem.fromJson(Map<String, dynamic> map) {
@@ -197,6 +203,7 @@ class MenuItem {
       colorHex: parsedColor ?? CategoryColorHelper.getColorForCategory(parsedCategory.name),
       isAddon: isAddonExplicit,
       linkedCategory: linkedCategory,
+      isAvailable: map['isAvailable'] != false,
     );
   }
 }
@@ -206,8 +213,8 @@ class StallOrder {
   final String itemsSummary;
   final double total;
   final DateTime timestamp;
-  bool isCompleted;
-  DateTime? completedAt;
+  final bool isCompleted;
+  final DateTime? completedAt;
   final String? customerName;
   final bool isPaid;
   final String? paymentMethod;
@@ -447,9 +454,6 @@ class StallOrder {
   }
 }
 
-/// Alias for StallOrder matching generic requirements
-typedef Order = StallOrder;
-
 /// Ticket contribution to an aggregated item in the consolidated queue
 class OrderTicketQuantity {
   final int token;
@@ -536,5 +540,122 @@ class CartItemBreakdown {
   bool get hasCategoryCost => categoryAdditionalCost > 0;
 
   bool get hasAddons => addonsPrice > 0 || addonDetails.isNotEmpty;
+}
+
+/// Represents a structured order line item with preparation and payment state.
+@immutable
+class OrderLineItem {
+  final String itemId;
+  final String name;
+  final int quantity;
+  final int completedQuantity;
+  final bool isCompletedItem;
+  final String category;
+  final int? colorHex;
+  final String displayName;
+  final bool isPaidItem;
+
+  const OrderLineItem({
+    required this.itemId,
+    required this.name,
+    required this.quantity,
+    this.completedQuantity = 0,
+    this.isCompletedItem = false,
+    required this.category,
+    this.colorHex,
+    required this.displayName,
+    this.isPaidItem = false,
+  });
+
+  /// Pending quantity awaiting preparation.
+  int get pendingQuantity =>
+      (quantity - completedQuantity).clamp(0, quantity);
+
+  /// Whether there are pending items to prepare.
+  bool get hasPending => pendingQuantity > 0;
+
+  /// Whether this line item has been completely prepared.
+  bool get isFullyCompleted => completedQuantity >= quantity;
+
+  OrderLineItem copyWith({
+    String? itemId,
+    String? name,
+    int? quantity,
+    int? completedQuantity,
+    bool? isCompletedItem,
+    String? category,
+    int? colorHex,
+    String? displayName,
+    bool? isPaidItem,
+  }) {
+    return OrderLineItem(
+      itemId: itemId ?? this.itemId,
+      name: name ?? this.name,
+      quantity: quantity ?? this.quantity,
+      completedQuantity: completedQuantity ?? this.completedQuantity,
+      isCompletedItem: isCompletedItem ?? this.isCompletedItem,
+      category: category ?? this.category,
+      colorHex: colorHex ?? this.colorHex,
+      displayName: displayName ?? this.displayName,
+      isPaidItem: isPaidItem ?? this.isPaidItem,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OrderLineItem &&
+          runtimeType == other.runtimeType &&
+          itemId == other.itemId &&
+          name == other.name &&
+          quantity == other.quantity &&
+          completedQuantity == other.completedQuantity &&
+          isCompletedItem == other.isCompletedItem &&
+          category == other.category &&
+          colorHex == other.colorHex &&
+          displayName == other.displayName &&
+          isPaidItem == other.isPaidItem;
+
+  @override
+  int get hashCode => Object.hash(
+        itemId,
+        name,
+        quantity,
+        completedQuantity,
+        isCompletedItem,
+        category,
+        colorHex,
+        displayName,
+        isPaidItem,
+      );
+}
+
+/// Represents an entry in the active shopping cart with quantity and price breakdown.
+@immutable
+class CartLineItem {
+  final MenuItem item;
+  final int quantity;
+  final CartItemBreakdown? breakdown;
+
+  const CartLineItem({
+    required this.item,
+    required this.quantity,
+    this.breakdown,
+  });
+
+  /// Total price for this line (unit price including category surcharges and add-ons multiplied by quantity).
+  double get lineTotal => (breakdown?.totalUnitPrice ?? item.price) * quantity;
+
+  CartLineItem copyWith({
+    MenuItem? item,
+    int? quantity,
+    CartItemBreakdown? breakdown,
+  }) {
+    return CartLineItem(
+      item: item ?? this.item,
+      quantity: quantity ?? this.quantity,
+      breakdown: breakdown ?? this.breakdown,
+    );
+  }
 }
 

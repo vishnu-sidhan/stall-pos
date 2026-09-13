@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../data/helpers/composite_item_helper.dart';
 import '../../data/models/stall_models.dart';
 import '../../theme/category_colors.dart';
 
@@ -23,11 +24,7 @@ class MenuItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inCartQty = cart.entries.where((entry) {
-      final key = entry.key;
-      return key == item.id ||
-          key.startsWith('${item.id}_var_') ||
-          key.startsWith('${item.id}_cat_') ||
-          key.startsWith('${item.id}+');
+      return CompositeItemHelper.isBaseItemMatch(entry.key, item.id);
     }).fold(0, (sum, entry) => sum + entry.value);
 
     final itemColor = item.colorHex != null

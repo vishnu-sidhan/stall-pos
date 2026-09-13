@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import '../controllers/order_controller.dart';
 import '../controllers/theme_controller.dart';
 import '../data/models/stall_models.dart';
-import '../theme/category_colors.dart';
 import '../widgets/csv_import_dialog.dart';
 import '../widgets/payment_confirmation_dialog.dart';
 import '../widgets/stall_pos/stall_pos_widgets.dart';
@@ -107,53 +106,14 @@ class _StallPosScreenState extends State<StallPosScreen>
 
   List<String> get _categories => _controller.categories;
   List<MenuItem> get _menu => _controller.menu;
-  Map<String, int> get _cart => _controller.cart;
 
-  Map<String, int> get _resolvedCategoryColors {
-    final result = <String, int>{};
-    final usedColors = <int>{};
-    final allCategories = _categories.where((c) => c != 'All').toList();
-
-    for (final cat in allCategories) {
-      final normalized = cat.trim().toLowerCase();
-      for (final m in _menu) {
-        if (m.categoryName.trim().toLowerCase() == normalized &&
-            m.colorHex != null) {
-          if (!usedColors.contains(m.colorHex!)) {
-            result[cat] = m.colorHex!;
-            usedColors.add(m.colorHex!);
-            break;
-          }
-        }
-      }
-    }
-
-    for (final cat in allCategories) {
-      if (!result.containsKey(cat)) {
-        final uniqueColor = CategoryColorHelper.getUniqueColor(
-          categoryName: cat,
-          usedColors: usedColors,
-        );
-        result[cat] = uniqueColor;
-        usedColors.add(uniqueColor);
-      }
-    }
-
-    return result;
-  }
+  Map<String, int> get _resolvedCategoryColors => _controller.resolvedCategoryColors;
 
   Color _getCategoryColor(String category) {
-    if (category == 'All') {
-      return Theme.of(context).colorScheme.primary;
-    }
-    final map = _resolvedCategoryColors;
-    final hex =
-        map[category] ??
-        CategoryColorHelper.getUniqueColor(
-          categoryName: category,
-          usedColors: map.values.toSet(),
-        );
-    return Color(hex);
+    return _controller.getCategoryColor(
+      category,
+      defaultColor: Theme.of(context).colorScheme.primary,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -817,36 +777,10 @@ class _StallPosScreenState extends State<StallPosScreen>
   }
 
   void _confirmDeleteOrder(int token) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete Order #$token?'),
-        content: Text('Delete Order #$token? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _controller.deleteOrder(token);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Order #$token deleted.'),
-                  behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    DeleteOrderDialog.show(
+      context,
+      orderToken: token,
+      onConfirm: () => _controller.deleteOrder(token),
     );
   }
 
@@ -1083,6 +1017,19 @@ class _StallPosScreenState extends State<StallPosScreen>
             constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             onPressed: _openManageCategoriesDialog,
           ),
+          IconButton(
+            key: const ValueKey('daily_availability_appbar_btn'),
+            icon: const Icon(Icons.checklist_rounded),
+            tooltip: 'Daily Menu Availability',
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            onPressed: () => DailyMenuAvailabilityDialog.show(
+              context,
+              controller: _controller,
+              getCategoryColor: _getCategoryColor,
+            ),
+          ),
           ListenableBuilder(
             listenable: ThemeController.instance,
             builder: (context, _) {
@@ -1193,33 +1140,12 @@ class _StallPosScreenState extends State<StallPosScreen>
     );
   }
 
-  Widget _buildMenuItemCard(MenuItem item) {
-    return MenuItemCard(
-      item: item,
-      cart: _cart,
+  Widget _buildTakeOrderPanel() {
+    return TakeOrderPanel(
+      controller: _controller,
       getCategoryColor: _getCategoryColor,
-      onTap: () => _handleMenuItemTap(item),
-      onLongPress: () => _showItemOptionsBottomSheet(item),
-    );
-  }
-
-  Widget _buildCategoryAccordionCard(String category, List<MenuItem> items) {
-    final catConfig = _controller.getCategoryConfig(category);
-    final displayName = _controller.getCategoryDisplayName(category);
-
-    return CategoryAccordionCard(
-      catName: category,
-      displayName: displayName,
-      items: items,
-      isExpanded: !_collapsedCategories.contains(category),
-      costDescription: catConfig?.costDescription,
-      onConfigure: () => CategoryConfigDialog.show(
-        context,
-        categoryName: category,
-        controller: _controller,
-        getCategoryColor: _getCategoryColor,
-      ),
-      onToggle: () {
+      collapsedCategories: _collapsedCategories,
+      onToggleCategoryCollapse: (category) {
         setState(() {
           if (_collapsedCategories.contains(category)) {
             _collapsedCategories.remove(category);
@@ -1228,569 +1154,26 @@ class _StallPosScreenState extends State<StallPosScreen>
           }
         });
       },
-      getCategoryColor: _getCategoryColor,
-      itemCardBuilder: (item) => _buildMenuItemCard(item),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // 1. TAKE ORDER PANEL (MENU CARDS + EXPANDABLE ACCORDIONS + CART DRAWER)
-  // ---------------------------------------------------------------------------
-
-  Widget _buildTakeOrderPanel() {
-    final categories = _categories;
-    final grouped = _controller.groupedMenu;
-
-    return Column(
-      children: [
-        // Category Filter Bar
-        if (_menu.isNotEmpty && categories.length > 1)
-          Container(
-            height: 54,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: categories.length + 1,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
-              itemBuilder: (context, i) {
-                if (i == categories.length) {
-                  return ActionChip(
-                    avatar: Icon(
-                      Icons.tune_rounded,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    label: const Text(
-                      'Manage Categories',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                    tooltip: 'Manage Category Options & Surcharges',
-                    onPressed: _openManageCategoriesDialog,
-                  );
-                }
-
-                final cat = categories[i];
-                final isSelected = _controller.selectedCategory == cat;
-                final catColor = _getCategoryColor(cat);
-                final catConfig = _controller.getCategoryConfig(cat);
-                final hasCost = catConfig?.hasAdditionalCost == true;
-                final displayCat = cat == 'All' ? 'All' : _controller.getCategoryDisplayName(cat);
-
-                return Tooltip(
-                  message: cat == 'All'
-                      ? 'Show all items'
-                      : (hasCost
-                          ? '$displayCat • ${catConfig!.costDescription} (Long press to edit)'
-                          : '$displayCat (Long press to edit surcharge)'),
-                  child: GestureDetector(
-                    onLongPress: cat == 'All'
-                        ? null
-                        : () => CategoryConfigDialog.show(
-                              context,
-                              categoryName: cat,
-                              controller: _controller,
-                              getCategoryColor: _getCategoryColor,
-                            ),
-                    child: ChoiceChip(
-                      avatar: cat == 'All'
-                          ? null
-                          : Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: catColor,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                      label: Text(
-                        hasCost
-                            ? '$displayCat (+₹${catConfig!.additionalCost.toStringAsFixed(catConfig.additionalCost.truncateToDouble() == catConfig.additionalCost ? 0 : 2)})'
-                            : displayCat,
-                        style: TextStyle(
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.w600,
-                          fontSize: 14,
-                          color: isSelected ? catColor : null,
-                        ),
-                      ),
-                      selected: isSelected,
-                      selectedColor: catColor.withAlpha(45),
-                      side: BorderSide(
-                        color: isSelected ? catColor : catColor.withAlpha(90),
-                        width: isSelected ? 1.8 : 1,
-                      ),
-                      onSelected: (selected) {
-                        if (selected) {
-                          _controller.selectCategory(cat);
-                        }
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-
-        // Menu item list with Expandable Accordion Categories
-        Expanded(
-          flex: 6,
-          child: _menu.isEmpty
-              ? Center(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.restaurant_menu_rounded,
-                          size: 64,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'No menu items yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Tap + in the top bar to add your first item',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        OutlinedButton.icon(
-                          onPressed: _openCsvImport,
-                          icon: const Icon(Icons.file_upload_outlined),
-                          label: const Text('Upload CSV Menu'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : grouped.isEmpty
-              ? Center(
-                  child: Text(
-                    'No items in category "${_controller.selectedCategory}"',
-                    style: const TextStyle(color: Colors.grey, fontSize: 15),
-                  ),
-                )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: grouped.entries.map((entry) {
-                      return _buildCategoryAccordionCard(entry.key, entry.value);
-                    }).toList(),
-                  ),
-                ),
-        ),
-
-        // Cart Drawer / Summary
-        Container(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(20),
-                blurRadius: 8,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Active Editing Banner
-              if (_controller.isEditing)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.amber.shade700),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.edit_note_rounded,
-                        size: 20,
-                        color: Colors.amber.shade900,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Editing Order #${_controller.editingOrderId}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.amber.shade900,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: _cancelEdit,
-                        style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                        ),
-                        child: const Text('Cancel Edit'),
-                      ),
-                    ],
-                  ),
-                ),
-
-              // Customer Name & Order Mode (Dine In / Parcel)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: _customerNameController,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: InputDecoration(
-                          labelText: 'Customer Name (Optional)',
-                          hintText: 'Customer Name (Optional)',
-                          prefixIcon: const Icon(Icons.person_outline, size: 20),
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SegmentedButton<bool>(
-                      style: const ButtonStyle(
-                        visualDensity: VisualDensity.compact,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      segments: const [
-                        ButtonSegment<bool>(
-                          value: false,
-                          icon: Icon(Icons.restaurant, size: 14),
-                          label: Text('Dine In', style: TextStyle(fontSize: 11)),
-                        ),
-                        ButtonSegment<bool>(
-                          value: true,
-                          icon: Icon(Icons.takeout_dining, size: 14),
-                          label: Text('Parcel', style: TextStyle(fontSize: 11)),
-                        ),
-                      ],
-                      selected: {_isParcel},
-                      onSelectionChanged: (Set<bool> newSelection) {
-                        setState(() {
-                          _isParcel = newSelection.first;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              // Quick Notes Bar (Custom Note + Predefined Quick Toggle Chips)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: SizedBox(
-                  height: 32,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      if (_orderNotesController.text.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: InputChip(
-                            avatar: const Icon(Icons.sticky_note_2_outlined, size: 14),
-                            label: Text(
-                              _orderNotesController.text,
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            selected: true,
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            onPressed: _showCustomNoteDialog,
-                            onDeleted: () {
-                              _orderNotesController.clear();
-                              setState(() {});
-                            },
-                          ),
-                        )
-                      else
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: ActionChip(
-                            avatar: const Icon(Icons.note_alt_outlined, size: 14),
-                            label: const Text('Add Note', style: TextStyle(fontSize: 11)),
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            onPressed: _showCustomNoteDialog,
-                          ),
-                        ),
-                      ..._controller.predefinedNotes.map((note) {
-                        final isApplied = _orderNotesController.text
-                            .toLowerCase()
-                            .contains(note.toLowerCase());
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: Tooltip(
-                            message: 'Tap to toggle • Long press to remove',
-                            child: GestureDetector(
-                              onLongPress: () => _showDeletePredefinedNoteDialog(note),
-                              child: FilterChip(
-                                label: Text(
-                                  note,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: isApplied ? FontWeight.bold : FontWeight.normal,
-                                  ),
-                                ),
-                                selected: isApplied,
-                                onSelected: (_) => _toggleQuickNote(note),
-                                visualDensity: VisualDensity.compact,
-                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                      ActionChip(
-                        avatar: const Icon(Icons.note_add_outlined, size: 14),
-                        label: const Text(
-                          '+ Note',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                        ),
-                        onPressed: _showAddPredefinedNoteDialog,
-                        visualDensity: VisualDensity.compact,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Cart Items Bar (taps to open bottomsheet)
-              if (_cart.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: InkWell(
-                    onTap: _showCartBottomSheet,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outlineVariant,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.shopping_cart_outlined,
-                            size: 20,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Items in Cart (${_controller.cartItemCount})',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                Text(
-                                  _cart.entries
-                                      .map((e) {
-                                        final item = _controller.findItem(e.key);
-                                        return '${e.value}x ${item.displayName}';
-                                      })
-                                      .join(', '),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton.tonalIcon(
-                            onPressed: _showCartBottomSheet,
-                            icon: const Icon(
-                              Icons.expand_less_rounded,
-                              size: 18,
-                            ),
-                            label: const Text(
-                              'View Cart',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                            style: FilledButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          TextButton(
-                            onPressed: _clearCart,
-                            style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                            ),
-                            child: const Text('Clear'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 8),
-
-              // Order Confirmation Action Buttons: Side-by-Side (Pay & Punch + Punch Order)
-              if (!_controller.isEditing)
-                Row(
-                  children: [
-                    // 1-Step Pay & Punch Button
-                    Expanded(
-                      child: SizedBox(
-                        height: 52,
-                        child: FilledButton.icon(
-                          onPressed: _cart.isNotEmpty ? () => _fireOrder(immediatePayment: true) : null,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.blue.shade700,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                          ),
-                          icon: const Icon(
-                            Icons.payment_rounded,
-                            size: 20,
-                          ),
-                          label: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              _cart.isEmpty
-                                  ? 'PAY & PUNCH (1-STEP)'
-                                  : 'PAY & PUNCH (#${_controller.nextToken}) • ₹${_controller.cartTotal.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Punch Order (Pay Later) Button
-                    Expanded(
-                      child: SizedBox(
-                        height: 52,
-                        child: FilledButton.icon(
-                          onPressed: _cart.isNotEmpty ? () => _fireOrder() : null,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.green.shade700,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                          ),
-                          icon: const Icon(
-                            Icons.bolt,
-                            size: 22,
-                          ),
-                          label: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              _cart.isEmpty
-                                  ? 'TAP ITEMS TO START (#${_controller.nextToken})'
-                                  : 'PUNCH ORDER (#${_controller.nextToken}) • ₹${_controller.cartTotal.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-              else
-                // Primary Update Button when editing
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton.icon(
-                    onPressed: _cart.isNotEmpty ? () => _fireOrder() : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.orange.shade800,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(
-                      Icons.update_rounded,
-                      size: 26,
-                    ),
-                    label: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        _cart.isEmpty
-                            ? 'TAP ITEMS TO UPDATE (#${_controller.editingOrderId})'
-                            : 'Update Order #${_controller.editingOrderId} • ₹${_controller.cartTotal.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
+      customerNameController: _customerNameController,
+      orderNotesController: _orderNotesController,
+      isParcel: _isParcel,
+      onParcelChanged: (val) {
+        setState(() {
+          _isParcel = val;
+        });
+      },
+      onOpenManageCategories: _openManageCategoriesDialog,
+      onOpenCsvImport: _openCsvImport,
+      onCancelEdit: _cancelEdit,
+      onShowCustomNoteDialog: _showCustomNoteDialog,
+      onToggleQuickNote: _toggleQuickNote,
+      onDeletePredefinedNote: _showDeletePredefinedNoteDialog,
+      onAddPredefinedNote: _showAddPredefinedNoteDialog,
+      onShowCartBottomSheet: _showCartBottomSheet,
+      onClearCart: _clearCart,
+      onFireOrder: ({bool immediatePayment = false}) => _fireOrder(immediatePayment: immediatePayment),
+      onMenuItemTap: _handleMenuItemTap,
+      onMenuItemLongPress: _showItemOptionsBottomSheet,
     );
   }
 

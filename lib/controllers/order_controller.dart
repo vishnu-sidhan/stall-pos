@@ -1,13 +1,16 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import '../data/helpers/composite_item_helper.dart';
 import '../data/models/stall_models.dart';
 import '../data/storage/stall_storage.dart';
 import '../data/storage/app_storage.dart';
+import '../theme/category_colors.dart';
 
 /// State controller for Stall POS operations:
 /// managing menu catalog, active cart, orders queue, in-place order editing,
 /// deletion, and reactive aggregated kitchen preparations.
 class OrderController extends ChangeNotifier {
   final StallStorage _storageService;
+  Map<String, int>? _cachedCategoryColors;
 
   static const List<String> defaultPredefinedNotes = [
     'Parcel',
@@ -36,10 +39,21 @@ class OrderController extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
   List<MenuItem> get menu => List.unmodifiable(_menu);
+  List<MenuItem> get availableMenu =>
+      List.unmodifiable(_menu.where((m) => m.isAvailable));
   List<StallOrder> get orders => List.unmodifiable(_orders);
   List<ItemCategory> get categoryConfigs => List.unmodifiable(_categoryConfigs);
   List<String> get predefinedNotes => List.unmodifiable(_predefinedNotes);
   Map<String, int> get cart => Map.unmodifiable(_cart);
+  List<CartLineItem> get cartLines => _cart.entries.map((e) {
+        final item = findItem(e.key);
+        final breakdown = getCartItemBreakdown(e.key);
+        return CartLineItem(
+          item: item,
+          quantity: e.value,
+          breakdown: breakdown,
+        );
+      }).toList();
   int get nextToken => _nextToken;
   int? get editingOrderId => _editingOrderId;
   bool get isEditing => _editingOrderId != null;
@@ -47,6 +61,62 @@ class OrderController extends ChangeNotifier {
       _editingOrderId != null ? _orders.where((o) => o.token == _editingOrderId).firstOrNull : null;
   String get selectedCategory => _selectedCategory;
   StallStorage get storageService => _storageService;
+
+  /// Returns cached or dynamically resolved category colors.
+  Map<String, int> get resolvedCategoryColors {
+    if (_cachedCategoryColors != null) return _cachedCategoryColors!;
+
+    final result = <String, int>{};
+    final usedColors = <int>{};
+    final allCategories = categories.where((c) => c != 'All').toList();
+
+    for (final cat in allCategories) {
+      final normalized = cat.trim().toLowerCase();
+      final config = _categoryConfigs.where((c) => c.matches(cat)).firstOrNull;
+      if (config != null && config.colorHex != null) {
+        result[cat] = config.colorHex!;
+        usedColors.add(config.colorHex!);
+        continue;
+      }
+      for (final m in _menu) {
+        if (m.categoryName.trim().toLowerCase() == normalized && m.colorHex != null) {
+          if (!usedColors.contains(m.colorHex!)) {
+            result[cat] = m.colorHex!;
+            usedColors.add(m.colorHex!);
+            break;
+          }
+        }
+      }
+    }
+
+    for (final cat in allCategories) {
+      if (!result.containsKey(cat)) {
+        final uniqueColor = CategoryColorHelper.getUniqueColor(
+          categoryName: cat,
+          usedColors: usedColors,
+        );
+        result[cat] = uniqueColor;
+        usedColors.add(uniqueColor);
+      }
+    }
+
+    _cachedCategoryColors = result;
+    return result;
+  }
+
+  /// Returns the resolved [Color] for [category].
+  Color getCategoryColor(String category, {Color? defaultColor}) {
+    if (category == 'All') {
+      return defaultColor ?? const Color(0xFF1D4ED8);
+    }
+    final hex = resolvedCategoryColors[category] ??
+        CategoryColorHelper.getColorForCategory(category);
+    return Color(hex);
+  }
+
+  void _invalidateCategoryColors() {
+    _cachedCategoryColors = null;
+  }
 
   /// Adds a custom predefined note to the quick list and persists it.
   Future<void> addPredefinedNote(String note) async {
@@ -326,16 +396,16 @@ class OrderController extends ChangeNotifier {
   }
 
   /// Returns all menu add-ons applicable to the given [category].
-  List<MenuItem> getAddonsForCategory(String category) {
+  List<MenuItem> getAddonsForCategory(String category, {bool onlyAvailable = true}) {
     return _menu
-        .where((m) => m.effectiveIsAddon && m.isApplicableToCategory(category))
+        .where((m) => (!onlyAvailable || m.isAvailable) && m.effectiveIsAddon && m.isApplicableToCategory(category))
         .toList();
   }
 
   /// Whether there are any add-ons available for the given [category].
-  bool hasAddonsForCategory(String category) {
+  bool hasAddonsForCategory(String category, {bool onlyAvailable = true}) {
     return _menu
-        .any((m) => m.effectiveIsAddon && m.isApplicableToCategory(category));
+        .any((m) => (!onlyAvailable || m.isAvailable) && m.effectiveIsAddon && m.isApplicableToCategory(category));
   }
 
   /// Checks if the specified add-on can be added to the cart item without exceeding maxPerAddonItem
@@ -607,8 +677,20 @@ class OrderController extends ChangeNotifier {
     return set.toList();
   }
 
-  /// Filtered menu based on selected category chip.
+  /// Filtered menu of items available for today based on selected category chip.
   List<MenuItem> get filteredMenu {
+    final list = _selectedCategory == 'All'
+        ? _menu.where((m) => m.isAvailable).toList()
+        : _menu
+            .where((m) =>
+                m.isAvailable &&
+                m.categoryName.trim().toLowerCase() == _selectedCategory.toLowerCase())
+            .toList();
+    return list.map(_hydrateMenuItemCategory).toList();
+  }
+
+  /// All menu items including unavailable ones, filtered by category.
+  List<MenuItem> get allFilteredMenu {
     final list = _selectedCategory == 'All'
         ? _menu
         : _menu
@@ -618,7 +700,7 @@ class OrderController extends ChangeNotifier {
     return list.map(_hydrateMenuItemCategory).toList();
   }
 
-  /// Menu items grouped by category for expandable accordion rendering.
+  /// Menu items available for today grouped by category for POS accordion rendering.
   Map<String, List<MenuItem>> get groupedMenu {
     final map = <String, List<MenuItem>>{};
     final items = filteredMenu;
@@ -626,6 +708,17 @@ class OrderController extends ChangeNotifier {
       final cat =
           item.categoryName.trim().isEmpty ? 'General' : item.categoryName.trim();
       map.putIfAbsent(cat, () => []).add(item);
+    }
+    return map;
+  }
+
+  /// All menu items grouped by category (for daily menu availability management).
+  Map<String, List<MenuItem>> get allGroupedMenu {
+    final map = <String, List<MenuItem>>{};
+    for (final item in _menu) {
+      final cat =
+          item.categoryName.trim().isEmpty ? 'General' : item.categoryName.trim();
+      map.putIfAbsent(cat, () => []).add(_hydrateMenuItemCategory(item));
     }
     return map;
   }
@@ -737,10 +830,8 @@ class OrderController extends ChangeNotifier {
 
   /// Extracts individual items with their corresponding category and color for an order.
   /// If [customItems] is provided, extracts details for that subset of items instead of [order.items].
-  List<({String itemId, String name, int quantity, int completedQuantity, bool isCompletedItem, String category, int? colorHex, String displayName, bool isPaidItem})>
-      getOrderItemsWithCategory(StallOrder order, {Map<String, int>? customItems}) {
-    final result =
-        <({String itemId, String name, int quantity, int completedQuantity, bool isCompletedItem, String category, int? colorHex, String displayName, bool isPaidItem})>[];
+  List<OrderLineItem> getOrderItemsWithCategory(StallOrder order, {Map<String, int>? customItems}) {
+    final result = <OrderLineItem>[];
 
     final targetItems = customItems ?? order.items;
     if (targetItems.isNotEmpty) {
@@ -759,7 +850,7 @@ class OrderController extends ChangeNotifier {
         final colorHex = (snapshot?['colorHex'] as num?)?.toInt() ?? item.colorHex;
         final isPaidItem = order.isPaid || ((order.paidItems[itemId] ?? 0) >= qty);
         final completedQty = order.getCompletedQuantity(itemId);
-        result.add((
+        result.add(OrderLineItem(
           itemId: itemId,
           name: name,
           quantity: qty,
@@ -790,7 +881,7 @@ class OrderController extends ChangeNotifier {
           );
           final itemId = item.id.isNotEmpty ? item.id : name;
           final completedQty = order.getCompletedQuantity(itemId);
-          result.add((
+          result.add(OrderLineItem(
             itemId: itemId,
             name: name,
             quantity: qty,
@@ -913,6 +1004,7 @@ class OrderController extends ChangeNotifier {
     }
 
     if (modified) {
+      _invalidateCategoryColors();
       await _storageService.saveCategories(_categoryConfigs);
     }
   }
@@ -952,6 +1044,7 @@ class OrderController extends ChangeNotifier {
       }
     }
 
+    _invalidateCategoryColors();
     await _storageService.saveCategories(_categoryConfigs);
     notifyListeners();
   }
@@ -1674,6 +1767,7 @@ class OrderController extends ChangeNotifier {
 
   Future<void> addMenuItem(MenuItem item) async {
     _menu.add(item);
+    _invalidateCategoryColors();
     await _syncCategoriesWithMenu();
     await _saveState();
     notifyListeners();
@@ -1683,6 +1777,7 @@ class OrderController extends ChangeNotifier {
     final idx = _menu.indexWhere((m) => m.id == updated.id);
     if (idx != -1) {
       _menu[idx] = updated;
+      _invalidateCategoryColors();
       await _syncCategoriesWithMenu();
       await _saveState();
       notifyListeners();
@@ -1691,15 +1786,12 @@ class OrderController extends ChangeNotifier {
 
   Future<void> deleteMenuItem(String id) async {
     _menu.removeWhere((m) => m.id == id);
-    _cart.removeWhere((cartId, _) =>
-        cartId == id ||
-        cartId.startsWith('$id+') ||
-        cartId.contains('+$id') ||
-        cartId.startsWith('${id}_var_'));
+    _cart.removeWhere((cartId, _) => CompositeItemHelper.isBaseItemMatch(cartId, id));
     if (_selectedCategory != 'All' &&
         !_menu.any((m) => m.categoryName == _selectedCategory)) {
       _selectedCategory = 'All';
     }
+    _invalidateCategoryColors();
     await _saveState();
     notifyListeners();
   }
@@ -1712,9 +1804,63 @@ class OrderController extends ChangeNotifier {
     } else {
       _menu.addAll(newMenu);
     }
+    _invalidateCategoryColors();
     await _syncCategoriesWithMenu();
     await _saveState();
     notifyListeners();
+  }
+
+  /// Toggles availability of a menu item for today and persists it.
+  Future<void> toggleItemAvailability(String id) async {
+    final index = _menu.indexWhere((m) => m.id == id);
+    if (index == -1) return;
+    final current = _menu[index];
+    _menu[index] = current.copyWith(isAvailable: !current.isAvailable);
+    await _storageService.saveMenu(_menu);
+    notifyListeners();
+  }
+
+  /// Sets availability of a menu item for today and persists it.
+  Future<void> setItemAvailability(String id, bool isAvailable) async {
+    final index = _menu.indexWhere((m) => m.id == id);
+    if (index == -1) return;
+    if (_menu[index].isAvailable == isAvailable) return;
+    _menu[index] = _menu[index].copyWith(isAvailable: isAvailable);
+    await _storageService.saveMenu(_menu);
+    notifyListeners();
+  }
+
+  /// Sets availability for all items in a category for today and persists it.
+  Future<void> setCategoryAvailability(String category, bool isAvailable) async {
+    bool modified = false;
+    final norm = category.trim().toLowerCase();
+    for (int i = 0; i < _menu.length; i++) {
+      if (_menu[i].categoryName.trim().toLowerCase() == norm) {
+        if (_menu[i].isAvailable != isAvailable) {
+          _menu[i] = _menu[i].copyWith(isAvailable: isAvailable);
+          modified = true;
+        }
+      }
+    }
+    if (modified) {
+      await _storageService.saveMenu(_menu);
+      notifyListeners();
+    }
+  }
+
+  /// Bulk sets availability for all items across the entire menu.
+  Future<void> setAllItemsAvailability(bool isAvailable) async {
+    bool modified = false;
+    for (int i = 0; i < _menu.length; i++) {
+      if (_menu[i].isAvailable != isAvailable) {
+        _menu[i] = _menu[i].copyWith(isAvailable: isAvailable);
+        modified = true;
+      }
+    }
+    if (modified) {
+      await _storageService.saveMenu(_menu);
+      notifyListeners();
+    }
   }
 }
 

@@ -5,6 +5,7 @@ import '../data/models/stall_models.dart';
 import '../data/storage/stall_storage.dart';
 import '../data/storage/app_storage.dart';
 import '../services/csv_export_service.dart';
+import '../widgets/stall_pos/delete_order_dialog.dart';
 
 enum OrderHistoryFilter { all, completed, pending, fullyPaid, partial, unpaid }
 enum OrderDateRangeFilter { allTime, today, yesterday, last7Days }
@@ -501,45 +502,20 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   }
 
   void _confirmDeleteOrder(int token) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete Order #$token?'),
-        content: Text('Delete Order #$token? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              if (widget.controller != null) {
-                await widget.controller!.deleteOrder(token);
-              } else {
-                final allOrders = await _effectiveStorageService.loadOrders();
-                allOrders.removeWhere((o) => o.token == token);
-                await _effectiveStorageService.saveOrders(allOrders);
-                await _loadOrders();
-              }
-              widget.onOrdersChanged?.call();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Order #$token deleted.'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    DeleteOrderDialog.show(
+      context,
+      orderToken: token,
+      onConfirm: () async {
+        if (widget.controller != null) {
+          await widget.controller!.deleteOrder(token);
+        } else {
+          final allOrders = await _effectiveStorageService.loadOrders();
+          allOrders.removeWhere((o) => o.token == token);
+          await _effectiveStorageService.saveOrders(allOrders);
+          await _loadOrders();
+        }
+        widget.onOrdersChanged?.call();
+      },
     );
   }
 
