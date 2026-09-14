@@ -1,26 +1,48 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../theme/category_colors.dart';
+import 'model_contracts.dart';
+export 'model_contracts.dart';
 
-/// Represents an individual category option / variant within a category
-/// (e.g., 'Steam', 'Fried', 'Pan Fried' for Momos, or 'Veg', 'Chicken' for Rice/Noodles).
+/// Represents an individual category option / variant within a category or menu item
+/// (e.g., 'Steam', 'Fried', 'Pan Fried' for Momos, or 'Regular', 'Large' for Drinks).
 @immutable
-class CategoryOption {
+class CategoryOption with DietaryAware implements IdentifiableEntity {
+  @override
   final String id;
   final String name;
   final double additionalCost;
+  final double? price;
   final bool isEnabled;
+  @override
+  final ItemDietaryType? dietaryType;
 
   const CategoryOption({
     required this.id,
     required this.name,
     this.additionalCost = 0.0,
+    this.price,
     this.isEnabled = true,
+    this.dietaryType,
   });
 
-  /// Formatted helper describing the extra charge if active and > 0, e.g. "+₹10".
+  @override
+  String get displayName => name;
+
+  /// Alias for item-level availability.
+  bool get isAvailable => isEnabled;
+
+  /// Formatted helper describing the price differential or explicit price.
+  /// e.g. "₹150" if explicit price is set, or "+₹10" if additionalCost > 0.
   String get costBadge {
-    if (!isEnabled || additionalCost <= 0) return '';
+    if (!isEnabled) return '';
+    if (price != null && price! > 0) {
+      final formatted = price!.toStringAsFixed(
+        price!.truncateToDouble() == price! ? 0 : 2,
+      );
+      return '₹$formatted';
+    }
+    if (additionalCost <= 0) return '';
     final formatted = additionalCost.toStringAsFixed(
       additionalCost.truncateToDouble() == additionalCost ? 0 : 2,
     );
@@ -31,13 +53,20 @@ class CategoryOption {
     String? id,
     String? name,
     double? additionalCost,
+    double? price,
+    bool clearPrice = false,
     bool? isEnabled,
+    bool? isAvailable,
+    ItemDietaryType? dietaryType,
+    bool clearDietaryType = false,
   }) {
     return CategoryOption(
       id: id ?? this.id,
       name: name ?? this.name,
       additionalCost: additionalCost ?? this.additionalCost,
-      isEnabled: isEnabled ?? this.isEnabled,
+      price: clearPrice ? null : (price ?? this.price),
+      isEnabled: isEnabled ?? isAvailable ?? this.isEnabled,
+      dietaryType: clearDietaryType ? null : (dietaryType ?? this.dietaryType),
     );
   }
 
@@ -45,15 +74,32 @@ class CategoryOption {
         'id': id,
         'name': name,
         'additionalCost': additionalCost,
+        if (price != null) 'price': price,
         'isEnabled': isEnabled,
+        'isAvailable': isEnabled,
+        'is_available': isEnabled,
+        if (dietaryType != null && dietaryType != ItemDietaryType.none)
+          'dietaryType': dietaryType!.code,
       };
 
   factory CategoryOption.fromJson(Map<String, dynamic> map) {
+    final explicitPrice = (map['price'] as num?)?.toDouble();
+    final addCost = (map['additionalCost'] as num?)?.toDouble() ?? 0.0;
+    final enabled = map['isEnabled'] != false &&
+        map['isAvailable'] != false &&
+        map['is_available'] != false;
+    final dietary = ItemDietaryType.fromString(
+      map['dietaryType']?.toString() ??
+          map['dietary_type']?.toString() ??
+          map['diet']?.toString(),
+    );
     return CategoryOption(
       id: map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
-      additionalCost: (map['additionalCost'] as num?)?.toDouble() ?? 0.0,
-      isEnabled: map['isEnabled'] != false,
+      additionalCost: addCost,
+      price: explicitPrice,
+      isEnabled: enabled,
+      dietaryType: dietary != ItemDietaryType.none ? dietary : null,
     );
   }
 
@@ -65,34 +111,44 @@ class CategoryOption {
           id == other.id &&
           name.trim().toLowerCase() == other.name.trim().toLowerCase() &&
           additionalCost == other.additionalCost &&
-          isEnabled == other.isEnabled;
+          price == other.price &&
+          isEnabled == other.isEnabled &&
+          dietaryType == other.dietaryType;
 
   @override
   int get hashCode => Object.hash(
         id,
         name.trim().toLowerCase(),
         additionalCost,
+        price,
         isEnabled,
+        dietaryType,
       );
 
   @override
-  String toString() =>
-      'CategoryOption(name: $name, cost: $additionalCost, enabled: $isEnabled)';
+  String toString() {
+    if (price != null) {
+      return 'CategoryOption(name: $name, price: $price, enabled: $isEnabled, dietary: $dietaryType)';
+    }
+    return 'CategoryOption(name: $name, cost: $additionalCost, enabled: $isEnabled, dietary: $dietaryType)';
+  }
 }
 
 /// Represents a menu item category and its surcharge / additional cost rules
 /// (e.g., container charge, takeaway packaging fee, or multi-category options).
 @immutable
-class ItemCategory {
+class ItemCategory with ColorThemed implements IdentifiableEntity {
   static const general = ItemCategory(id: 'cat_general', name: 'General');
 
+  @override
   final String id;
   final String name;
-  final String? displayName;
   final double additionalCost;
   final String? costReason;
+  @override
   final int? colorHex;
   final bool isEnabled;
+  final bool isAddonCategory;
 
   /// Specific sub-category options with individual charges
   /// (e.g., 'Steam': ₹0, 'Fried': ₹10, 'Pan Fried': ₹20).
@@ -101,43 +157,44 @@ class ItemCategory {
   const ItemCategory({
     required this.id,
     required this.name,
-    this.displayName,
     this.additionalCost = 0.0,
     this.costReason,
     this.colorHex,
     this.isEnabled = true,
+    this.isAddonCategory = false,
     this.options = const [],
   });
 
+  @override
+  String get displayName => name;
+
   /// Factory helper for instantiating an [ItemCategory] from a simple name string.
-  factory ItemCategory.named(String name, {String? displayName, int? colorHex}) {
+  factory ItemCategory.named(String name, {int? colorHex, bool isAddonCategory = false}) {
     final trimmed = name.trim();
     if (trimmed.isEmpty || trimmed.toLowerCase() == 'general') {
-      if ((displayName != null && displayName.trim().isNotEmpty) || colorHex != null) {
-        return ItemCategory.general.copyWith(displayName: displayName, colorHex: colorHex);
+      if (colorHex != null || isAddonCategory) {
+        return ItemCategory.general.copyWith(
+          colorHex: colorHex,
+          isAddonCategory: isAddonCategory,
+        );
       }
       return ItemCategory.general;
     }
     return ItemCategory(
       id: 'cat_${trimmed.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
       name: trimmed,
-      displayName: displayName,
       colorHex: colorHex,
+      isAddonCategory: isAddonCategory,
     );
   }
 
-  /// Short display name for POS screen cards, headings, and brackets.
-  /// Falls back to [name] if [displayName] is not explicitly set.
-  String get effectiveDisplayName =>
-      (displayName != null && displayName!.trim().isNotEmpty)
-          ? displayName!.trim()
-          : name.trim();
-
   /// Effective hex color value for this category, falling back to dynamic palette color.
+  @override
   int get resolvedColorHex =>
-      colorHex ?? CategoryColorHelper.getColorForCategory(name);
+      colorHex ?? CategoryColorHelper.getColorForCategory(displayName);
 
   /// Resolved Material Color for chips, cards, and badges.
+  @override
   Color get color => Color(resolvedColorHex);
 
   /// Checks whether this category matches [otherName], ignoring case and surrounding whitespace.
@@ -223,24 +280,23 @@ class ItemCategory {
   ItemCategory copyWith({
     String? id,
     String? name,
-    String? displayName,
-    bool clearDisplayName = false,
     double? additionalCost,
     String? costReason,
     bool clearCostReason = false,
     int? colorHex,
     bool clearColor = false,
     bool? isEnabled,
+    bool? isAddonCategory,
     List<CategoryOption>? options,
   }) {
     return ItemCategory(
       id: id ?? this.id,
       name: name ?? this.name,
-      displayName: clearDisplayName ? null : (displayName ?? this.displayName),
       additionalCost: additionalCost ?? this.additionalCost,
       costReason: clearCostReason ? null : (costReason ?? this.costReason),
       colorHex: clearColor ? null : (colorHex ?? this.colorHex),
       isEnabled: isEnabled ?? this.isEnabled,
+      isAddonCategory: isAddonCategory ?? this.isAddonCategory,
       options: options ?? this.options,
     );
   }
@@ -248,13 +304,12 @@ class ItemCategory {
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
-        if (displayName != null && displayName!.trim().isNotEmpty)
-          'displayName': displayName!.trim(),
         'additionalCost': additionalCost,
         if (costReason != null && costReason!.trim().isNotEmpty)
           'costReason': costReason!.trim(),
         if (colorHex != null) 'colorHex': colorHex,
         'isEnabled': isEnabled,
+        if (isAddonCategory) 'isAddonCategory': isAddonCategory,
         if (options.isNotEmpty)
           'options': options.map((o) => o.toJson()).toList(),
       };
@@ -263,15 +318,13 @@ class ItemCategory {
     return ItemCategory(
       id: map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
-      displayName: map['displayName']?.toString().trim().isNotEmpty == true
-          ? map['displayName'].toString().trim()
-          : null,
       additionalCost: (map['additionalCost'] as num?)?.toDouble() ?? 0.0,
       costReason: map['costReason']?.toString().trim().isNotEmpty == true
           ? map['costReason'].toString().trim()
           : null,
       colorHex: (map['colorHex'] as num?)?.toInt(),
       isEnabled: map['isEnabled'] != false,
+      isAddonCategory: map['isAddonCategory'] == true || map['is_addon_category'] == true,
       options: (map['options'] as List<dynamic>?)
               ?.map((e) =>
                   CategoryOption.fromJson(Map<String, dynamic>.from(e as Map)))
@@ -287,26 +340,27 @@ class ItemCategory {
           runtimeType == other.runtimeType &&
           id == other.id &&
           name.toLowerCase().trim() == other.name.toLowerCase().trim() &&
-          displayName == other.displayName &&
           additionalCost == other.additionalCost &&
           costReason == other.costReason &&
           colorHex == other.colorHex &&
           isEnabled == other.isEnabled &&
+          isAddonCategory == other.isAddonCategory &&
           listEquals(options, other.options);
 
   @override
   int get hashCode => Object.hash(
         id,
         name.toLowerCase().trim(),
-        displayName,
         additionalCost,
         costReason,
         colorHex,
         isEnabled,
+        isAddonCategory,
         Object.hashAll(options),
       );
 
   @override
   String toString() =>
-      'ItemCategory(id: $id, name: $name, displayName: $displayName, options: ${options.length}, additionalCost: $additionalCost, reason: $costReason)';
+      'ItemCategory(id: $id, name: $name, options: ${options.length}, additionalCost: $additionalCost, isAddonCategory: $isAddonCategory)';
 }
+

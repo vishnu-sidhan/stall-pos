@@ -3,6 +3,7 @@ import '../../controllers/order_controller.dart';
 import '../../data/models/stall_models.dart';
 import '../../theme/category_colors.dart';
 import 'category_config_dialog.dart';
+import 'dietary_symbol.dart';
 
 /// Modal dialog for adding or editing menu items.
 class AddEditMenuItemDialog {
@@ -34,6 +35,10 @@ class AddEditMenuItemDialog {
     int? selectedColorHex = existingItem?.colorHex;
     bool isAddon = existingItem?.isAddon ?? false;
     bool isAvailable = existingItem?.isAvailable ?? true;
+    final variants = List<CategoryOption>.from(existingItem?.variants ?? const []);
+    ItemDietaryType? selectedDietary = existingItem?.dietaryType;
+    final newVariantNameCtrl = TextEditingController();
+    final newVariantPriceCtrl = TextEditingController();
 
     final existingCategories = categories.where((c) => c != 'All').toList();
     if (!existingCategories.contains('General')) {
@@ -66,6 +71,7 @@ class AddEditMenuItemDialog {
                       labelText: 'Item Name *',
                       hintText: 'e.g. Masala Chai, Veg Roll',
                     ),
+                    onChanged: (_) => setDialogState(() {}),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -78,6 +84,254 @@ class AddEditMenuItemDialog {
                       hintText: 'e.g. 50',
                       prefixText: '₹ ',
                     ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Dietary Preference',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Active: ',
+                            style: TextStyle(fontSize: 11, color: Colors.grey),
+                          ),
+                          DietarySymbol(
+                            type: selectedDietary ??
+                                ItemDietaryType.infer(
+                                  name: nameCtrl.text.trim(),
+                                  category: effectiveCategory,
+                                ),
+                            size: 13,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            (selectedDietary ??
+                                    ItemDietaryType.infer(
+                                      name: nameCtrl.text.trim(),
+                                      category: effectiveCategory,
+                                    ))
+                                .label,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: (selectedDietary ??
+                                      ItemDietaryType.infer(
+                                        name: nameCtrl.text.trim(),
+                                        category: effectiveCategory,
+                                      ))
+                                  .color,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      ChoiceChip(
+                        avatar: const Icon(Icons.auto_awesome, size: 14),
+                        label: Text(
+                          'Auto (${ItemDietaryType.infer(name: nameCtrl.text.trim(), category: effectiveCategory).label})',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        selected: selectedDietary == null,
+                        onSelected: (selected) {
+                          setDialogState(() => selectedDietary = null);
+                        },
+                      ),
+                      ChoiceChip(
+                        avatar: const DietarySymbol(
+                          type: ItemDietaryType.veg,
+                          size: 11,
+                        ),
+                        label: const Text('Veg', style: TextStyle(fontSize: 11)),
+                        selected: selectedDietary == ItemDietaryType.veg,
+                        selectedColor: Colors.green.withAlpha(40),
+                        onSelected: (selected) {
+                          setDialogState(
+                            () => selectedDietary =
+                                selected ? ItemDietaryType.veg : null,
+                          );
+                        },
+                      ),
+                      ChoiceChip(
+                        avatar: const DietarySymbol(
+                          type: ItemDietaryType.nonVeg,
+                          size: 11,
+                        ),
+                        label: const Text(
+                          'Non-Veg',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                        selected: selectedDietary == ItemDietaryType.nonVeg,
+                        selectedColor: Colors.red.withAlpha(40),
+                        onSelected: (selected) {
+                          setDialogState(
+                            () => selectedDietary =
+                                selected ? ItemDietaryType.nonVeg : null,
+                          );
+                        },
+                      ),
+                      ChoiceChip(
+                        avatar: const DietarySymbol(
+                          type: ItemDietaryType.egg,
+                          size: 11,
+                        ),
+                        label: const Text('Egg', style: TextStyle(fontSize: 11)),
+                        selected: selectedDietary == ItemDietaryType.egg,
+                        selectedColor: Colors.amber.withAlpha(40),
+                        onSelected: (selected) {
+                          setDialogState(
+                            () => selectedDietary =
+                                selected ? ItemDietaryType.egg : null,
+                          );
+                        },
+                      ),
+                      ChoiceChip(
+                        label: const Text('None', style: TextStyle(fontSize: 11)),
+                        selected: selectedDietary == ItemDietaryType.none,
+                        onSelected: (selected) {
+                          setDialogState(
+                            () => selectedDietary =
+                                selected ? ItemDietaryType.none : null,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Variants / Options (Optional)',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      if (variants.isNotEmpty)
+                        Text(
+                          '${variants.length} variant(s)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Add size or portion options with optional price overrides (e.g. Small ₹30, Large ₹50).',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  if (variants.isNotEmpty) ...[
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: variants.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final v = entry.value;
+                        final priceStr = v.price != null
+                            ? ' • ₹${v.price!.toStringAsFixed(v.price!.truncateToDouble() == v.price! ? 0 : 2)}'
+                            : '';
+                        return InputChip(
+                          visualDensity: VisualDensity.compact,
+                          avatar: Icon(
+                            v.isEnabled ? Icons.check_circle : Icons.remove_circle_outline,
+                            size: 14,
+                            color: v.isEnabled ? Colors.green : Colors.red,
+                          ),
+                          label: Text(
+                            '${v.name}$priceStr${v.isEnabled ? '' : ' (Disabled)'}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              decoration: v.isEnabled ? null : TextDecoration.lineThrough,
+                              color: v.isEnabled ? null : Colors.grey,
+                            ),
+                          ),
+                          tooltip: v.isEnabled ? 'Tap to disable variant' : 'Tap to enable variant',
+                          onPressed: () {
+                            setDialogState(() {
+                              variants[idx] = v.copyWith(isEnabled: !v.isEnabled);
+                            });
+                          },
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          onDeleted: () {
+                            setDialogState(() {
+                              variants.removeAt(idx);
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: newVariantNameCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Variant Name',
+                            hintText: 'e.g. Half, Full',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: newVariantPriceCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Price override',
+                            hintText: 'Optional',
+                            prefixText: '₹ ',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      IconButton.filledTonal(
+                        icon: const Icon(Icons.add, size: 18),
+                        tooltip: 'Add Variant',
+                        onPressed: () {
+                          final vName = newVariantNameCtrl.text.trim();
+                          if (vName.isNotEmpty) {
+                            final vPrice = double.tryParse(newVariantPriceCtrl.text.trim());
+                            setDialogState(() {
+                              variants.add(
+                                CategoryOption(
+                                  id: 'var_${DateTime.now().millisecondsSinceEpoch}_${variants.length}',
+                                  name: vName,
+                                  price: vPrice,
+                                  isEnabled: true,
+                                ),
+                              );
+                              newVariantNameCtrl.clear();
+                              newVariantPriceCtrl.clear();
+                            });
+                          }
+                        },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   SwitchListTile(
@@ -367,6 +621,15 @@ class AddEditMenuItemDialog {
                           ),
                         ),
                         const SizedBox(width: 8),
+                        DietarySymbol(
+                          type: selectedDietary ??
+                              ItemDietaryType.infer(
+                                name: nameCtrl.text.trim(),
+                                category: effectiveCategory,
+                              ),
+                          size: 13,
+                        ),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             nameCtrl.text.trim().isEmpty
@@ -422,6 +685,9 @@ class AddEditMenuItemDialog {
                           isAvailable: isAvailable,
                           linkedCategory: effectiveLinkedCategory,
                           clearLinkedCategory: !isAddon,
+                          variants: variants,
+                          dietaryType: selectedDietary,
+                          clearDietaryType: selectedDietary == null,
                         ),
                       );
                     } else {
@@ -435,6 +701,8 @@ class AddEditMenuItemDialog {
                           isAddon: isAddon,
                           isAvailable: isAvailable,
                           linkedCategory: effectiveLinkedCategory,
+                          variants: variants,
+                          dietaryType: selectedDietary,
                         ),
                       );
                     }
@@ -468,12 +736,20 @@ class AddEditMenuItemDialog {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: Text(
-                item.displayName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
+              title: Row(
+                children: [
+                  DietarySymbol(type: item.effectiveDietaryType, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               subtitle: Row(
                 children: [
@@ -578,7 +854,7 @@ class AddEditMenuItemDialog {
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Menu Item?'),
         content: Text(
-          'Are you sure you want to delete "${item.displayName}" from the menu?',
+          'Are you sure you want to delete "${item.name}" from the menu?',
         ),
         actions: [
           TextButton(

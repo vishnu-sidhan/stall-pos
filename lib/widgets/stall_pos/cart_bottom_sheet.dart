@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
+import '../../data/models/stall_models.dart';
+import 'dietary_symbol.dart';
 import 'slash_selection_modal.dart';
 
 /// Modal bottom sheet displaying detailed cart items, add-on breakdown,
@@ -14,6 +16,7 @@ class CartBottomSheet {
     required VoidCallback onCheckout,
     required VoidCallback onClearCart,
     VoidCallback? onPayAndPunch,
+    void Function(String method)? onFastCheckout,
     TextEditingController? customerNameController,
     TextEditingController? orderNotesController,
     bool isParcel = false,
@@ -178,12 +181,23 @@ class CartBottomSheet {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        item.displayName,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                        ),
+                                      Row(
+                                        children: [
+                                          DietarySymbol(
+                                            type: item.effectiveDietaryType,
+                                            size: 13,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              item.displayName,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       const SizedBox(height: 3),
                                       Text(
@@ -695,6 +709,60 @@ class CartBottomSheet {
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 10),
+                            if (!controller.isEditing && onFastCheckout != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 42,
+                                        child: FilledButton.icon(
+                                          onPressed: () {
+                                            Navigator.pop(sheetContext);
+                                            onFastCheckout('Cash');
+                                          },
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: Colors.teal.shade700,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                          icon: const Icon(Icons.payments_rounded, size: 18),
+                                          label: const Text(
+                                            '1-Tap Cash',
+                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 42,
+                                        child: FilledButton.icon(
+                                          onPressed: () {
+                                            Navigator.pop(sheetContext);
+                                            onFastCheckout('UPI');
+                                          },
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: Colors.indigo.shade700,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                          icon: const Icon(Icons.qr_code_rounded, size: 18),
+                                          label: const Text(
+                                            '1-Tap UPI',
+                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             if (!controller.isEditing && onPayAndPunch != null)
                               Row(
                                 children: [

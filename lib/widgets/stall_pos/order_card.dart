@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
 import '../../data/models/stall_models.dart';
+import 'dietary_symbol.dart';
 
 /// Card displaying an active order ticket with elapsed time, payment status,
 /// item breakdowns, and quick action buttons (confirm payment, edit, delete, done).
@@ -377,6 +378,11 @@ class _OrderCardState extends State<OrderCard> {
                             Expanded(
                               child: Row(
                                 children: [
+                                  DietarySymbol(
+                                    type: item.effectiveDietaryType,
+                                    size: 13,
+                                  ),
+                                  const SizedBox(width: 5),
                                   Expanded(
                                     child: Text(
                                       item.displayName,

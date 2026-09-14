@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:counter_app/controllers/counter_controller.dart';
+import 'package:counter_app/data/storage/app_storage.dart';
+import 'package:counter_app/main.dart';
 import 'package:counter_app/screens/stall_pos_screen.dart';
 
 void main() {
@@ -9,39 +12,55 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('StallPosScreen starts empty and handles adding items to cart', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: StallPosScreen(),
-      ),
-    );
+  testWidgets('StallPosScreen starts empty and handles adding items to cart via Store Admin', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final counterCtrl = CounterController(storageService: AppStorage.instance.counterStorage);
+    await counterCtrl.init();
+
+    await tester.pumpWidget(StallPosApp(controller: counterCtrl, initialIndex: 1));
     await tester.pumpAndSettle();
 
     // Verify title and empty menu state
     expect(find.text('⚡ StallPOS'), findsOneWidget);
     expect(find.text('No menu items yet'), findsOneWidget);
-    expect(find.text('Tap + in the top bar to add your first item'), findsOneWidget);
+    expect(find.text('Configure menu items and categories in Store Admin'), findsOneWidget);
 
     // Initial button state when cart is empty
     expect(find.text('TAP ITEMS TO START (#1)'), findsOneWidget);
 
-    // Add a menu item with category via dialog
-    await tester.tap(find.byTooltip('Add Menu Item'));
+    // Add a menu item with category via Store Admin bottom navigation tab
+    await tester.tap(find.byTooltip('Store Admin'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Menu & Variants'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('admin_add_menu_item_btn')));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.widgetWithText(TextField, 'Item Name *'), 'Veg Roll');
     await tester.enterText(find.widgetWithText(TextField, 'Price (₹) *'), '80');
     await tester.enterText(find.widgetWithText(TextField, 'Or enter custom category'), 'Snacks');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Add Item'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Add Item').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('Veg Roll (Snacks)'), findsOneWidget);
+    // Return to Stall POS tab
+    await tester.tap(find.byTooltip('Stall POS'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Veg Roll'), findsOneWidget);
     expect(find.text('₹80'), findsOneWidget);
     expect(find.text('Snacks'), findsWidgets);
 
     // Tap on 'Veg Roll' to add to cart
-    await tester.tap(find.text('Veg Roll (Snacks)'));
+    await tester.tap(find.text('Veg Roll'));
     await tester.pumpAndSettle();
 
     // Verify cart count badge (1) and button updated
@@ -49,12 +68,12 @@ void main() {
     expect(find.text('PUNCH ORDER (#1) • ₹80'), findsOneWidget);
 
     // Tap 'Veg Roll' again
-    await tester.tap(find.text('Veg Roll (Snacks)'));
+    await tester.tap(find.text('Veg Roll'));
     await tester.pumpAndSettle();
 
-    // Verify cart total updated to 160 and cart chip shows category in brackets
+    // Verify cart total updated to 160 and cart chip shows item
     expect(find.text('PUNCH ORDER (#1) • ₹160'), findsOneWidget);
-    expect(find.text('2x Veg Roll (Snacks)'), findsOneWidget);
+    expect(find.text('2x Veg Roll'), findsOneWidget);
 
     // Tap 'Clear' button
     await tester.tap(find.text('Clear'));
@@ -79,8 +98,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Both items visible initially under 'All'
-    expect(find.text('Masala Chai (Beverages)'), findsOneWidget);
-    expect(find.text('Veg Samosa (Snacks)'), findsOneWidget);
+    expect(find.text('Masala Chai'), findsOneWidget);
+    expect(find.text('Veg Samosa'), findsOneWidget);
 
     // Category chips visible
     expect(find.text('All'), findsOneWidget);
@@ -92,23 +111,23 @@ void main() {
     await tester.pumpAndSettle();
 
     // Only Masala Chai should be visible
-    expect(find.text('Masala Chai (Beverages)'), findsOneWidget);
-    expect(find.text('Veg Samosa (Snacks)'), findsNothing);
+    expect(find.text('Masala Chai'), findsOneWidget);
+    expect(find.text('Veg Samosa'), findsNothing);
 
     // Tap 'Snacks' chip
     await tester.tap(find.widgetWithText(ChoiceChip, 'Snacks'));
     await tester.pumpAndSettle();
 
     // Only Veg Samosa should be visible
-    expect(find.text('Veg Samosa (Snacks)'), findsOneWidget);
-    expect(find.text('Masala Chai (Beverages)'), findsNothing);
+    expect(find.text('Veg Samosa'), findsOneWidget);
+    expect(find.text('Masala Chai'), findsNothing);
 
     // Switch back to 'All'
     await tester.tap(find.widgetWithText(ChoiceChip, 'All'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Masala Chai (Beverages)'), findsOneWidget);
-    expect(find.text('Veg Samosa (Snacks)'), findsOneWidget);
+    expect(find.text('Masala Chai'), findsOneWidget);
+    expect(find.text('Veg Samosa'), findsOneWidget);
   });
 
   testWidgets('StallPosScreen displays category split with headings and items in UI', (WidgetTester tester) async {
@@ -136,34 +155,38 @@ void main() {
     expect(find.text('1'), findsWidgets);
 
     // Verify all items are rendered under their respective sections
-    expect(find.text('Masala Chai (Hot Drinks)'), findsOneWidget);
-    expect(find.text('Green Tea (Hot Drinks)'), findsOneWidget);
-    expect(find.text('Paneer Roll (Snacks)'), findsOneWidget);
+    expect(find.text('Masala Chai'), findsOneWidget);
+    expect(find.text('Green Tea'), findsOneWidget);
+    expect(find.text('Paneer Roll'), findsOneWidget);
   });
 
-  testWidgets('StallPosScreen allows deleting a menu item via long-press', (WidgetTester tester) async {
+  testWidgets('Store Admin allows deleting a menu item from menu catalog', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({
       'stall_menu': jsonEncode([
         {'id': '101', 'name': 'Masala Chai', 'price': 20, 'category': 'Beverages'},
       ]),
     });
 
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: StallPosScreen(),
-      ),
-    );
+    final counterCtrl = CounterController(storageService: AppStorage.instance.counterStorage);
+    await counterCtrl.init();
+
+    await tester.pumpWidget(StallPosApp(controller: counterCtrl, initialIndex: 1));
     await tester.pumpAndSettle();
 
-    expect(find.text('Masala Chai (Beverages)'), findsOneWidget);
+    expect(find.text('Masala Chai'), findsOneWidget);
 
-    // Long press on Masala Chai
-    await tester.longPress(find.text('Masala Chai (Beverages)'));
+    // Switch to Store Admin
+    await tester.tap(find.byTooltip('Store Admin'));
     await tester.pumpAndSettle();
 
-    // Bottom sheet should appear with Delete option
-    expect(find.text('Delete Item'), findsOneWidget);
-    await tester.tap(find.text('Delete Item'));
+    // Switch to Menu & Variants tab
+    await tester.tap(find.text('Menu & Variants'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Masala Chai'), findsWidgets);
+
+    // Tap delete button on Masala Chai
+    await tester.tap(find.byTooltip('Delete Item'));
     await tester.pumpAndSettle();
 
     // Confirm dialog
@@ -171,8 +194,12 @@ void main() {
     await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
 
+    // Switch back to POS tab
+    await tester.tap(find.byTooltip('Stall POS'));
+    await tester.pumpAndSettle();
+
     // Menu should now be empty
-    expect(find.text('Masala Chai (Beverages)'), findsNothing);
+    expect(find.text('Masala Chai'), findsNothing);
     expect(find.text('No menu items yet'), findsOneWidget);
   });
 
@@ -199,8 +226,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Add Paneer Wrap and Cold Coffee
-    await tester.tap(find.text('Paneer Wrap (Snacks)'));
-    await tester.tap(find.text('Cold Coffee (Beverages)'));
+    await tester.tap(find.text('Paneer Wrap'));
+    await tester.tap(find.text('Cold Coffee'));
     await tester.pumpAndSettle();
 
     expect(find.text('PUNCH ORDER (#1) • ₹160'), findsOneWidget);
@@ -238,16 +265,23 @@ void main() {
     expect(find.text('All caught up! No pending orders.'), findsOneWidget);
   });
 
-  testWidgets('StallPosScreen navigates to Order History and back', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: StallPosScreen(),
-      ),
-    );
+  testWidgets('Store Admin navigates to Order History and back', (WidgetTester tester) async {
+    final counterCtrl = CounterController(storageService: AppStorage.instance.counterStorage);
+    await counterCtrl.init();
+
+    await tester.pumpWidget(StallPosApp(controller: counterCtrl, initialIndex: 1));
     await tester.pumpAndSettle();
 
-    // Tap Order History AppBar icon
-    await tester.tap(find.byTooltip('Order History'));
+    // Switch to Store Admin
+    await tester.tap(find.byTooltip('Store Admin'));
+    await tester.pumpAndSettle();
+
+    // Switch to History & Tools tab
+    await tester.tap(find.text('History & Tools'));
+    await tester.pumpAndSettle();
+
+    // Tap Open Order History button
+    await tester.tap(find.text('Open Order History'));
     await tester.pumpAndSettle();
 
     // Order History screen is displayed
@@ -258,22 +292,33 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
-    expect(find.text('⚡ StallPOS'), findsOneWidget);
+    expect(find.text('Store Management Studio'), findsOneWidget);
   });
 
-  testWidgets('StallPosScreen imports menu items from CSV via empty state button', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: StallPosScreen(),
-      ),
-    );
+  testWidgets('Store Admin imports menu items from CSV via History & Tools', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final counterCtrl = CounterController(storageService: AppStorage.instance.counterStorage);
+    await counterCtrl.init();
+
+    await tester.pumpWidget(StallPosApp(controller: counterCtrl, initialIndex: 1));
     await tester.pumpAndSettle();
 
-    // Verify empty state shows 'Upload CSV Menu'
-    expect(find.text('Upload CSV Menu'), findsOneWidget);
+    // Switch to Store Admin
+    await tester.tap(find.byTooltip('Store Admin'));
+    await tester.pumpAndSettle();
 
-    // Tap 'Upload CSV Menu'
-    await tester.tap(find.text('Upload CSV Menu'));
+    // Switch to History & Tools tab
+    await tester.tap(find.text('History & Tools'));
+    await tester.pumpAndSettle();
+
+    // Tap 'Import Menu CSV'
+    await tester.tap(find.text('Import Menu CSV'));
     await tester.pumpAndSettle();
 
     expect(find.text('Import POS Menu Items'), findsOneWidget);
@@ -290,48 +335,36 @@ void main() {
     await tester.tap(find.text('Import 7 Items'));
     await tester.pumpAndSettle();
 
+    // Switch back to Stall POS tab
+    await tester.tap(find.byTooltip('Stall POS'));
+    await tester.pumpAndSettle();
+
     // Verify items and categories are loaded into menu
-    expect(find.text('Masala Chai (Beverages)'), findsOneWidget);
-    expect(find.text('Filter Coffee (Beverages)'), findsOneWidget);
-    expect(find.text('Veg Samosa (Snacks)'), findsOneWidget);
+    expect(find.text('Masala Chai'), findsOneWidget);
+    expect(find.text('Filter Coffee'), findsOneWidget);
+    expect(find.text('Veg Samosa'), findsOneWidget);
     expect(find.text('Beverages'), findsWidgets);
     expect(find.text('Snacks'), findsWidgets);
 
     // Tap on item to start order
-    await tester.tap(find.text('Masala Chai (Beverages)'));
+    await tester.tap(find.text('Masala Chai'));
     await tester.pumpAndSettle();
 
     expect(find.text('PUNCH ORDER (#1) • ₹20'), findsOneWidget);
   });
 
   testWidgets('StallPosScreen renders category colors in filter bar and headings', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: StallPosScreen(),
-      ),
-    );
-    await tester.pumpAndSettle();
+    SharedPreferences.setMockInitialValues({
+      'stall_menu': jsonEncode([
+        {'id': '101', 'name': 'Masala Tea', 'price': 20, 'category': 'Beverages'},
+        {'id': '102', 'name': 'Aloo Samosa', 'price': 30, 'category': 'Snacks'},
+      ]),
+    });
 
-    // Add first item with 'Beverages' category
-    await tester.tap(find.byTooltip('Add Menu Item'));
-    await tester.pumpAndSettle();
+    final counterCtrl = CounterController(storageService: AppStorage.instance.counterStorage);
+    await counterCtrl.init();
 
-    await tester.enterText(find.widgetWithText(TextField, 'Item Name *'), 'Masala Tea');
-    await tester.enterText(find.widgetWithText(TextField, 'Price (₹) *'), '20');
-    await tester.enterText(find.widgetWithText(TextField, 'Or enter custom category'), 'Beverages');
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Add Item'));
-    await tester.pumpAndSettle();
-
-    // Add second item with 'Snacks' category
-    await tester.tap(find.byTooltip('Add Menu Item'));
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.widgetWithText(TextField, 'Item Name *'), 'Aloo Samosa');
-    await tester.enterText(find.widgetWithText(TextField, 'Price (₹) *'), '30');
-    await tester.enterText(find.widgetWithText(TextField, 'Or enter custom category'), 'Snacks');
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Add Item'));
+    await tester.pumpWidget(StallPosApp(controller: counterCtrl, initialIndex: 1));
     await tester.pumpAndSettle();
 
     // Category filter chips should be present: 'All', 'Beverages', 'Snacks'
@@ -348,7 +381,7 @@ void main() {
     expect(bevChip.avatar, isNotNull);
 
     // Verify category headings render with items count badge
-    expect(find.text('Masala Tea (Beverages)'), findsOneWidget);
-    expect(find.text('Aloo Samosa (Snacks)'), findsOneWidget);
+    expect(find.text('Masala Tea'), findsOneWidget);
+    expect(find.text('Aloo Samosa'), findsOneWidget);
   });
 }

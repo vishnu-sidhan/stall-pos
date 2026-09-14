@@ -1,13 +1,17 @@
 import 'package:flutter/foundation.dart';
+import 'model_contracts.dart';
+export 'model_contracts.dart';
 
 /// Immutable domain model representing an individual counter with customization,
 /// targets, tags, custom ordering, and timestamps.
 @immutable
-class CounterModel {
+class CounterModel with ColorThemed implements IdentifiableEntity {
+  @override
   final String id;
   final String title;
   final int count;
   final int step;
+  @override
   final int colorHex;
   final int? target;
   final bool allowNegative;
@@ -29,6 +33,9 @@ class CounterModel {
     required this.createdAt,
     required this.updatedAt,
   });
+
+  @override
+  String get displayName => title;
 
   /// Progress ratio towards target: null if no target or target <= 0;
   /// Clamped between 0.0 and 1.0.

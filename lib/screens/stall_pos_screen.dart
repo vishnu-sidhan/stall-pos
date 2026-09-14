@@ -216,13 +216,42 @@ class _StallPosScreenState extends State<StallPosScreen>
       return;
     }
 
-    // 2. Check if item has '/' variants in name or category (e.g. Rice / Noodles or Fried Rice / Hakka Noodles)
+    // Check if item or all variants are available today
+    if (!item.isEffectivelyAvailable) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            item.hasVariants
+                ? 'All variants of [${item.name}] are currently sold out.'
+                : '[${item.name}] is currently sold out today.',
+          ),
+          backgroundColor: Colors.red.shade800,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // 2. Check if item has explicit variants or configured category options
+    if (item.variants.isNotEmpty || item.category.options.isNotEmpty) {
+      ItemCustomizerSheet.show(
+        context,
+        item: item,
+        controller: _controller,
+        getCategoryColor: _getCategoryColor,
+      );
+      return;
+    }
+
+    // 3. Check if item has '/' variants in name or category (e.g. Rice / Noodles or Fried Rice / Hakka Noodles)
     if (item.hasAnySlashVariants) {
       _showCentralizedSlashSelectionModal(item);
       return;
     }
 
-    // 3. Regular item
+    // 4. Regular item
     _addToCart(item);
   }
 
@@ -458,7 +487,10 @@ class _StallPosScreenState extends State<StallPosScreen>
   // ORDER ACTIONS: FIRE / UPDATE, EDIT, DELETE, COMPLETE
   // ---------------------------------------------------------------------------
 
-  Future<void> _fireOrder({bool immediatePayment = false}) async {
+  Future<void> _fireOrder({
+    bool immediatePayment = false,
+    String? directPaymentMethod,
+  }) async {
     if (_controller.cart.isEmpty) return;
 
     final isEdit = _controller.isEditing;
@@ -469,6 +501,35 @@ class _StallPosScreenState extends State<StallPosScreen>
     final isParcel = _isParcel;
 
     HapticFeedback.heavyImpact();
+
+    // Fast 1-Tap Checkout without dialog!
+    if (!isEdit && directPaymentMethod != null) {
+      final total = _controller.cartTotal;
+      final outcome = await _controller.punchOrUpdateOrder(
+        customerName: custName.isNotEmpty ? custName : null,
+        isPaid: true,
+        paidAmount: total,
+        paidItems: Map.from(_controller.cart),
+        paymentMethod: directPaymentMethod,
+        isParcel: isParcel,
+        orderNotes: orderNotes,
+      );
+      _customerNameController.clear();
+      _orderNotesController.clear();
+      setState(() => _isParcel = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Order #${outcome.token} paid via $directPaymentMethod and placed!',
+            ),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
 
     // 1-Step Immediate Checkout flow on POS register
     if (!isEdit && immediatePayment) {
@@ -889,22 +950,15 @@ class _StallPosScreenState extends State<StallPosScreen>
     );
   }
 
-  void _showItemOptionsBottomSheet(MenuItem item) {
-    AddEditMenuItemDialog.showOptionsBottomSheet(
-      context,
-      item: item,
-      controller: _controller,
-      categories: _categories.where((c) => c != 'All').toList(),
-      getCategoryColor: _getCategoryColor,
-      resolvedCategoryColors: _resolvedCategoryColors,
-    );
-  }
-
-  void _openManageCategoriesDialog() {
-    ManageCategoriesDialog.show(
+  void openStoreManagementStudio({int initialTabIndex = 0}) {
+    StoreManagementDialog.show(
       context,
       controller: _controller,
       getCategoryColor: _getCategoryColor,
+      onOpenOrderHistory: _openOrderHistory,
+      onOpenCsvImport: _openCsvImport,
+      onAddOrEditItem: (item) => _showAddOrEditItemDialog(existingItem: item),
+      initialTabIndex: initialTabIndex,
     );
   }
 
@@ -985,51 +1039,6 @@ class _StallPosScreenState extends State<StallPosScreen>
               ),
             ),
           if (widget.extraActions != null) ...widget.extraActions!,
-          IconButton(
-            icon: const Icon(Icons.receipt_long_rounded),
-            tooltip: 'Order History',
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: _openOrderHistory,
-          ),
-          IconButton(
-            icon: const Icon(Icons.upload_file_rounded),
-            tooltip: 'Upload Menu CSV',
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: _openCsvImport,
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Add Menu Item',
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: () => _showAddOrEditItemDialog(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.tune_rounded),
-            tooltip: 'Category Surcharges & Settings',
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: _openManageCategoriesDialog,
-          ),
-          IconButton(
-            key: const ValueKey('daily_availability_appbar_btn'),
-            icon: const Icon(Icons.checklist_rounded),
-            tooltip: 'Daily Menu Availability',
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: () => DailyMenuAvailabilityDialog.show(
-              context,
-              controller: _controller,
-              getCategoryColor: _getCategoryColor,
-            ),
-          ),
           ListenableBuilder(
             listenable: ThemeController.instance,
             builder: (context, _) {
@@ -1162,8 +1171,8 @@ class _StallPosScreenState extends State<StallPosScreen>
           _isParcel = val;
         });
       },
-      onOpenManageCategories: _openManageCategoriesDialog,
-      onOpenCsvImport: _openCsvImport,
+      onOpenManageCategories: null,
+      onOpenCsvImport: null,
       onCancelEdit: _cancelEdit,
       onShowCustomNoteDialog: _showCustomNoteDialog,
       onToggleQuickNote: _toggleQuickNote,
@@ -1171,9 +1180,10 @@ class _StallPosScreenState extends State<StallPosScreen>
       onAddPredefinedNote: _showAddPredefinedNoteDialog,
       onShowCartBottomSheet: _showCartBottomSheet,
       onClearCart: _clearCart,
-      onFireOrder: ({bool immediatePayment = false}) => _fireOrder(immediatePayment: immediatePayment),
+      onFireOrder: ({bool immediatePayment = false, String? directPaymentMethod}) =>
+          _fireOrder(immediatePayment: immediatePayment, directPaymentMethod: directPaymentMethod),
       onMenuItemTap: _handleMenuItemTap,
-      onMenuItemLongPress: _showItemOptionsBottomSheet,
+      onMenuItemLongPress: null,
     );
   }
 

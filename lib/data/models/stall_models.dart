@@ -5,15 +5,22 @@ export 'item_category.dart';
 
 // Data models for the Stall POS screen and orders.
 
-class MenuItem {
+class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
+  @override
   final String id;
   final String name;
+  @override
   final double price;
   final ItemCategory category;
+  @override
   final int? colorHex;
   final bool isAddon;
   final String? linkedCategory;
+  @override
   final bool isAvailable;
+  final List<CategoryOption> variants;
+  @override
+  final ItemDietaryType? dietaryType;
 
   const MenuItem({
     required this.id,
@@ -24,26 +31,31 @@ class MenuItem {
     this.isAddon = false,
     this.linkedCategory,
     this.isAvailable = true,
+    this.variants = const [],
+    this.dietaryType,
   });
 
+  /// Alias for variants
+  List<CategoryOption> get options => variants;
+
   /// Name of the category as a String helper.
+  @override
   String get categoryName => category.name;
 
-  /// Effective display name of the category.
-  String get categoryDisplayName => category.effectiveDisplayName;
+  /// Effective category name.
+  String get categoryDisplayName => category.name;
 
-  /// Check if this item qualifies as an add-on either via explicit flag
-  /// or category name containing 'addon' or 'extra'.
+  /// Check if this item qualifies as an add-on either via explicit flag,
+  /// category-level add-on configuration, or legacy category name keywords.
   bool get effectiveIsAddon {
-    if (isAddon) return true;
+    if (isAddon || category.isAddonCategory) return true;
     final cat = category.name.toLowerCase();
     return cat.contains('addon') || cat.contains('add-on') || cat == 'extras' || cat == 'extra';
   }
 
   /// List of target categories this add-on can be linked to.
   /// If [linkedCategory] is explicitly provided, it is parsed (supporting '/' separation).
-  /// Otherwise, if [category] does not contain an add-on keyword, it defaults to [slashCategoryVariants].
-  /// Defaults to ['All'] for legacy unlinked add-ons.
+  /// Defaults to ['All'] for unlinked add-ons.
   List<String> get effectiveLinkedCategories {
     if (linkedCategory != null && linkedCategory!.trim().isNotEmpty) {
       return linkedCategory!
@@ -51,6 +63,9 @@ class MenuItem {
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty)
           .toList();
+    }
+    if (category.isAddonCategory) {
+      return const ['All'];
     }
     final cat = category.name.toLowerCase().trim();
     if (!cat.contains('addon') &&
@@ -79,17 +94,20 @@ class MenuItem {
   }
 
   /// Clean display name for POS cards, order tickets, and receipts.
-  /// Returns item name with category's effective display name in brackets.
-  String get displayName {
-    final cat = category.effectiveDisplayName.trim();
-    if (cat.isNotEmpty && !name.endsWith('($cat)')) {
+  @override
+  String get displayName => name;
+
+  /// Backwards-compatible alias for [displayName].
+  String get effectiveDisplayName => name;
+
+  /// Display name formatted with the main category name in brackets (e.g. "Veg Momos (Momos)").
+  String get displayNameWithCategory {
+    final cat = categoryName.trim();
+    if (cat.isNotEmpty && !name.toLowerCase().endsWith('(${cat.toLowerCase()})')) {
       return '$name ($cat)';
     }
     return name;
   }
-
-  /// Backwards-compatible alias for [displayName].
-  String get effectiveDisplayName => displayName;
 
   /// Whether the item name contains '/' indicating multiple or-variants.
   bool get hasSlashNameVariants => name.contains('/');
@@ -117,12 +135,69 @@ class MenuItem {
         .toList();
   }
 
+  /// Effective list of variants/options. Returns explicit [variants] if defined,
+  /// falls back to category options if defined on [category],
+  /// or derives options from slash-separated names or categories for seamless backward compatibility.
+  List<CategoryOption> get effectiveVariants {
+    if (variants.isNotEmpty) {
+      return variants;
+    }
+    if (category.effectiveOptions.isNotEmpty) {
+      return category.effectiveOptions;
+    }
+    if (hasSlashNameVariants) {
+      return slashNameVariants
+          .map(
+            (v) => CategoryOption(
+              id: 'var_${v.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
+              name: v,
+              additionalCost: 0.0,
+              isEnabled: isAvailable,
+            ),
+          )
+          .toList();
+    }
+    if (hasSlashCategoryVariants) {
+      return slashCategoryVariants
+          .map(
+            (v) => CategoryOption(
+              id: 'cat_${v.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
+              name: v,
+              additionalCost: 0.0,
+              isEnabled: isAvailable,
+            ),
+          )
+          .toList();
+    }
+    return const [];
+  }
+
+  /// Whether this item has multiple selectable options or variants.
+  bool get hasVariants => effectiveVariants.isNotEmpty;
+
+  /// Whether the item has at least one selectable variant that is enabled/available.
+  bool get hasAvailableVariants => !hasVariants || effectiveVariants.any((v) => v.isAvailable);
+
+  /// Whether this item is available for ordering today (both item-level and variant-level).
+  bool get isEffectivelyAvailable => isAvailable && hasAvailableVariants;
+
+  /// Returns the resolved price for a given variant/option, falling back to [price].
+  double priceForVariant(CategoryOption? variant) {
+    if (variant?.price != null && variant!.price! > 0) {
+      return variant.price!;
+    }
+    if (variant != null && variant.additionalCost != 0.0) {
+      return price + variant.additionalCost;
+    }
+    return price;
+  }
+
   /// Whether the item has any '/' variants in name or category.
-  bool get hasAnySlashVariants => hasSlashNameVariants || hasSlashCategoryVariants;
+  bool get hasAnySlashVariants => hasSlashNameVariants || hasSlashCategoryVariants || variants.isNotEmpty;
 
   /// Backwards-compatible aliases
-  bool get hasSlashVariants => hasSlashNameVariants;
-  List<String> get slashVariants => slashNameVariants;
+  bool get hasSlashVariants => hasAnySlashVariants;
+  List<String> get slashVariants => effectiveVariants.map((v) => v.name).toList();
 
   MenuItem copyWith({
     String? id,
@@ -135,6 +210,9 @@ class MenuItem {
     String? linkedCategory,
     bool clearLinkedCategory = false,
     bool? isAvailable,
+    List<CategoryOption>? variants,
+    ItemDietaryType? dietaryType,
+    bool clearDietaryType = false,
   }) {
     return MenuItem(
       id: id ?? this.id,
@@ -147,6 +225,8 @@ class MenuItem {
           ? null
           : (linkedCategory ?? this.linkedCategory),
       isAvailable: isAvailable ?? this.isAvailable,
+      variants: variants ?? this.variants,
+      dietaryType: clearDietaryType ? null : (dietaryType ?? this.dietaryType),
     );
   }
 
@@ -161,6 +241,10 @@ class MenuItem {
         if (linkedCategory != null && linkedCategory!.trim().isNotEmpty)
           'linkedCategory': linkedCategory,
         'isAvailable': isAvailable,
+        if (variants.isNotEmpty)
+          'variants': variants.map((v) => v.toJson()).toList(),
+        if (dietaryType != null && dietaryType != ItemDietaryType.none)
+          'dietaryType': dietaryType!.code,
       };
 
   factory MenuItem.fromJson(Map<String, dynamic> map) {
@@ -187,13 +271,27 @@ class MenuItem {
     final parsedColor = map['colorHex'] != null
         ? (map['colorHex'] as num?)?.toInt()
         : CategoryColorHelper.parseColor(map['color']);
-    final isAddonExplicit = map['isAddon'] == true;
+    final isAddonExplicit = map['isAddon'] == true || map['is_addon'] == true;
     final linkedCategoryRaw = map['linkedCategory']?.toString().trim() ??
         map['targetCategory']?.toString().trim() ??
         map['linked_category']?.toString().trim();
     final linkedCategory = (linkedCategoryRaw != null && linkedCategoryRaw.isNotEmpty)
         ? linkedCategoryRaw
         : null;
+
+    final rawVariants = map['variants'] ?? map['options'];
+    final parsedVariants = (rawVariants is List)
+        ? rawVariants
+        .whereType<Map>()
+        .map((v) => CategoryOption.fromJson(Map<String, dynamic>.from(v)))
+        .toList()
+        : const <CategoryOption>[];
+
+    final parsedDietary = ItemDietaryType.fromString(
+      map['dietaryType']?.toString() ??
+          map['dietary_type']?.toString() ??
+          map['diet']?.toString(),
+    );
 
     return MenuItem(
       id: map['id']?.toString() ?? '',
@@ -203,9 +301,12 @@ class MenuItem {
       colorHex: parsedColor ?? CategoryColorHelper.getColorForCategory(parsedCategory.name),
       isAddon: isAddonExplicit,
       linkedCategory: linkedCategory,
-      isAvailable: map['isAvailable'] != false,
+      isAvailable: map['isAvailable'] != false && map['is_available'] != false,
+      variants: parsedVariants,
+      dietaryType: parsedDietary != ItemDietaryType.none ? parsedDietary : null,
     );
   }
+
 }
 
 class StallOrder {
@@ -454,106 +555,74 @@ class StallOrder {
   }
 }
 
-/// Ticket contribution to an aggregated item in the consolidated queue
-class OrderTicketQuantity {
-  final int token;
-  final int quantity;
-  final bool isParcel;
-  final String? orderNotes;
+/// Ticket contribution to an aggregated item in the consolidated kitchen prep queue.
+typedef OrderTicketQuantity = ({
+  int token,
+  int quantity,
+  bool isParcel,
+  String? orderNotes,
+});
 
-  const OrderTicketQuantity({
-    required this.token,
-    required this.quantity,
-    this.isParcel = false,
-    this.orderNotes,
-  });
-}
+/// Aggregated item across active orders for kitchen consolidated prep.
+typedef AggregatedOrderItem = ({
+  String itemId,
+  String itemName,
+  String displayName,
+  String category,
+  int totalQuantity,
+  List<OrderTicketQuantity> tickets,
+  int? colorHex,
+  ItemDietaryType effectiveDietaryType,
+});
 
-/// Aggregated item across active orders for kitchen consolidated prep
-class AggregatedOrderItem {
-  final String itemId;
-  final String itemName;
-  final String category;
-  final int totalQuantity;
-  final List<OrderTicketQuantity> tickets;
-  final int? colorHex;
-  final String? categoryDisplayName;
-
-  const AggregatedOrderItem({
-    required this.itemId,
-    required this.itemName,
-    required this.category,
-    required this.totalQuantity,
-    required this.tickets,
-    this.colorHex,
-    this.categoryDisplayName,
-  });
-
-  /// Display name of the item, using itemName with effective category in brackets.
-  String get displayName {
-    final cat = (categoryDisplayName != null && categoryDisplayName!.trim().isNotEmpty)
-        ? categoryDisplayName!.trim()
-        : category.trim();
-    if (cat.isNotEmpty && !itemName.endsWith('($cat)')) {
-      return '$itemName ($cat)';
-    }
-    return itemName;
-  }
-}
-
-/// Represents an individual add-on entry in an item's breakdown.
-class CartItemAddonDetail {
-  final String name;
-  final int count;
-  final double singlePrice;
-  final double totalPrice;
-
-  const CartItemAddonDetail({
-    required this.name,
-    required this.count,
-    required this.singlePrice,
-    required this.totalPrice,
-  });
-}
+/// Represents an individual add-on entry in an item's price breakdown.
+typedef CartItemAddonDetail = ({
+  String name,
+  int count,
+  double singlePrice,
+  double totalPrice,
+});
 
 /// Represents the monetary breakdown between a base item, its category surcharge, and its linked add-ons.
-class CartItemBreakdown {
-  final MenuItem baseItem;
-  final double basePrice;
-  final double categoryAdditionalCost;
-  final String? categoryCostReason;
-  final double addonsPrice;
-  final double totalUnitPrice;
-  final List<CartItemAddonDetail> addonDetails;
+typedef CartItemBreakdown = ({
+  MenuItem baseItem,
+  double basePrice,
+  double categoryAdditionalCost,
+  String? categoryCostReason,
+  double addonsPrice,
+  double totalUnitPrice,
+  List<CartItemAddonDetail> addonDetails,
+});
 
-  const CartItemBreakdown({
-    required this.baseItem,
-    required this.basePrice,
-    this.categoryAdditionalCost = 0.0,
-    this.categoryCostReason,
-    required this.addonsPrice,
-    required this.totalUnitPrice,
-    required this.addonDetails,
-  });
-
+/// Extension providing convenience getters on [CartItemBreakdown].
+extension CartItemBreakdownExtension on CartItemBreakdown {
   /// Whether the item includes a category-level surcharge / additional cost.
   bool get hasCategoryCost => categoryAdditionalCost > 0;
 
+  /// Whether the item includes active add-ons.
   bool get hasAddons => addonsPrice > 0 || addonDetails.isNotEmpty;
 }
 
 /// Represents a structured order line item with preparation and payment state.
 @immutable
-class OrderLineItem {
+class OrderLineItem with DietaryAware, ColorThemed implements PreparationItem {
+  @override
+  String get id => itemId;
+
   final String itemId;
   final String name;
   final int quantity;
   final int completedQuantity;
   final bool isCompletedItem;
+  @override
   final String category;
+  @override
   final int? colorHex;
+  @override
   final String displayName;
   final bool isPaidItem;
+  @override
+  final ItemDietaryType? dietaryType;
 
   const OrderLineItem({
     required this.itemId,
@@ -565,7 +634,11 @@ class OrderLineItem {
     this.colorHex,
     required this.displayName,
     this.isPaidItem = false,
+    this.dietaryType,
   });
+
+  @override
+  String get categoryName => category;
 
   /// Pending quantity awaiting preparation.
   int get pendingQuantity =>
@@ -587,6 +660,7 @@ class OrderLineItem {
     int? colorHex,
     String? displayName,
     bool? isPaidItem,
+    ItemDietaryType? dietaryType,
   }) {
     return OrderLineItem(
       itemId: itemId ?? this.itemId,
@@ -598,6 +672,7 @@ class OrderLineItem {
       colorHex: colorHex ?? this.colorHex,
       displayName: displayName ?? this.displayName,
       isPaidItem: isPaidItem ?? this.isPaidItem,
+      dietaryType: dietaryType ?? this.dietaryType,
     );
   }
 
@@ -614,7 +689,8 @@ class OrderLineItem {
           category == other.category &&
           colorHex == other.colorHex &&
           displayName == other.displayName &&
-          isPaidItem == other.isPaidItem;
+          isPaidItem == other.isPaidItem &&
+          dietaryType == other.dietaryType;
 
   @override
   int get hashCode => Object.hash(
@@ -627,35 +703,7 @@ class OrderLineItem {
         colorHex,
         displayName,
         isPaidItem,
+        dietaryType,
       );
-}
-
-/// Represents an entry in the active shopping cart with quantity and price breakdown.
-@immutable
-class CartLineItem {
-  final MenuItem item;
-  final int quantity;
-  final CartItemBreakdown? breakdown;
-
-  const CartLineItem({
-    required this.item,
-    required this.quantity,
-    this.breakdown,
-  });
-
-  /// Total price for this line (unit price including category surcharges and add-ons multiplied by quantity).
-  double get lineTotal => (breakdown?.totalUnitPrice ?? item.price) * quantity;
-
-  CartLineItem copyWith({
-    MenuItem? item,
-    int? quantity,
-    CartItemBreakdown? breakdown,
-  }) {
-    return CartLineItem(
-      item: item ?? this.item,
-      quantity: quantity ?? this.quantity,
-      breakdown: breakdown ?? this.breakdown,
-    );
-  }
 }
 

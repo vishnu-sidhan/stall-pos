@@ -58,7 +58,7 @@ class CategoryConfigDialog extends StatefulWidget {
 
 class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
   late final ItemCategory _existingConfig;
-  late final TextEditingController _displayNameCtrl;
+  late final TextEditingController _nameCtrl;
   late final TextEditingController _costCtrl;
   late final TextEditingController _reasonCtrl;
   late final List<_OptionEntry> _optionEntries;
@@ -76,9 +76,7 @@ class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
           additionalCost: 0.0,
         );
 
-    _displayNameCtrl = TextEditingController(
-      text: _existingConfig.displayName ?? '',
-    );
+    _nameCtrl = TextEditingController(text: widget.categoryName.trim());
     _costCtrl = TextEditingController(
       text: _existingConfig.additionalCost > 0
           ? (_existingConfig.additionalCost.truncateToDouble() == _existingConfig.additionalCost
@@ -114,7 +112,7 @@ class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
     for (final opt in _optionEntries) {
       opt.dispose();
     }
-    _displayNameCtrl.dispose();
+    _nameCtrl.dispose();
     _costCtrl.dispose();
     _reasonCtrl.dispose();
     super.dispose();
@@ -228,7 +226,7 @@ class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Configure category display name, option / variant charges (e.g. Steam / Fried / Pan Fried for Momos), packaging fees, and accent colors.',
+                'Configure category name, option / variant charges (e.g. Steam / Fried for Momos), packaging fees, and accent colors.',
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -236,20 +234,22 @@ class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
               ),
               const SizedBox(height: 14),
 
-              // Category Display Name Field
+              // Category Name Input Field
               TextField(
-                controller: _displayNameCtrl,
+                controller: _nameCtrl,
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
-                  labelText: 'Display Name for POS Screen (Optional)',
-                  hintText: 'e.g. Momos, Beverages, Rice',
-                  helperText: 'Shown on POS category buttons and in item name brackets.',
-                  prefixIcon: const Icon(Icons.badge_outlined, size: 20),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  labelText: 'Category Name',
+                  hintText: 'e.g. Rice / Noodles, Momos, Beverages',
+                  prefixIcon: const Icon(Icons.label_outline_rounded, size: 20),
+                  helperText: 'Use "/" to define slash sub-categories (e.g. Rice / Noodles)',
+                  helperMaxLines: 2,
                   isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
               // Category Options Section (for multi-categories like Steam / Fried / Pan Fried)
               if (_optionEntries.isNotEmpty) ...[
@@ -535,6 +535,15 @@ class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
                 ? _reasonCtrl.text.trim()
                 : null;
 
+            final newName = _nameCtrl.text.trim().isNotEmpty
+                ? _nameCtrl.text.trim()
+                : widget.categoryName.trim();
+            final oldName = widget.categoryName.trim();
+
+            if (newName.toLowerCase() != oldName.toLowerCase()) {
+              await widget.controller.renameCategory(oldName, newName);
+            }
+
             final updatedOptions = _optionEntries.map((e) {
               final parsedOptCost =
                   double.tryParse(e.costCtrl.text.trim()) ?? 0.0;
@@ -546,14 +555,8 @@ class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
               );
             }).toList();
 
-            final cleanDisplayName = _displayNameCtrl.text.trim().isNotEmpty
-                ? _displayNameCtrl.text.trim()
-                : null;
-
             final updated = _existingConfig.copyWith(
-              name: widget.categoryName.trim(),
-              displayName: cleanDisplayName,
-              clearDisplayName: cleanDisplayName == null,
+              name: newName,
               additionalCost: parsedCost >= 0 ? parsedCost : 0.0,
               costReason: cleanReason,
               clearCostReason: cleanReason == null,

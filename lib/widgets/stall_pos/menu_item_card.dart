@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../data/helpers/composite_item_helper.dart';
 import '../../data/models/stall_models.dart';
 import '../../theme/category_colors.dart';
+import 'dietary_symbol.dart';
 
 /// Card displaying an individual menu item in the POS register grid with category accents,
 /// add-on badge, in-cart counter pill, and price.
@@ -71,14 +72,42 @@ class MenuItemCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        item.displayName,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (item.effectiveDietaryType != ItemDietaryType.none) ...[
+                            DietarySymbol(type: item.effectiveDietaryType, size: 12),
+                            const SizedBox(width: 4),
+                          ],
+                          Flexible(
+                            child: Text(
+                              item.name,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      if (item.categoryName.isNotEmpty &&
+                          !item.name.toLowerCase().endsWith('(${item.categoryName.toLowerCase()})')) ...[
+
+                        const SizedBox(height: 2),
+                        Text(
+                          '(${item.categoryName})',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: inCartQty > 0
+                                ? itemColor
+                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 5),
                       Text(
                         '₹${item.price.toStringAsFixed(0)}',

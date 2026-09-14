@@ -106,6 +106,7 @@ Budget Delta,0,10,,true,0xFFDC2626''';
     int colorIdx = -1;
     int addonIdx = -1;
     int linkedCategoryIdx = -1;
+    int dietaryIdx = -1;
     int startIndex = 0;
 
     final firstRow = rows.first.map((c) => c.toString().trim().toLowerCase()).toList();
@@ -131,6 +132,13 @@ Budget Delta,0,10,,true,0xFFDC2626''';
             col == 'targetcategory' ||
             col == 'applies_to') {
           linkedCategoryIdx = i;
+        } else if (col == 'dietary' ||
+            col == 'diet' ||
+            col == 'dietary_type' ||
+            col == 'dietarytype' ||
+            col == 'veg_nonveg' ||
+            col == 'veg_egg_nonveg') {
+          dietaryIdx = i;
         }
       }
     } else {
@@ -158,6 +166,9 @@ Budget Delta,0,10,,true,0xFFDC2626''';
       final rawAddon = addonIdx != -1 && addonIdx < row.length ? row[addonIdx].toString().trim().toLowerCase() : '';
       final rawLinked = linkedCategoryIdx != -1 && linkedCategoryIdx < row.length
           ? row[linkedCategoryIdx].toString().trim()
+          : '';
+      final rawDietary = dietaryIdx != -1 && dietaryIdx < row.length
+          ? row[dietaryIdx].toString().trim()
           : '';
 
       if (name.isEmpty) {
@@ -187,6 +198,11 @@ Budget Delta,0,10,,true,0xFFDC2626''';
           category.toLowerCase() == 'extras';
       final linkedCategory = rawLinked.isNotEmpty ? rawLinked : null;
 
+      final parsedDietary = rawDietary.isNotEmpty
+          ? ItemDietaryType.fromString(rawDietary)
+          : ItemDietaryType.infer(name: name, category: category);
+      final effectiveDietary = parsedDietary != ItemDietaryType.none ? parsedDietary : null;
+
       // Determine category color: if color is defined, use it; if not defined, assign a guaranteed unique, visually distinct color!
       final parsedColor = CategoryColorHelper.parseColor(rawColor);
       final normalizedCat = category.toLowerCase();
@@ -215,6 +231,7 @@ Budget Delta,0,10,,true,0xFFDC2626''';
         colorHex: assignedColor,
         isAddon: isAddon,
         linkedCategory: linkedCategory,
+        dietaryType: effectiveDietary,
       ));
     }
 
@@ -242,8 +259,13 @@ Budget Delta,0,10,,true,0xFFDC2626''';
         c == 'addon' ||
         c == 'add_on' ||
         c == 'linked_category' ||
-        c == 'target_category');
+        c == 'target_category' ||
+        c == 'dietary' ||
+        c == 'diet' ||
+        c == 'dietary_type' ||
+        c == 'veg_nonveg');
   }
+
 
   /// Parses CSV text content into a list of [CounterModel]s.
   ///

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
 import '../../data/models/stall_models.dart';
 import 'category_accordion_card.dart';
-import 'category_config_dialog.dart';
 import 'menu_item_card.dart';
 
 /// The primary Take Order Panel for the POS screen, containing the category selector,
@@ -16,8 +15,8 @@ class TakeOrderPanel extends StatelessWidget {
   final TextEditingController orderNotesController;
   final bool isParcel;
   final ValueChanged<bool> onParcelChanged;
-  final VoidCallback onOpenManageCategories;
-  final VoidCallback onOpenCsvImport;
+  final VoidCallback? onOpenManageCategories;
+  final VoidCallback? onOpenCsvImport;
   final VoidCallback onCancelEdit;
   final VoidCallback onShowCustomNoteDialog;
   final ValueChanged<String> onToggleQuickNote;
@@ -25,9 +24,9 @@ class TakeOrderPanel extends StatelessWidget {
   final VoidCallback onAddPredefinedNote;
   final VoidCallback onShowCartBottomSheet;
   final VoidCallback onClearCart;
-  final void Function({bool immediatePayment}) onFireOrder;
+  final void Function({bool immediatePayment, String? directPaymentMethod}) onFireOrder;
   final ValueChanged<MenuItem> onMenuItemTap;
-  final ValueChanged<MenuItem> onMenuItemLongPress;
+  final ValueChanged<MenuItem>? onMenuItemLongPress;
 
   const TakeOrderPanel({
     super.key,
@@ -39,8 +38,8 @@ class TakeOrderPanel extends StatelessWidget {
     required this.orderNotesController,
     required this.isParcel,
     required this.onParcelChanged,
-    required this.onOpenManageCategories,
-    required this.onOpenCsvImport,
+    this.onOpenManageCategories,
+    this.onOpenCsvImport,
     required this.onCancelEdit,
     required this.onShowCustomNoteDialog,
     required this.onToggleQuickNote,
@@ -50,7 +49,7 @@ class TakeOrderPanel extends StatelessWidget {
     required this.onClearCart,
     required this.onFireOrder,
     required this.onMenuItemTap,
-    required this.onMenuItemLongPress,
+    this.onMenuItemLongPress,
   });
 
   @override
@@ -69,10 +68,10 @@ class TakeOrderPanel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: categories.length + 1,
+              itemCount: categories.length + (onOpenManageCategories != null ? 1 : 0),
               separatorBuilder: (context, index) => const SizedBox(width: 8),
               itemBuilder: (context, i) {
-                if (i == categories.length) {
+                if (i == categories.length && onOpenManageCategories != null) {
                   return ActionChip(
                     avatar: Icon(
                       Icons.tune_rounded,
@@ -99,55 +98,42 @@ class TakeOrderPanel extends StatelessWidget {
                 final displayCat = cat == 'All' ? 'All' : controller.getCategoryDisplayName(cat);
 
                 return Tooltip(
-                  message: cat == 'All'
-                      ? 'Show all items'
-                      : (hasCost
-                          ? '$displayCat • ${catConfig!.costDescription} (Long press to edit)'
-                          : '$displayCat (Long press to edit surcharge)'),
-                  child: GestureDetector(
-                    onLongPress: cat == 'All'
+                  message: cat == 'All' ? 'Show all items' : displayCat,
+                  child: ChoiceChip(
+                    avatar: cat == 'All'
                         ? null
-                        : () => CategoryConfigDialog.show(
-                              context,
-                              categoryName: cat,
-                              controller: controller,
-                              getCategoryColor: getCategoryColor,
+                        : Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: catColor,
+                              shape: BoxShape.circle,
                             ),
-                    child: ChoiceChip(
-                      avatar: cat == 'All'
-                          ? null
-                          : Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: catColor,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                      label: Text(
-                        hasCost
-                            ? '$displayCat (+₹${catConfig!.additionalCost.toStringAsFixed(catConfig.additionalCost.truncateToDouble() == catConfig.additionalCost ? 0 : 2)})'
-                            : displayCat,
-                        style: TextStyle(
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.w600,
-                          fontSize: 14,
-                          color: isSelected ? catColor : null,
-                        ),
+                          ),
+                    label: Text(
+                      hasCost
+                          ? '$displayCat (+₹${catConfig!.additionalCost.toStringAsFixed(catConfig.additionalCost.truncateToDouble() == catConfig.additionalCost ? 0 : 2)})'
+                          : displayCat,
+                      style: TextStyle(
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.w600,
+                        fontSize: 14,
+                        color: isSelected ? catColor : null,
                       ),
-                      selected: isSelected,
-                      selectedColor: catColor.withAlpha(45),
-                      side: BorderSide(
-                        color: isSelected ? catColor : catColor.withAlpha(90),
-                        width: isSelected ? 1.8 : 1,
-                      ),
-                      onSelected: (selected) {
-                        if (selected) {
-                          controller.selectCategory(cat);
-                        }
-                      },
                     ),
+                    selected: isSelected,
+                    selectedColor: catColor.withAlpha(45),
+                    side: BorderSide(
+                      color: isSelected ? catColor : catColor.withAlpha(90),
+                      width: isSelected ? 1.8 : 1,
+                    ),
+                    showCheckmark: false,
+                    onSelected: (selected) {
+                      if (selected) {
+                        controller.selectCategory(cat);
+                      }
+                    },
                   ),
                 );
               },
@@ -178,17 +164,11 @@ class TakeOrderPanel extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Tap + in the top bar to add your first item',
+                          'Configure menu items and categories in Store Admin',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 14,
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        OutlinedButton.icon(
-                          onPressed: onOpenCsvImport,
-                          icon: const Icon(Icons.file_upload_outlined),
-                          label: const Text('Upload CSV Menu'),
                         ),
                       ],
                     ),
@@ -209,20 +189,13 @@ class TakeOrderPanel extends StatelessWidget {
                           final category = entry.key;
                           final items = entry.value;
                           final catConfig = controller.getCategoryConfig(category);
-                          final displayName = controller.getCategoryDisplayName(category);
 
                           return CategoryAccordionCard(
                             catName: category,
-                            displayName: displayName,
                             items: items,
                             isExpanded: !collapsedCategories.contains(category),
                             costDescription: catConfig?.costDescription,
-                            onConfigure: () => CategoryConfigDialog.show(
-                              context,
-                              categoryName: category,
-                              controller: controller,
-                              getCategoryColor: getCategoryColor,
-                            ),
+                            onConfigure: null,
                             onToggle: () => onToggleCategoryCollapse(category),
                             getCategoryColor: getCategoryColor,
                             itemCardBuilder: (item) => MenuItemCard(
@@ -230,7 +203,9 @@ class TakeOrderPanel extends StatelessWidget {
                               cart: cart,
                               getCategoryColor: getCategoryColor,
                               onTap: () => onMenuItemTap(item),
-                              onLongPress: () => onMenuItemLongPress(item),
+                              onLongPress: onMenuItemLongPress != null
+                                  ? () => onMenuItemLongPress!(item)
+                                  : null,
                             ),
                           );
                         }).toList(),
@@ -527,77 +502,170 @@ class TakeOrderPanel extends StatelessWidget {
                 ),
               const SizedBox(height: 8),
 
-              // Order Confirmation Action Buttons: Side-by-Side (Pay & Punch + Punch Order)
+              // Order Confirmation Action Buttons: Single row for fast checkout & punch order
               if (!controller.isEditing)
-                Row(
-                  children: [
-                    // 1-Step Pay & Punch Button
-                    Expanded(
-                      child: SizedBox(
-                        height: 52,
-                        child: FilledButton.icon(
-                          onPressed: cart.isNotEmpty ? () => onFireOrder(immediatePayment: true) : null,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.blue.shade700,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                if (cart.isNotEmpty)
+                  Row(
+                    children: [
+                      // 1-Tap Fast Cash Checkout
+                      Expanded(
+                        flex: 1,
+                        child: SizedBox(
+                          height: 52,
+                          child: FilledButton.icon(
+                            key: const ValueKey('fast_cash_btn'),
+                            onPressed: () => onFireOrder(
+                              immediatePayment: true,
+                              directPaymentMethod: 'Cash',
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                          ),
-                          icon: const Icon(
-                            Icons.payment_rounded,
-                            size: 20,
-                          ),
-                          label: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              cart.isEmpty
-                                  ? 'PAY & PUNCH (1-STEP)'
-                                  : 'PAY & PUNCH (#${controller.nextToken}) • ₹${controller.cartTotal.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.teal.shade700,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                            ),
+                            icon: const Icon(Icons.payments_rounded, size: 18),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Cash',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Punch Order (Pay Later) Button
-                    Expanded(
-                      child: SizedBox(
-                        height: 52,
-                        child: FilledButton.icon(
-                          onPressed: cart.isNotEmpty ? () => onFireOrder() : null,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.green.shade700,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                      const SizedBox(width: 6),
+                      // 1-Tap Fast UPI Checkout
+                      Expanded(
+                        flex: 1,
+                        child: SizedBox(
+                          height: 52,
+                          child: FilledButton.icon(
+                            key: const ValueKey('fast_upi_btn'),
+                            onPressed: () => onFireOrder(
+                              immediatePayment: true,
+                              directPaymentMethod: 'UPI',
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                          ),
-                          icon: const Icon(
-                            Icons.bolt,
-                            size: 22,
-                          ),
-                          label: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              cart.isEmpty
-                                  ? 'TAP ITEMS TO START (#${controller.nextToken})'
-                                  : 'PUNCH ORDER (#${controller.nextToken}) • ₹${controller.cartTotal.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.indigo.shade700,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                            ),
+                            icon: const Icon(Icons.qr_code_rounded, size: 18),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'UPI',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                )
+                      const SizedBox(width: 6),
+                      // Punch Order (Pay Later) Button
+                      Expanded(
+                        flex: 2,
+                        child: SizedBox(
+                          height: 52,
+                          child: FilledButton.icon(
+                            onPressed: () => onFireOrder(),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.green.shade700,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                            ),
+                            icon: const Icon(
+                              Icons.bolt,
+                              size: 20,
+                            ),
+                            label: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'PUNCH ORDER (#${controller.nextToken}) • ₹${controller.cartTotal.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      // 1-Step Pay & Punch Button
+                      Expanded(
+                        child: SizedBox(
+                          height: 52,
+                          child: FilledButton.icon(
+                            onPressed: null,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.blue.shade700,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            icon: const Icon(
+                              Icons.payment_rounded,
+                              size: 20,
+                            ),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'PAY & PUNCH (1-STEP)',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Punch Order (Pay Later) Button
+                      Expanded(
+                        child: SizedBox(
+                          height: 52,
+                          child: FilledButton.icon(
+                            onPressed: null,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.green.shade700,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            icon: const Icon(
+                              Icons.bolt,
+                              size: 22,
+                            ),
+                            label: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'TAP ITEMS TO START (#${controller.nextToken})',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
               else
                 // Primary Update Button when editing
                 SizedBox(

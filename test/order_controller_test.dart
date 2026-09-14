@@ -115,7 +115,7 @@ void main() {
 
       final originalOrder = controller.orders.first;
       expect(originalOrder.token, 101);
-      expect(originalOrder.itemsSummary, '2x Masala Chai (Beverages)');
+      expect(originalOrder.itemsSummary, contains('2x Masala Chai'));
       expect(originalOrder.total, 40.0);
       expect(controller.nextToken, 102);
 
@@ -633,28 +633,28 @@ void main() {
       expect(varItem.name, 'Fried Rice');
       expect(varItem.categoryName, 'Rice / Noodles');
       expect(varItem.price, 120.0);
-      expect(varItem.displayName, 'Fried Rice (Rice / Noodles)');
+      expect(varItem.displayName, 'Fried Rice');
 
       // 2. Resolve category only
       final catItem = controller.findItem('item_rice_noodles_cat_Rice');
       expect(catItem.name, 'Fried Rice / Hakka Noodles');
       expect(catItem.categoryName, 'Rice');
       expect(catItem.price, 120.0);
-      expect(catItem.displayName, 'Fried Rice / Hakka Noodles (Rice)');
+      expect(catItem.displayName, 'Fried Rice / Hakka Noodles');
 
       // 3. Resolve both variant name and category
       final bothItem = controller.findItem('item_rice_noodles_var_Fried Rice_cat_Rice');
       expect(bothItem.name, 'Fried Rice');
       expect(bothItem.categoryName, 'Rice');
       expect(bothItem.price, 120.0);
-      expect(bothItem.displayName, 'Fried Rice (Rice)');
+      expect(bothItem.displayName, 'Fried Rice');
 
       // 4. Resolve composite item with addon variant
       final composite = controller.findItem('item_rice_noodles_var_Fried Rice_cat_Rice+addon_cheese_mayo_var_Cheese');
       expect(composite.name, '[Cheese] Fried Rice');
       expect(composite.categoryName, 'Rice');
       expect(composite.price, 150.0);
-      expect(composite.displayName, '[Cheese] Fried Rice (Rice)');
+      expect(composite.displayName, '[Cheese] Fried Rice');
     });
 
     test('addCustomizedItemToCart and addAddonToCart with variant name correctly punch order', () async {
@@ -683,7 +683,7 @@ void main() {
 
       expect(controller.cart['item_noodles_cat_Noodles'], 1);
       expect(controller.cartBaseItems.length, 1);
-      expect(controller.cartBaseItems.first.displayName, 'Noodles (Noodles)');
+      expect(controller.cartBaseItems.first.displayName, 'Noodles');
 
       // Link addon with variant 'Green Chutney'
       controller.addAddonToCart(
@@ -734,7 +734,7 @@ void main() {
       final singleAddonItem = controller.findItem('${burger.id}+${cheese.id}');
       expect(singleAddonItem.name, '[Extra Cheese] Veg Burger');
       expect(singleAddonItem.price, 100.0);
-      expect(singleAddonItem.displayName, '[Extra Cheese] Veg Burger (Fast Food)');
+      expect(singleAddonItem.displayName, '[Extra Cheese] Veg Burger');
 
       // Link cheese a second time to the same item
       controller.addAddonToCart(targetCartItemId: '${burger.id}+${cheese.id}', addon: cheese);
@@ -746,7 +746,7 @@ void main() {
       final doubleAddonItem = controller.findItem(doubleAddonId);
       expect(doubleAddonItem.name, '[2x Extra Cheese] Veg Burger');
       expect(doubleAddonItem.price, 120.0);
-      expect(doubleAddonItem.displayName, '[2x Extra Cheese] Veg Burger (Fast Food)');
+      expect(doubleAddonItem.displayName, '[2x Extra Cheese] Veg Burger');
 
       // Linking cheese a third time throws StateError because max 2 add-ons per item is enforced
       expect(
@@ -814,7 +814,7 @@ void main() {
       final compositeItem = controller.findItem(compositeId);
       expect(compositeItem.name, '[2x Cheese] [2x Mayo] Veg Burger');
       expect(compositeItem.price, 160.0);
-      expect(compositeItem.displayName, '[2x Cheese] [2x Mayo] Veg Burger (Fast Food)');
+      expect(compositeItem.displayName, '[2x Cheese] [2x Mayo] Veg Burger');
 
       // Attempting to add a 3rd Cheese to this composite item throws StateError
       expect(

@@ -2,8 +2,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:counter_app/controllers/counter_controller.dart';
 import 'package:counter_app/data/services/stall_storage_service.dart';
+import 'package:counter_app/data/storage/app_storage.dart';
+import 'package:counter_app/main.dart';
 import 'package:counter_app/screens/stall_pos_screen.dart';
+import 'package:counter_app/widgets/stall_pos/category_config_dialog.dart';
 import 'package:counter_app/widgets/stall_pos/daily_menu_availability_dialog.dart';
 
 void main() {
@@ -225,8 +229,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Daily Menu Availability'), findsOneWidget);
-      expect(find.text('Masala Chai (Beverages)'), findsOneWidget);
-      expect(find.text('Veg Samosa (Snacks)'), findsOneWidget);
+      expect(find.text('Masala Chai'), findsOneWidget);
+      expect(find.text('Veg Samosa'), findsOneWidget);
 
       // Toggle Masala Chai switch off
       final chaiSwitch = find.byKey(const ValueKey('item_switch_bev_1'));
@@ -241,8 +245,8 @@ void main() {
       await tester.enterText(searchField, 'Samosa');
       await tester.pumpAndSettle();
 
-      expect(find.text('Veg Samosa (Snacks)'), findsOneWidget);
-      expect(find.text('Masala Chai (Beverages)'), findsNothing);
+      expect(find.text('Veg Samosa'), findsOneWidget);
+      expect(find.text('Masala Chai'), findsNothing);
 
       // Clear search
       await tester.enterText(searchField, '');
@@ -271,35 +275,296 @@ void main() {
       expect(find.text('Daily Menu Availability'), findsNothing);
     });
 
-    testWidgets('StallPosScreen AppBar daily availability button opens dialog and hides item from register',
+    testWidgets('Store Admin bottom navbar daily availability hides item from POS register',
         (WidgetTester tester) async {
-      await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
+      SharedPreferences.setMockInitialValues({
+        'stall_menu': jsonEncode([
+          {
+            'id': 'bev_1',
+            'name': 'Masala Chai',
+            'price': 20.0,
+            'category': 'Beverages',
+            'isAvailable': true,
+          },
+          {
+            'id': 'snack_1',
+            'name': 'Veg Samosa',
+            'price': 15.0,
+            'category': 'Snacks',
+            'isAvailable': true,
+          },
+        ]),
+      });
+      final counterCtrl = CounterController(storageService: AppStorage.instance.counterStorage);
+      await counterCtrl.init();
+
+      await tester.pumpWidget(StallPosApp(controller: counterCtrl, initialIndex: 1));
       await tester.pumpAndSettle();
 
       // Masala Chai and Veg Samosa initially visible on register
-      expect(find.text('Masala Chai (Beverages)'), findsWidgets);
-      expect(find.text('Veg Samosa (Snacks)'), findsWidgets);
+      expect(find.text('Masala Chai'), findsWidgets);
+      expect(find.text('Veg Samosa'), findsWidgets);
 
-      // Tap Daily Menu Availability button in AppBar
-      final availabilityBtn = find.byKey(const ValueKey('daily_availability_appbar_btn'));
-      expect(availabilityBtn, findsOneWidget);
-      await tester.tap(availabilityBtn);
+      // Switch to Store Admin via bottom navigation bar
+      await tester.tap(find.byTooltip('Store Admin'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Daily Menu Availability'), findsOneWidget);
+      expect(find.text('Daily Availability'), findsOneWidget);
 
       // Toggle off Veg Samosa
       final samosaSwitch = find.byKey(const ValueKey('item_switch_snack_1'));
+      expect(samosaSwitch, findsOneWidget);
       await tester.tap(samosaSwitch);
       await tester.pumpAndSettle();
 
-      // Close dialog
-      await tester.tap(find.byKey(const ValueKey('daily_availability_done_btn')));
+      // Switch back to Stall POS tab
+      await tester.tap(find.byTooltip('Stall POS'));
       await tester.pumpAndSettle();
 
       // Masala Chai still visible, Veg Samosa hidden from take-order register
-      expect(find.text('Masala Chai (Beverages)'), findsWidgets);
-      expect(find.text('Veg Samosa (Snacks)'), findsNothing);
+      expect(find.text('Masala Chai'), findsWidgets);
+      expect(find.text('Veg Samosa'), findsNothing);
+    });
+
+    test('MenuItem hasAvailableVariants and isEffectivelyAvailable calculation', () {
+      final momos = MenuItem(
+        id: 'momo_1',
+        name: 'Veg Momos',
+        price: 80.0,
+        category: const ItemCategory(id: 'cat_momos', name: 'Momos'),
+        variants: const [
+          CategoryOption(id: 'v1', name: 'Steam', isEnabled: true),
+          CategoryOption(id: 'v2', name: 'Fried', isEnabled: true),
+        ],
+      );
+
+      expect(momos.hasVariants, isTrue);
+      expect(momos.hasAvailableVariants, isTrue);
+      expect(momos.isEffectivelyAvailable, isTrue);
+
+      // Disable 1 variant
+      final oneDisabled = momos.copyWith(variants: const [
+        CategoryOption(id: 'v1', name: 'Steam', isEnabled: true),
+        CategoryOption(id: 'v2', name: 'Fried', isEnabled: false),
+      ]);
+      expect(oneDisabled.hasAvailableVariants, isTrue);
+      expect(oneDisabled.isEffectivelyAvailable, isTrue);
+
+      // Disable all variants
+      final allDisabled = momos.copyWith(variants: const [
+        CategoryOption(id: 'v1', name: 'Steam', isEnabled: false),
+        CategoryOption(id: 'v2', name: 'Fried', isEnabled: false),
+      ]);
+      expect(allDisabled.hasAvailableVariants, isFalse);
+      expect(allDisabled.isEffectivelyAvailable, isFalse);
+
+      // Item marked unavailable
+      final itemUnavailable = momos.copyWith(isAvailable: false);
+      expect(itemUnavailable.isEffectivelyAvailable, isFalse);
+    });
+
+    test('OrderController renameCategory updates categories, menu items, and linked addons', () async {
+      SharedPreferences.setMockInitialValues({
+        'stall_menu': jsonEncode([
+          {
+            'id': 'momo_1',
+            'name': 'Veg Momos',
+            'price': 80.0,
+            'category': 'Momos',
+            'isAvailable': true,
+          },
+          {
+            'id': 'addon_dip',
+            'name': 'Spicy Dip',
+            'price': 10.0,
+            'category': 'Extras',
+            'isAddon': true,
+            'linkedCategory': 'Momos / Snacks',
+            'isAvailable': true,
+          },
+        ]),
+        'stall_categories': jsonEncode([
+          {
+            'id': 'cat_momos',
+            'name': 'Momos',
+            'additionalCost': 0.0,
+          },
+        ]),
+      });
+
+      final controller = OrderController(storageService: StallStorageService());
+      await controller.loadPersistedData();
+
+      expect(controller.categories.contains('Momos'), isTrue);
+
+      // Rename Momos -> Dimsums
+      await controller.renameCategory('Momos', 'Dimsums');
+
+      expect(controller.categories.contains('Momos'), isFalse);
+      expect(controller.categories.contains('Dimsums'), isTrue);
+
+      // Check item category
+      final item = controller.findItem('momo_1');
+      expect(item.categoryName, equals('Dimsums'));
+
+      // Check linked addon
+      final addon = controller.findItem('addon_dip');
+      expect(addon.linkedCategory, equals('Dimsums / Snacks'));
+    });
+
+    test('OrderController toggleMenuItemVariantAvailability toggles individual variant and updates availability', () async {
+      SharedPreferences.setMockInitialValues({
+        'stall_menu': jsonEncode([
+          {
+            'id': 'momo_1',
+            'name': 'Veg Momos',
+            'price': 80.0,
+            'category': 'Momos',
+            'isAvailable': true,
+            'variants': [
+              {'id': 'v_steam', 'name': 'Steam', 'isEnabled': true},
+              {'id': 'v_fried', 'name': 'Fried', 'isEnabled': true},
+            ],
+          },
+        ]),
+      });
+
+      final controller = OrderController(storageService: StallStorageService());
+      await controller.loadPersistedData();
+
+      var item = controller.findItem('momo_1');
+      expect(item.isEffectivelyAvailable, isTrue);
+      expect(item.effectiveVariants.first.isAvailable, isTrue);
+
+      // Toggle Steam off
+      await controller.toggleMenuItemVariantAvailability('momo_1', 'Steam');
+      item = controller.findItem('momo_1');
+      expect(item.effectiveVariants.firstWhere((v) => v.name == 'Steam').isAvailable, isFalse);
+      expect(item.isEffectivelyAvailable, isTrue); // Fried is still available
+
+      // Toggle Fried off
+      await controller.toggleMenuItemVariantAvailability('momo_1', 'Fried');
+      item = controller.findItem('momo_1');
+      expect(item.effectiveVariants.firstWhere((v) => v.name == 'Fried').isAvailable, isFalse);
+      expect(item.hasAvailableVariants, isFalse);
+      expect(item.isEffectivelyAvailable, isFalse); // All variants now disabled
+
+      // availableMenu excludes momos
+      expect(controller.availableMenu.any((i) => i.id == 'momo_1'), isFalse);
+    });
+
+    testWidgets('DailyMenuAvailabilityView displays variant chips and toggles variant availability', (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({
+        'stall_menu': jsonEncode([
+          {
+            'id': 'momo_1',
+            'name': 'Veg Momos',
+            'price': 80.0,
+            'category': 'Momos',
+            'isAvailable': true,
+            'variants': [
+              {'id': 'v_steam', 'name': 'Steam', 'price': 80.0, 'isEnabled': true},
+              {'id': 'v_fried', 'name': 'Fried', 'price': 90.0, 'isEnabled': true},
+            ],
+          },
+        ]),
+      });
+
+      final controller = OrderController(storageService: StallStorageService());
+      await controller.loadPersistedData();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DailyMenuAvailabilityView(
+              controller: controller,
+              getCategoryColor: (_) => Colors.blue,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Expect variant chips to be visible
+      expect(find.text('Steam'), findsOneWidget);
+      expect(find.text('Fried'), findsOneWidget);
+      expect(find.text('2/2 In Stock'), findsOneWidget);
+
+      // Tap on Fried variant chip to toggle off
+      final friedChip = find.byKey(const ValueKey('var_toggle_momo_1_Fried'));
+      expect(friedChip, findsOneWidget);
+      await tester.tap(friedChip);
+      await tester.pumpAndSettle();
+
+      // Status badge should now show 1/2 In Stock
+      expect(find.text('1/2 In Stock'), findsOneWidget);
+      expect(find.text('(Sold Out)'), findsOneWidget);
+      expect(controller.findItem('momo_1').effectiveVariants.firstWhere((v) => v.name == 'Fried').isAvailable, isFalse);
+    });
+
+    testWidgets('CategoryConfigDialog displays editable category name with slash support and renames category', (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({
+        'stall_menu': jsonEncode([
+          {
+            'id': 'rice_1',
+            'name': 'Fried Rice',
+            'price': 100.0,
+            'category': 'Rice / Noodles',
+            'isAvailable': true,
+          },
+        ]),
+        'stall_categories': jsonEncode([
+          {
+            'id': 'cat_rn',
+            'name': 'Rice / Noodles',
+            'additionalCost': 0.0,
+          },
+        ]),
+      });
+
+      final controller = OrderController(storageService: StallStorageService());
+      await controller.loadPersistedData();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () => CategoryConfigDialog.show(
+                    context,
+                    categoryName: 'Rice / Noodles',
+                    controller: controller,
+                    getCategoryColor: (_) => Colors.orange,
+                  ),
+                  child: const Text('Open Dialog'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Open Dialog
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Category Name'), findsOneWidget);
+      expect(find.text('Use "/" to define slash sub-categories (e.g. Rice / Noodles)'), findsOneWidget);
+
+      // Edit category name to Rice / Hakka Noodles
+      final nameField = find.widgetWithText(TextField, 'Rice / Noodles');
+      await tester.enterText(nameField, 'Rice / Hakka Noodles');
+      await tester.pumpAndSettle();
+
+      // Tap Save Changes
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+
+      // Verify category renamed
+      expect(controller.categories.contains('Rice / Hakka Noodles'), isTrue);
+      expect(controller.findItem('rice_1').categoryName, equals('Rice / Hakka Noodles'));
     });
   });
 }

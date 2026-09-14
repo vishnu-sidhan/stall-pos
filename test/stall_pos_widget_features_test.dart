@@ -72,7 +72,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Add Masala Chai to cart
-      await tester.tap(find.text('Masala Chai (Beverages)'));
+      await tester.tap(find.text('Masala Chai'));
       await tester.pumpAndSettle();
 
       expect(find.text('1'), findsWidgets); // In-cart quantity badge
@@ -115,7 +115,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Add Veg Samosa (₹25)
-      await tester.tap(find.text('Veg Samosa (Snacks)'));
+      await tester.tap(find.text('Veg Samosa'));
       await tester.pumpAndSettle();
 
       // Enter optional customer name in cart
@@ -137,11 +137,11 @@ void main() {
       await tester.tap(find.text('Active Orders'));
       await tester.pumpAndSettle();
 
-      // Order #103 appears in "To Confirm Payment" section with category tag in brackets
+      // Order #103 appears in "To Confirm Payment" section with item
       expect(find.text('To Confirm Payment'), findsOneWidget);
       expect(find.text('#103'), findsOneWidget);
       expect(find.text('Payment Pending'), findsOneWidget);
-      expect(find.textContaining('Snacks'), findsWidgets);
+      expect(find.textContaining('Veg Samosa'), findsWidgets);
 
       // Tap "Confirm Payment" button on Order #103
       await tester.tap(find.byKey(const ValueKey('confirm_payment_btn_103')));
@@ -218,15 +218,15 @@ void main() {
       await tester.tap(find.text('Active Orders'));
       await tester.pumpAndSettle();
 
-      // Verify Order #101 shows customer name 'Vikram' and category in brackets
+      // Verify Order #101 shows customer name 'Vikram' and item
       expect(find.text('#101'), findsOneWidget);
       expect(find.text('Vikram'), findsOneWidget);
-      expect(find.textContaining('Beverages'), findsWidgets);
+      expect(find.textContaining('Masala Chai'), findsWidgets);
 
-      // Verify Order #102 shows fallback 'Walk-in Customer' and category in brackets
+      // Verify Order #102 shows fallback 'Walk-in Customer' and item
       expect(find.text('#102'), findsOneWidget);
       expect(find.text('Walk-in Customer'), findsOneWidget);
-      expect(find.textContaining('Snacks'), findsWidgets);
+      expect(find.textContaining('Veg Samosa'), findsWidgets);
 
       // Test Delete Order #102
       final deleteButtons = find.byTooltip('Delete Order');
@@ -266,7 +266,7 @@ void main() {
       expect(find.text('Update Order #101 • ₹40'), findsOneWidget);
 
       // Add a Samosa while editing
-      await tester.tap(find.text('Veg Samosa (Snacks)'));
+      await tester.tap(find.text('Veg Samosa'));
       await tester.pumpAndSettle();
       expect(find.text('Update Order #101 • ₹65'), findsOneWidget);
 
@@ -361,7 +361,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Masala Chai is completely cleared from Item Summary!
-      expect(find.text('Masala Chai (Hot Drinks)'), findsNothing);
+      expect(find.text('Masala Chai'), findsNothing);
       // Only Veg Samosa remains (x2)
       expect(find.text('x2'), findsOneWidget);
     },
@@ -501,19 +501,19 @@ void main() {
   });
 
   testWidgets(
-    'Cart BottomSheet displays items with category in brackets, steppers, and punches order',
+    'Cart BottomSheet displays items, steppers, and punches order',
     (WidgetTester tester) async {
       await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
       await tester.pumpAndSettle();
 
       // Tap on Masala Chai to add to cart
-      await tester.tap(find.text('Masala Chai (Beverages)'));
+      await tester.tap(find.text('Masala Chai'));
       await tester.pumpAndSettle();
 
       // Verify cart preview bar is visible
       expect(find.text('Items in Cart (1)'), findsOneWidget);
       expect(find.text('View Cart'), findsOneWidget);
-      expect(find.textContaining('(Beverages)'), findsWidgets);
+      expect(find.text('Masala Chai'), findsWidgets);
 
       // Tap 'View Cart' to open BottomSheet
       await tester.tap(find.text('View Cart'));
@@ -569,12 +569,12 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
       await tester.pumpAndSettle();
 
-      expect(find.text('Tea / Coffee (Beverages)'), findsOneWidget);
+      expect(find.text('Tea / Coffee'), findsOneWidget);
       // Requirement: Do not show the options UI badge on the screen for each item
       expect(find.text('Options'), findsNothing);
 
       // Tap the card
-      await tester.tap(find.text('Tea / Coffee (Beverages)'));
+      await tester.tap(find.text('Tea / Coffee'));
       await tester.pumpAndSettle();
 
       // BottomSheet should open with options
@@ -629,7 +629,7 @@ void main() {
       expect(find.text('+ Add-on'), findsNothing);
 
       // 1. Try tapping Add-on with empty cart -> blocked
-      await tester.tap(find.text('Extra Cheese (Addons)'));
+      await tester.tap(find.text('Extra Cheese'));
       await tester.pump();
 
       expect(
@@ -645,13 +645,13 @@ void main() {
       await tester.pumpAndSettle();
 
       // 2. Add main item (Veg Burger)
-      await tester.tap(find.text('Veg Burger (Fast Food)'));
+      await tester.tap(find.text('Veg Burger'));
       await tester.pumpAndSettle();
 
       expect(find.text('PUNCH ORDER (#101) • ₹80'), findsOneWidget);
 
       // 3. Tap Add-on now -> links to the single item
-      await tester.tap(find.text('Extra Cheese (Addons)'));
+      await tester.tap(find.text('Extra Cheese'));
       await tester.pumpAndSettle();
 
       // Cart total should now be 80 + 20 = 100
@@ -661,7 +661,7 @@ void main() {
       await tester.tap(find.text('View Cart'));
       await tester.pumpAndSettle();
 
-      expect(find.text('[Extra Cheese] Veg Burger (Fast Food)'), findsOneWidget);
+      expect(find.text('[Extra Cheese] Veg Burger'), findsOneWidget);
       expect(find.text('₹100 each'), findsOneWidget);
 
       // Verify money split between item and addons
@@ -718,7 +718,7 @@ void main() {
       expect(find.widgetWithText(ChoiceChip, 'Noodles'), findsNothing);
 
       // 2. Tap item with category 'Rice / Noodles' (Schezwan Platter)
-      await tester.tap(find.text('Schezwan Platter (Rice / Noodles)').first);
+      await tester.tap(find.text('Schezwan Platter').first);
       await tester.pumpAndSettle();
 
       // Modal appears asking which category in Rice / Noodles!
@@ -727,14 +727,14 @@ void main() {
       expect(find.descendant(of: find.byType(BottomSheet), matching: find.text('Rice')), findsOneWidget);
       expect(find.descendant(of: find.byType(BottomSheet), matching: find.text('Noodles')), findsOneWidget);
 
-      // Tap 'Rice' inside modal (single-tap fast-path adds Schezwan Platter (Rice) to cart and dismisses)
+      // Tap 'Rice' inside modal (single-tap fast-path adds Schezwan Platter to cart and dismisses)
       await tester.tap(find.byKey(const ValueKey('cat_choice_Rice')));
       await tester.pumpAndSettle();
 
       expect(find.text('PUNCH ORDER (#101) • ₹130'), findsOneWidget);
 
       // 3. Tap Addon with slash in name (Cheese / Mayo)
-      await tester.tap(find.text('Cheese / Mayo (Addons)'));
+      await tester.tap(find.text('Cheese / Mayo'));
       await tester.pumpAndSettle();
 
       // Modal appears for addon with variants & quantity steppers
@@ -752,21 +752,21 @@ void main() {
       expect(find.textContaining('2x Cheese'), findsOneWidget);
 
       // Tap confirmation button
-      await tester.tap(find.textContaining('Add [2x Cheese] to Schezwan Platter (Rice)'));
+      await tester.tap(find.textContaining('Add [2x Cheese] to Schezwan Platter'));
       await tester.pumpAndSettle();
 
       // Cart total should now be 130 + 25*2 = 180
       expect(find.text('PUNCH ORDER (#101) • ₹180'), findsOneWidget);
 
-      // 4. Open cart bottom sheet and verify centralized displayName with [2x Cheese] and resolved category (Rice)
+      // 4. Open cart bottom sheet and verify centralized displayName with [2x Cheese]
       await tester.tap(find.text('View Cart'));
       await tester.pumpAndSettle();
 
-      final cartItemText = tester.widget<Text>(find.text('[2x Cheese] Schezwan Platter (Rice)'));
+      final cartItemText = tester.widget<Text>(find.text('[2x Cheese] Schezwan Platter'));
       expect(cartItemText.overflow, isNull);
       expect(cartItemText.maxLines, isNull);
 
-      expect(find.text('[2x Cheese] Schezwan Platter (Rice)'), findsOneWidget);
+      expect(find.text('[2x Cheese] Schezwan Platter'), findsOneWidget);
       expect(find.text('₹180 each'), findsOneWidget);
       expect(find.text('Split: Item ₹130 + Add-ons ₹50'), findsOneWidget);
       expect(find.text('2x Cheese (+₹50)'), findsOneWidget);
@@ -829,7 +829,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Add a Veg Samosa (₹25)
-      await tester.tap(find.text('Veg Samosa (Snacks)'));
+      await tester.tap(find.text('Veg Samosa'));
       await tester.pumpAndSettle();
 
       // Allow editing snackbar to dismiss
@@ -867,7 +867,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 2x Chai was already paid, so it remains in Item Summary
-      expect(find.text('Masala Chai (Beverages)'), findsOneWidget);
+      expect(find.textContaining('Masala Chai'), findsOneWidget);
       // Veg Samosa from Order #101 is NOT paid yet, so ticket #101 (1) must NOT appear in Item Summary!
       expect(find.text('#101 (1)'), findsNothing);
       expect(find.text('#102 (2)'), findsOneWidget);
@@ -972,7 +972,7 @@ void main() {
       expect(find.text('Editing Order #101'), findsWidgets);
 
       // Tap Extra Cheese add-on item in menu
-      await tester.tap(find.text('Extra Cheese (Addons)'));
+      await tester.tap(find.text('Extra Cheese'));
       await tester.pumpAndSettle();
 
       // Add-on selection modal opens; confirm adding Extra Cheese to Veg Burger
@@ -1013,7 +1013,7 @@ void main() {
       await tester.tap(find.text('Item Summary'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Masala Chai (Beverages)'), findsOneWidget);
+      expect(find.textContaining('Masala Chai'), findsOneWidget);
       // [Extra Cheese] Veg Burger must NOT be in Item Summary because it is in To Confirm Payment!
       expect(find.textContaining('Veg Burger'), findsNothing);
 
@@ -1035,7 +1035,7 @@ void main() {
       await tester.tap(find.text('Item Summary'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Masala Chai (Beverages)'), findsOneWidget);
+      expect(find.textContaining('Masala Chai'), findsOneWidget);
       expect(find.textContaining('Veg Burger'), findsOneWidget);
     },
   );
@@ -1099,12 +1099,24 @@ void main() {
       expect(find.text('Rice/Noodles'), findsWidgets);
 
       // Verify items in the first card (Rolls)
-      expect(find.text('Veg Manchuria (Rolls)'), findsOneWidget);
-      expect(find.text('Paneer (Rolls)'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const PageStorageKey('pos_category_Rolls')),
+          matching: find.text('Veg Manchuria'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Paneer'), findsOneWidget);
 
       // Verify items in the second card below first card (Starters)
-      expect(find.text('Veg Manchuria (Starters)'), findsOneWidget);
-      expect(find.text('Chilli / Paneer 65 (Starters)'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const PageStorageKey('pos_category_Starters')),
+          matching: find.text('Veg Manchuria'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Chilli / Paneer 65'), findsOneWidget);
 
       // Verify requirement: Options badge is NOT shown on the screen for items with slash variants
       expect(find.text('Options'), findsNothing);
@@ -1116,7 +1128,7 @@ void main() {
       // Tapping again expands
       await tester.tap(find.text('Starters').first);
       await tester.pumpAndSettle();
-      expect(find.text('Chilli / Paneer 65 (Starters)'), findsOneWidget);
+      expect(find.text('Chilli / Paneer 65'), findsOneWidget);
     },
   );
 
@@ -1161,36 +1173,36 @@ void main() {
       await tester.pumpAndSettle();
 
       // 1. Add Veg Burger to cart
-      await tester.tap(find.text('Veg Burger (Fast Food)').first);
+      await tester.tap(find.text('Veg Burger').first);
       await tester.pumpAndSettle();
 
       // 2. Add first cheese (count: 1)
-      await tester.tap(find.text('Extra Cheese (Addons)').first);
+      await tester.tap(find.text('Extra Cheese').first);
       await tester.pumpAndSettle();
-      expect(find.text('Added [Extra Cheese] to Veg Burger (Fast Food)'), findsOneWidget);
+      expect(find.text('Added [Extra Cheese] to Veg Burger'), findsOneWidget);
 
       // 3. Add second cheese (count: 2)
-      await tester.tap(find.text('Extra Cheese (Addons)').first);
+      await tester.tap(find.text('Extra Cheese').first);
       await tester.pumpAndSettle();
       expect(find.textContaining('Added [Extra Cheese] to'), findsOneWidget);
 
       // 4. Try to add third cheese (blocked by max 2 limit for Extra Cheese)
-      await tester.tap(find.text('Extra Cheese (Addons)').first);
+      await tester.tap(find.text('Extra Cheese').first);
       await tester.pumpAndSettle();
       expect(find.text('Maximum 2 [Extra Cheese] already added to items in cart.'), findsOneWidget);
 
       // 5. Add first Mayo (count: 1) - allowed because limit is per addon item!
-      await tester.tap(find.text('Mayo (Addons)').first);
+      await tester.tap(find.text('Mayo').first);
       await tester.pumpAndSettle();
       expect(find.textContaining('Added [Mayo] to'), findsOneWidget);
 
       // 6. Add second Mayo (count: 2)
-      await tester.tap(find.text('Mayo (Addons)').first);
+      await tester.tap(find.text('Mayo').first);
       await tester.pumpAndSettle();
       expect(find.textContaining('Added [Mayo] to'), findsOneWidget);
 
       // 7. Try to add third Mayo (blocked by max 2 limit for Mayo)
-      await tester.tap(find.text('Mayo (Addons)').first);
+      await tester.tap(find.text('Mayo').first);
       await tester.pumpAndSettle();
       expect(find.text('Maximum 2 [Mayo] already added to items in cart.'), findsOneWidget);
 
@@ -1253,13 +1265,13 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
       await tester.pumpAndSettle();
 
-      // 1. Add Masala Chai (Beverages) to cart
-      await tester.tap(find.text('Masala Chai (Beverages)').first);
+      // 1. Add Masala Chai to cart
+      await tester.tap(find.text('Masala Chai').first);
       await tester.pumpAndSettle();
 
       // 2. Try to tap Extra Cheese (linkedCategory: Fast Food)
       // Since no Fast Food item is in the cart, it must be rejected with a SnackBar!
-      final cheeseFinder = find.text('Extra Cheese (Addons)').first;
+      final cheeseFinder = find.text('Extra Cheese').first;
       await tester.ensureVisible(cheeseFinder);
       await tester.tap(cheeseFinder);
       await tester.pumpAndSettle();
@@ -1268,15 +1280,15 @@ void main() {
         findsOneWidget,
       );
 
-      // 3. Add Veg Burger (Fast Food) to cart
-      await tester.tap(find.text('Veg Burger (Fast Food)').first);
+      // 3. Add Veg Burger to cart
+      await tester.tap(find.text('Veg Burger').first);
       await tester.pumpAndSettle();
 
       // 4. Tap Extra Cheese again - it should now link directly to Veg Burger!
-      await tester.tap(find.text('Extra Cheese (Addons)').first);
+      await tester.tap(find.text('Extra Cheese').first);
       await tester.pumpAndSettle();
       expect(
-        find.text('Added [Extra Cheese] to Veg Burger (Fast Food)'),
+        find.text('Added [Extra Cheese] to Veg Burger'),
         findsOneWidget,
       );
 
@@ -1358,7 +1370,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 5. Add Paneer Roll to cart
-      await tester.tap(find.text('Paneer Roll (Snacks)'));
+      await tester.tap(find.text('Paneer Roll'));
       await tester.pumpAndSettle();
 
       // 6. Punch order

@@ -67,40 +67,41 @@ class CompositeItemHelper {
     );
   }
 
+  /// Splits the base segment of [key] into baseId, optional variant, and optional category.
+  static ({String baseId, String? variant, String? category}) parseKeyParts(String key) {
+    final baseSegment = key.contains(addonDelimiter) ? key.split(addonDelimiter).first : key;
+    var remaining = baseSegment;
+    String? category;
+    final catIdx = remaining.lastIndexOf(catDelimiter);
+    if (catIdx != -1) {
+      category = remaining.substring(catIdx + catDelimiter.length).trim();
+      remaining = remaining.substring(0, catIdx);
+    }
+    String? variant;
+    final varIdx = remaining.lastIndexOf(varDelimiter);
+    if (varIdx != -1) {
+      variant = remaining.substring(varIdx + varDelimiter.length).trim();
+      remaining = remaining.substring(0, varIdx);
+    }
+    return (baseId: remaining.trim(), variant: variant, category: category);
+  }
+
   /// Extracts the raw base catalog ID from any composite key.
   /// E.g. `item_chai_var_Tea_cat_Beverages+addon_milk` -> `item_chai`.
   static String parseBaseId(String key) {
-    final baseSegment = key.contains(addonDelimiter) ? key.split(addonDelimiter).first : key;
-    var remaining = baseSegment;
-    if (remaining.contains(varDelimiter)) {
-      remaining = remaining.substring(0, remaining.indexOf(varDelimiter));
-    }
-    if (remaining.contains(catDelimiter)) {
-      remaining = remaining.substring(0, remaining.indexOf(catDelimiter));
-    }
-    return remaining.trim();
+    return parseKeyParts(key).baseId;
   }
 
   /// Extracts the variant name if present in [key], or null.
   /// E.g. `item_chai_var_Tea_cat_Beverages` -> `Tea`.
   static String? parseVariant(String key) {
-    final baseSegment = key.contains(addonDelimiter) ? key.split(addonDelimiter).first : key;
-    if (!baseSegment.contains(varDelimiter)) return null;
-
-    final afterVar = baseSegment.substring(baseSegment.indexOf(varDelimiter) + varDelimiter.length);
-    if (afterVar.contains(catDelimiter)) {
-      return afterVar.substring(0, afterVar.indexOf(catDelimiter)).trim();
-    }
-    return afterVar.trim();
+    return parseKeyParts(key).variant;
   }
 
   /// Extracts the category name if present in [key], or null.
   /// E.g. `item_chai_var_Tea_cat_Beverages` -> `Beverages`.
   static String? parseCategory(String key) {
-    final baseSegment = key.contains(addonDelimiter) ? key.split(addonDelimiter).first : key;
-    if (!baseSegment.contains(catDelimiter)) return null;
-
-    return baseSegment.substring(baseSegment.indexOf(catDelimiter) + catDelimiter.length).trim();
+    return parseKeyParts(key).category;
   }
 
   /// Extracts the list of add-on segments from a composite key.

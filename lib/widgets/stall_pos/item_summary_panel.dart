@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
 import '../../theme/category_colors.dart';
+import 'dietary_symbol.dart';
 
 /// Panel displaying consolidated item preparation queue across all active tickets,
 /// with interactive completion per ticket or by batch.
@@ -88,12 +89,23 @@ class ItemSummaryPanel extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        item.displayName,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          DietarySymbol(
+                            type: item.effectiveDietaryType,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              item.displayName,
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
 

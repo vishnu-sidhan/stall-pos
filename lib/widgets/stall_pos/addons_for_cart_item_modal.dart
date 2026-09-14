@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
 import '../../data/helpers/composite_item_helper.dart';
 import '../../data/models/stall_models.dart';
+import 'dietary_symbol.dart';
 
 /// Stepper row widget for modifying add-on quantities with +/- buttons.
 class AddonQuantityRow extends StatelessWidget {
@@ -11,6 +12,7 @@ class AddonQuantityRow extends StatelessWidget {
   final ValueChanged<int> onChanged;
   final bool canIncrement;
   final String? subtitle;
+  final ItemDietaryType? dietaryType;
 
   const AddonQuantityRow({
     super.key,
@@ -20,6 +22,7 @@ class AddonQuantityRow extends StatelessWidget {
     required this.onChanged,
     this.canIncrement = true,
     this.subtitle,
+    this.dietaryType,
   });
 
   @override
@@ -45,12 +48,24 @@ class AddonQuantityRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: qty > 0 ? FontWeight.bold : FontWeight.w600,
-                    fontSize: 15,
-                  ),
+                Row(
+                  children: [
+                    DietarySymbol(
+                      type: dietaryType ?? ItemDietaryType.infer(name: title),
+                      size: 13,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight:
+                              qty > 0 ? FontWeight.bold : FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 Text(
                   subtitle ?? '+₹${price.toStringAsFixed(0)} each',
@@ -253,6 +268,10 @@ class AddonsForCartItemModal {
                                     title: v,
                                     price: addon.price,
                                     qty: qty,
+                                    dietaryType: ItemDietaryType.infer(
+                                      name: v,
+                                      category: addon.categoryName,
+                                    ),
                                     canIncrement: qty < maxForVariant,
                                     subtitle: maxForVariant == 0
                                         ? 'Max 2 already added'
@@ -277,6 +296,7 @@ class AddonsForCartItemModal {
                             title: addon.name,
                             price: addon.price,
                             qty: qty,
+                            dietaryType: addon.effectiveDietaryType,
                             canIncrement: qty < maxCount,
                             subtitle: maxCount == 0
                                 ? 'Max 2 already added'

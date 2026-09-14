@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../controllers/order_controller.dart';
 import '../../data/models/stall_models.dart';
+import 'dietary_symbol.dart';
 export 'addons_for_cart_item_modal.dart';
 
 /// Modal for choosing options for items containing '/' in name or category,
@@ -129,15 +130,29 @@ class SlashSelectionModal {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      isAddon
-                          ? '${item.displayName} • +₹${item.price.toStringAsFixed(0)} each'
-                          : '${item.displayName} • ₹${item.price.toStringAsFixed(0)}',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        DietarySymbol(
+                          type: item.effectiveDietaryType,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            isAddon
+                                ? '${item.displayName} • +₹${item.price.toStringAsFixed(0)} each'
+                                : '${item.displayName} • ₹${item.price.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              fontSize: 14,
+                            ),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     Flexible(
@@ -182,12 +197,28 @@ class SlashSelectionModal {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              variant,
-                                              style: TextStyle(
-                                                fontWeight: qty > 0 ? FontWeight.bold : FontWeight.w600,
-                                                fontSize: 15,
-                                              ),
+                                            Row(
+                                              children: [
+                                                DietarySymbol(
+                                                  type: ItemDietaryType.infer(
+                                                    name: variant,
+                                                    category: item.categoryName,
+                                                  ),
+                                                  size: 13,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    variant,
+                                                    style: TextStyle(
+                                                      fontWeight: qty > 0
+                                                          ? FontWeight.bold
+                                                          : FontWeight.w600,
+                                                      fontSize: 15,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                             Text(
                                               '+₹${item.price.toStringAsFixed(0)} each',
@@ -518,43 +549,78 @@ class SlashSelectionModal {
                               ),
                               const SizedBox(height: 8),
                               ...nameVariants.map((variant) {
+                                final matchingOption = item.effectiveVariants
+                                    .cast<CategoryOption?>()
+                                    .firstWhere(
+                                      (v) =>
+                                          v?.name.trim().toLowerCase() ==
+                                          variant.trim().toLowerCase(),
+                                      orElse: () => null,
+                                    );
+                                final isVarAvailable = matchingOption?.isAvailable ?? true;
+
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: InkWell(
                                     key: ValueKey('name_choice_$variant'),
-                                    onTap: () {
-                                      Navigator.pop(sheetContext);
-                                      HapticFeedback.selectionClick();
-                                      controller.addCustomizedItemToCart(
-                                        baseItem: item,
-                                        resolvedName: variant,
-                                      );
-                                    },
+                                    onTap: isVarAvailable
+                                        ? () {
+                                            Navigator.pop(sheetContext);
+                                            HapticFeedback.selectionClick();
+                                            controller.addCustomizedItemToCart(
+                                              baseItem: item,
+                                              resolvedName: variant,
+                                            );
+                                          }
+                                        : null,
                                     borderRadius: BorderRadius.circular(12),
                                     child: Ink(
                                       padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
                                       decoration: BoxDecoration(
-                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        color: isVarAvailable
+                                            ? Theme.of(context).colorScheme.surfaceContainerHighest
+                                            : Colors.red.withAlpha(15),
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
-                                          color: itemColor.withAlpha(60),
+                                          color: isVarAvailable
+                                              ? itemColor.withAlpha(60)
+                                              : Colors.red.withAlpha(60),
                                           width: 1,
                                         ),
                                       ),
                                       child: Row(
                                         children: [
                                           Icon(
-                                            Icons.radio_button_off,
-                                            color: itemColor,
+                                            isVarAvailable
+                                                ? Icons.radio_button_off
+                                                : Icons.cancel_rounded,
+                                            color: isVarAvailable
+                                                ? itemColor
+                                                : Colors.red.shade700,
                                             size: 20,
                                           ),
                                           const SizedBox(width: 12),
+                                          DietarySymbol(
+                                            type: matchingOption?.dietaryType ??
+                                                ItemDietaryType.infer(
+                                                  name: variant,
+                                                  category: item.categoryName,
+                                                ),
+                                            size: 14,
+                                          ),
+                                          const SizedBox(width: 8),
                                           Expanded(
                                             child: Text(
-                                              variant,
-                                              style: const TextStyle(
+                                              isVarAvailable ? variant : '$variant (Sold Out)',
+                                              style: TextStyle(
                                                 fontWeight: FontWeight.w600,
                                                 fontSize: 15,
+                                                decoration: isVarAvailable
+                                                    ? null
+                                                    : TextDecoration.lineThrough,
+                                                color: isVarAvailable
+                                                    ? null
+                                                    : Theme.of(context).colorScheme.outline,
                                               ),
                                             ),
                                           ),
@@ -563,7 +629,9 @@ class SlashSelectionModal {
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 14,
-                                              color: itemColor,
+                                              color: isVarAvailable
+                                                  ? itemColor
+                                                  : Theme.of(context).colorScheme.outline,
                                             ),
                                           ),
                                         ],
@@ -586,43 +654,78 @@ class SlashSelectionModal {
                               const SizedBox(height: 8),
                               ...nameVariants.map((variant) {
                                 final isSelected = selectedName == variant;
+                                final matchingOption = item.effectiveVariants
+                                    .cast<CategoryOption?>()
+                                    .firstWhere(
+                                      (v) =>
+                                          v?.name.trim().toLowerCase() ==
+                                          variant.trim().toLowerCase(),
+                                      orElse: () => null,
+                                    );
+                                final isVarAvailable = matchingOption?.isAvailable ?? true;
+
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: InkWell(
                                     key: ValueKey('both_name_$variant'),
-                                    onTap: () {
-                                      setModalState(() {
-                                        selectedName = variant;
-                                      });
-                                      HapticFeedback.selectionClick();
-                                    },
+                                    onTap: isVarAvailable
+                                        ? () {
+                                            setModalState(() {
+                                              selectedName = variant;
+                                            });
+                                            HapticFeedback.selectionClick();
+                                          }
+                                        : null,
                                     borderRadius: BorderRadius.circular(12),
                                     child: Ink(
                                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                                       decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? itemColor.withAlpha(25)
-                                            : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        color: isVarAvailable
+                                            ? (isSelected
+                                                ? itemColor.withAlpha(25)
+                                                : Theme.of(context).colorScheme.surfaceContainerHighest)
+                                            : Colors.red.withAlpha(15),
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
-                                          color: isSelected ? itemColor : itemColor.withAlpha(60),
+                                          color: isVarAvailable
+                                              ? (isSelected ? itemColor : itemColor.withAlpha(60))
+                                              : Colors.red.withAlpha(60),
                                           width: isSelected ? 2 : 1,
                                         ),
                                       ),
                                       child: Row(
                                         children: [
                                           Icon(
-                                            isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                                            color: isSelected ? itemColor : Theme.of(context).colorScheme.outline,
+                                            isVarAvailable
+                                                ? (isSelected ? Icons.radio_button_checked : Icons.radio_button_off)
+                                                : Icons.cancel_rounded,
+                                            color: isVarAvailable
+                                                ? (isSelected ? itemColor : Theme.of(context).colorScheme.outline)
+                                                : Colors.red.shade700,
                                             size: 20,
                                           ),
                                           const SizedBox(width: 12),
+                                          DietarySymbol(
+                                            type: matchingOption?.dietaryType ??
+                                                ItemDietaryType.infer(
+                                                  name: variant,
+                                                  category: item.categoryName,
+                                                ),
+                                            size: 14,
+                                          ),
+                                          const SizedBox(width: 8),
                                           Expanded(
                                             child: Text(
-                                              variant,
+                                              isVarAvailable ? variant : '$variant (Sold Out)',
                                               style: TextStyle(
                                                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                                                 fontSize: 15,
+                                                decoration: isVarAvailable
+                                                    ? null
+                                                    : TextDecoration.lineThrough,
+                                                color: isVarAvailable
+                                                    ? null
+                                                    : Theme.of(context).colorScheme.outline,
                                               ),
                                             ),
                                           ),
