@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:counter_app/main.dart';
-import 'package:counter_app/controllers/counter_controller.dart';
-import 'package:counter_app/data/services/counter_storage_service.dart';
+import 'package:counter_app/src/controllers/counter_controller.dart';
+import 'package:counter_app/src/storage/counter_storage_service.dart';
 
 void main() {
   testWidgets('StallPosApp renders and allows creating a counter', (WidgetTester tester) async {

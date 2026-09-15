@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:counter_app/data/storage/app_storage.dart';
-import 'package:counter_app/screens/stall_pos_screen.dart';
-import 'package:counter_app/widgets/stall_pos/stall_pos_widgets.dart';
+import 'package:counter_app/src/storage/app_storage.dart';
+import 'package:counter_app/src/views/stall_pos_screen.dart';
+import 'package:counter_app/src/widgets/stall_pos/stall_pos_widgets.dart';
 
 void main() {
   group('CategoryOption & Model Tests', () {
@@ -85,7 +85,7 @@ void main() {
         'stall_orders': jsonEncode([]),
       });
       storage = AppStorage.instance.stallStorage;
-      controller = OrderController(storageService: storage);
+      controller = OrderController(storage: storage);
       await controller.loadPersistedData();
     });
 
@@ -188,7 +188,7 @@ void main() {
         'stall_orders': jsonEncode([]),
       });
       storage = AppStorage.instance.stallStorage;
-      controller = OrderController(storageService: storage);
+      controller = OrderController(storage: storage);
       await controller.loadPersistedData();
     });
 
@@ -347,6 +347,172 @@ void main() {
       // Cart should be empty, order placed directly as Paid Cash
       expect(find.text('TAP ITEMS TO START (#2)'), findsOneWidget);
       expect(find.text('Order #1 paid via Cash and placed!'), findsOneWidget);
+    });
+  });
+
+  group('UnifiedItemCustomizerSheet Deduplication Tests', () {
+    late StallStorage storage;
+    late OrderController controller;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      storage = AppStorage.instance.stallStorage;
+      controller = OrderController(storage: storage);
+      await controller.loadPersistedData();
+    });
+
+    testWidgets('Double Egg in Rice/Noodles renders CATEGORY OPTION only, not PREPARATION / VARIANT', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      const item = MenuItem(
+        id: 'egg_rn',
+        name: 'Double Egg',
+        price: 190.0,
+        category: ItemCategory(id: 'cat_rn', name: 'Rice/Noodles'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () => UnifiedItemCustomizerSheet.show(
+                  ctx,
+                  item: item,
+                  controller: controller,
+                  getCategoryColor: (_) => Colors.green,
+                ),
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      // CATEGORY OPTION must be present
+      expect(find.text('CATEGORY OPTION'), findsOneWidget);
+      // SELECT PREPARATION / VARIANT must NOT be present
+      expect(find.text('SELECT PREPARATION / VARIANT'), findsNothing);
+      expect(find.text('SELECT CHOICE'), findsNothing);
+
+      // Rice and Noodles chips should appear exactly once
+      expect(find.widgetWithText(ChoiceChip, 'Rice'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'Noodles'), findsOneWidget);
+    });
+
+    testWidgets('Chilli / Chicken 65 in Starters renders SELECT CHOICE only, not PREPARATION / VARIANT', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      const item = MenuItem(
+        id: 'starter_combo',
+        name: 'Chilli / Chicken 65',
+        price: 220.0,
+        category: ItemCategory(id: 'cat_starters', name: 'Starters'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () => UnifiedItemCustomizerSheet.show(
+                  ctx,
+                  item: item,
+                  controller: controller,
+                  getCategoryColor: (_) => Colors.red,
+                ),
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      // SELECT CHOICE must be present
+      expect(find.text('SELECT CHOICE'), findsOneWidget);
+      // SELECT PREPARATION / VARIANT must NOT be present
+      expect(find.text('SELECT PREPARATION / VARIANT'), findsNothing);
+      expect(find.text('CATEGORY OPTION'), findsNothing);
+
+      // Chilli and Chicken 65 chips should appear exactly once
+      expect(find.widgetWithText(ChoiceChip, 'Chilli'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'Chicken 65'), findsOneWidget);
+
+      // Selecting Chicken 65 does NOT prematurely close the sheet
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Chicken 65'));
+      await tester.pumpAndSettle();
+      expect(find.text('SELECT CHOICE'), findsOneWidget);
+      expect(find.text('Add to Cart • ₹220'), findsOneWidget);
+
+      // Tapping Add to Cart adds item and closes sheet
+      await tester.tap(find.text('Add to Cart • ₹220'));
+      await tester.pumpAndSettle();
+      expect(find.text('SELECT CHOICE'), findsNothing);
+      expect(controller.cart.isNotEmpty, isTrue);
+    });
+
+    testWidgets('Item with explicit variants renders SELECT PREPARATION / VARIANT without duplication', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      const item = MenuItem(
+        id: 'burger_item',
+        name: 'Burger',
+        price: 100.0,
+        category: ItemCategory(id: 'cat_burgers', name: 'Burgers'),
+        variants: [
+          CategoryOption(id: 'v_single', name: 'Single Patty', price: 100.0),
+          CategoryOption(id: 'v_double', name: 'Double Patty', price: 160.0),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () => UnifiedItemCustomizerSheet.show(
+                  ctx,
+                  item: item,
+                  controller: controller,
+                  getCategoryColor: (_) => Colors.blue,
+                ),
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('SELECT PREPARATION / VARIANT'), findsOneWidget);
+      expect(find.text('SELECT CHOICE'), findsNothing);
+      expect(find.text('CATEGORY OPTION'), findsNothing);
+
+      expect(find.text('Single Patty (₹100)'), findsOneWidget);
+      expect(find.text('Double Patty (₹160)'), findsOneWidget);
     });
   });
 }

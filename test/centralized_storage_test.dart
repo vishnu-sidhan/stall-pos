@@ -50,8 +50,8 @@ void main() {
     expect(AppStorage.instance.stallStorage, equals(customStallStorage));
     expect(AppStorage.instance.counterStorage, equals(customCounterStorage));
 
-    // Verify OrderController picks up configured custom storage by default
-    final orderController = OrderController();
+    // Verify OrderController works with configured custom storage
+    final orderController = OrderController(storage: AppStorage.instance.stallStorage);
     await orderController.loadPersistedData();
 
     expect(orderController.menu.length, 1);
@@ -126,7 +126,7 @@ void main() {
     final cloudStorage = _MockCloudStallStorage();
     AppStorage.configure(stallStorage: cloudStorage);
 
-    final controller = OrderController();
+    final controller = OrderController(storage: AppStorage.instance.stallStorage);
     await controller.loadPersistedData();
 
     expect(controller.menu.length, 1);

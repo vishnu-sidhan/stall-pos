@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:counter_app/data/models/stall_models.dart';
-import 'package:counter_app/data/storage/in_memory_storage.dart';
-import 'package:counter_app/controllers/order_controller.dart';
-import 'package:counter_app/widgets/stall_pos/category_accordion_card.dart';
-import 'package:counter_app/widgets/stall_pos/category_config_dialog.dart';
-import 'package:counter_app/widgets/stall_pos/manage_categories_dialog.dart';
-import 'package:counter_app/widgets/stall_pos/cart_bottom_sheet.dart';
-import 'package:counter_app/widgets/stall_pos/menu_item_card.dart';
+import 'package:counter_app/src/models/stall_models.dart';
+import 'package:counter_app/src/storage/in_memory_storage.dart';
+import 'package:counter_app/src/controllers/order_controller.dart';
+import 'package:counter_app/src/widgets/stall_pos/category_accordion_card.dart';
+import 'package:counter_app/src/widgets/stall_pos/category_config_dialog.dart';
+import 'package:counter_app/src/widgets/stall_pos/manage_categories_dialog.dart';
+import 'package:counter_app/src/widgets/stall_pos/cart_bottom_sheet.dart';
+import 'package:counter_app/src/widgets/stall_pos/menu_item_card.dart';
 
 void main() {
   group('CategoryOption Model Tests', () {
@@ -228,7 +228,7 @@ void main() {
 
     setUp(() async {
       storage = InMemoryStallStorage(initialMenu: sampleMenu);
-      controller = OrderController(storageService: storage);
+      controller = OrderController(storage: storage);
       await controller.loadPersistedData();
     });
 
@@ -434,7 +434,7 @@ void main() {
           category: ItemCategory(id: 'cat_bev', name: 'Beverages'),
         ),
       ]);
-      final controller = OrderController(storageService: storage);
+      final controller = OrderController(storage: storage);
       await controller.loadPersistedData();
 
       await tester.pumpWidget(
@@ -487,7 +487,7 @@ void main() {
           category: ItemCategory(id: 'cat_momos', name: 'Steam / Fried / Pan Fried'),
         ),
       ]);
-      final controller = OrderController(storageService: storage);
+      final controller = OrderController(storage: storage);
       await controller.loadPersistedData();
 
       await tester.pumpWidget(
@@ -546,7 +546,7 @@ void main() {
           category: ItemCategory(id: 'cat_snacks', name: 'Snacks'),
         ),
       ]);
-      final controller = OrderController(storageService: storage);
+      final controller = OrderController(storage: storage);
       await controller.loadPersistedData();
       await controller.updateCategoryCost(
         categoryName: 'Beverages',
@@ -604,7 +604,7 @@ void main() {
           category: ItemCategory(id: 'cat_bev', name: 'Beverages'),
         ),
       ]);
-      final controller = OrderController(storageService: storage);
+      final controller = OrderController(storage: storage);
       await controller.loadPersistedData();
       await controller.updateCategoryCost(
         categoryName: 'Beverages',
@@ -729,7 +729,7 @@ void main() {
           ),
         ),
       ]);
-      final controller = OrderController(storageService: storage);
+      final controller = OrderController(storage: storage);
       await controller.loadPersistedData();
 
       expect(controller.menu.first.displayName, 'Veg Steamed Momos');
@@ -755,7 +755,7 @@ void main() {
           ),
         ),
       ]);
-      final controller = OrderController(storageService: storage);
+      final controller = OrderController(storage: storage);
       await controller.loadPersistedData();
 
       // 1. Render MenuItemCard
@@ -881,7 +881,7 @@ void main() {
           ),
         ),
       ]);
-      final controller = OrderController(storageService: storage);
+      final controller = OrderController(storage: storage);
       await controller.loadPersistedData();
 
       // 1. Regular item
@@ -962,7 +962,7 @@ void main() {
 
       // Setup OrderController with both items
       final storage = InMemoryStallStorage(initialMenu: [chai, momos]);
-      final controller = OrderController(storageService: storage);
+      final controller = OrderController(storage: storage);
       await controller.loadPersistedData();
 
       // Add regular chai and customized momos (Steam)
@@ -1029,7 +1029,7 @@ void main() {
       );
 
       final storage = InMemoryStallStorage(initialMenu: [manchuria, kurkure, eggChicken, schezwan]);
-      final controller = OrderController(storageService: storage);
+      final controller = OrderController(storage: storage);
       await controller.loadPersistedData();
 
       // 1. Add regular Manchuria (no variant)
@@ -1118,7 +1118,7 @@ void main() {
       );
 
       final storage = InMemoryStallStorage(initialMenu: [chickenMomoItem]);
-      final controller = OrderController(storageService: storage);
+      final controller = OrderController(storage: storage);
       await controller.loadPersistedData();
 
       // 1. Add Chicken with Kurkure Momos variant
@@ -1165,7 +1165,7 @@ void main() {
         initialMenu: [chickenMomoItem],
         initialOrders: [oldOrder],
       );
-      final healingController = OrderController(storageService: storageWithOldOrder);
+      final healingController = OrderController(storage: storageWithOldOrder);
       await healingController.loadPersistedData();
 
       // Check healed summary and snapshots

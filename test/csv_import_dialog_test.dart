@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:counter_app/data/models/stall_models.dart';
-import 'package:counter_app/data/models/counter_model.dart';
-import 'package:counter_app/widgets/csv_import_dialog.dart';
+import 'package:counter_app/src/models/stall_models.dart';
+import 'package:counter_app/src/models/counter_model.dart';
+import 'package:counter_app/src/widgets/csv_import_dialog.dart';
 
 void main() {
   testWidgets('CsvImportDialog imports menu items from pasted text', (WidgetTester tester) async {

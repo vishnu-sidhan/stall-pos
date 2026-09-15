@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:counter_app/data/models/counter_log_entry.dart';
+import 'package:counter_app/src/models/counter_log_entry.dart';
 
 void main() {
   group('CounterLogEntry', () {

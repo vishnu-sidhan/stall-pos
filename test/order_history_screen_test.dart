@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:counter_app/data/models/stall_models.dart';
-import 'package:counter_app/data/services/stall_storage_service.dart';
-import 'package:counter_app/screens/order_history_screen.dart';
-import 'package:counter_app/services/csv_export_service.dart';
+import 'package:counter_app/src/models/stall_models.dart';
+import 'package:counter_app/src/storage/stall_storage_service.dart';
+import 'package:counter_app/src/views/order_history_screen.dart';
+import 'package:counter_app/src/services/csv_export_service.dart';
 
 void main() {
   setUp(() {

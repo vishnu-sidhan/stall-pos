@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:counter_app/controllers/order_controller.dart';
-import 'package:counter_app/data/models/stall_models.dart';
-import 'package:counter_app/data/services/stall_storage_service.dart';
+import 'package:counter_app/src/controllers/order_controller.dart';
+import 'package:counter_app/src/models/stall_models.dart';
+import 'package:counter_app/src/storage/stall_storage_service.dart';
+import 'package:counter_app/src/storage/in_memory_storage.dart';
+import 'package:counter_app/src/services/csv_export_service.dart';
 
 void main() {
   late StallStorageService storageService;
@@ -19,7 +21,7 @@ void main() {
       'stall_next_token': 101,
     });
     storageService = StallStorageService();
-    controller = OrderController(storageService: storageService);
+    controller = OrderController(storage: storageService);
     await controller.loadPersistedData();
   });
 
@@ -1209,6 +1211,246 @@ void main() {
 
         expect(controller.cart['item_burger+addon_cheese'], 1);
         expect(controller.cart['item_tea+addon_ginger'], 1);
+      });
+    });
+
+    group('Menu Catalog CSV Round-Trip Restoration', () {
+      test('exports and restores sub-categories with additional prices and category surcharges with 100% fidelity', () async {
+        // 1. Setup rich categories with surcharges and differential option costs
+        final momosCategory = ItemCategory(
+          id: 'cat_momos',
+          name: 'Momos',
+          additionalCost: 15.0, // packaging surcharge
+          colorHex: 0xFFEA580C,
+          options: const [
+            CategoryOption(id: 'opt_steam', name: 'Steam', additionalCost: 0.0),
+            CategoryOption(id: 'opt_fried', name: 'Fried', additionalCost: 10.0),
+            CategoryOption(id: 'opt_pan_fried', name: 'Pan Fried', additionalCost: 20.0),
+            CategoryOption(id: 'opt_special', name: 'Special Jhol', price: 120.0),
+          ],
+        );
+
+        final rollsCategory = ItemCategory(
+          id: 'cat_rolls',
+          name: 'Rolls',
+          additionalCost: 5.0,
+          colorHex: 0xFF10B981,
+          options: const [
+            CategoryOption(id: 'opt_single', name: 'Single Egg', additionalCost: 0.0),
+            CategoryOption(id: 'opt_double', name: 'Double Egg', additionalCost: 25.0),
+          ],
+        );
+
+        final items = [
+          MenuItem(
+            id: 'item_veg_momos',
+            name: 'Veg Momos',
+            price: 80.0,
+            category: momosCategory,
+            dietaryType: ItemDietaryType.veg,
+          ),
+          MenuItem(
+            id: 'item_chicken_momos',
+            name: 'Chicken Momos',
+            price: 110.0,
+            category: momosCategory,
+            dietaryType: ItemDietaryType.nonVeg,
+          ),
+          MenuItem(
+            id: 'item_egg_roll',
+            name: 'Kolkata Egg Roll',
+            price: 70.0,
+            category: rollsCategory,
+            dietaryType: ItemDietaryType.egg,
+          ),
+          MenuItem(
+            id: 'item_schezwan_dip',
+            name: 'Schezwan Dip',
+            price: 20.0,
+            category: ItemCategory.named('Addons', colorHex: 0xFFE11D48),
+            colorHex: 0xFFE11D48,
+            isAddon: true,
+            linkedCategory: 'Momos',
+            dietaryType: ItemDietaryType.veg,
+          ),
+        ];
+
+        // 2. Initialize Controller A and import catalog
+        final storageA = InMemoryStorage();
+        final controllerA = OrderController(storage: storageA);
+        await controllerA.importMenuCatalog(
+          items: items,
+          categories: [momosCategory, rollsCategory],
+          replace: true,
+        );
+
+        expect(controllerA.menu.length, 4);
+        expect(controllerA.categoryConfigs.length, 3); // Momos, Rolls, Addons
+
+        // Verify Controller A has options and surcharges
+        final catMomosA = controllerA.categoryConfigs.firstWhere((c) => c.name == 'Momos');
+        expect(catMomosA.additionalCost, 15.0);
+        expect(catMomosA.options.length, 4);
+        expect(catMomosA.options[1].name, 'Fried');
+        expect(catMomosA.options[1].additionalCost, 10.0);
+        expect(catMomosA.options[2].name, 'Pan Fried');
+        expect(catMomosA.options[2].additionalCost, 20.0);
+        expect(catMomosA.options[3].name, 'Special Jhol');
+        expect(catMomosA.options[3].price, 120.0);
+
+        // 3. Export to CSV string
+        final exportedCsv = CsvExportService.generateMenuCsv(
+          categories: controllerA.categoryConfigs,
+          items: controllerA.menu,
+        );
+
+        // 4. Initialize Controller B with a completely separate empty storage
+        final storageB = InMemoryStorage();
+        final controllerB = OrderController(storage: storageB);
+        await controllerB.loadPersistedData();
+
+        // 5. Import exported CSV into Controller B
+        final parseResult = await controllerB.importCatalogFromCsv(exportedCsv, replace: true);
+        expect(parseResult.hasItems, isTrue);
+        expect(parseResult.items.length, 4);
+
+        // 6. Validate Controller B restored all data with 100% fidelity
+        expect(controllerB.menu.length, 4);
+        expect(controllerB.categoryConfigs.length, 3);
+
+        final catMomosB = controllerB.categoryConfigs.firstWhere((c) => c.name == 'Momos');
+        expect(catMomosB.additionalCost, 15.0);
+        expect(catMomosB.colorHex, 0xFFEA580C);
+        expect(catMomosB.options.length, 4);
+        expect(catMomosB.options[0].name, 'Steam');
+        expect(catMomosB.options[0].additionalCost, 0.0);
+        expect(catMomosB.options[1].name, 'Fried');
+        expect(catMomosB.options[1].additionalCost, 10.0);
+        expect(catMomosB.options[2].name, 'Pan Fried');
+        expect(catMomosB.options[2].additionalCost, 20.0);
+        expect(catMomosB.options[3].name, 'Special Jhol');
+        expect(catMomosB.options[3].price, 120.0);
+
+        final catRollsB = controllerB.categoryConfigs.firstWhere((c) => c.name == 'Rolls');
+        expect(catRollsB.additionalCost, 5.0);
+        expect(catRollsB.options.length, 2);
+        expect(catRollsB.options[0].name, 'Single Egg');
+        expect(catRollsB.options[1].name, 'Double Egg');
+        expect(catRollsB.options[1].additionalCost, 25.0);
+
+        // Verify item-level effectiveVariants in Controller B
+        final vegMomosB = controllerB.menu.firstWhere((m) => m.name == 'Veg Momos');
+        expect(vegMomosB.effectiveVariants.length, 4);
+        expect(vegMomosB.effectiveVariants[1].additionalCost, 10.0);
+
+        final addonB = controllerB.menu.firstWhere((m) => m.name == 'Schezwan Dip');
+        expect(addonB.isAddon, isTrue);
+        expect(addonB.linkedCategory, 'Momos');
+
+        // 7. Verify persistence in storage: reload into Controller C from storage B
+        final controllerC = OrderController(storage: storageB);
+        await controllerC.loadPersistedData();
+
+        expect(controllerC.menu.length, 4);
+        expect(controllerC.categoryConfigs.length, 3);
+        final catMomosC = controllerC.categoryConfigs.firstWhere((c) => c.name == 'Momos');
+        expect(catMomosC.additionalCost, 15.0);
+        expect(catMomosC.options.length, 4);
+        expect(catMomosC.options[1].additionalCost, 10.0);
+        expect(catMomosC.options[2].additionalCost, 20.0);
+        expect(catMomosC.options[3].price, 120.0);
+
+        // 8. Re-export from Controller C and verify round-trip stability
+        final reExportedCsv = CsvExportService.generateMenuCsv(
+          categories: controllerC.categoryConfigs,
+          items: controllerC.menu,
+        );
+        expect(reExportedCsv, equals(exportedCsv));
+      });
+
+      test('setMenu with replace: true does not wipe out configured sub-categories', () async {
+        final storage = InMemoryStorage();
+        final controller = OrderController(storage: storage);
+        await controller.loadPersistedData();
+
+        // 1. Configure category "Momos" with sub-categories
+        await controller.saveCategoryConfig(
+          ItemCategory(
+            id: 'cat_momos',
+            name: 'Momos',
+            additionalCost: 5.0,
+            options: [
+              CategoryOption(id: 'opt_steam', name: 'Steam', additionalCost: 0.0),
+              CategoryOption(id: 'opt_fried', name: 'Fried', additionalCost: 10.0),
+              CategoryOption(id: 'opt_pan', name: 'Pan Fried', additionalCost: 15.0),
+            ],
+          ),
+        );
+
+        // 2. Verify category configs has Momos with 3 options
+        expect(controller.getCategoryConfig('Momos')?.options.length, 3);
+
+        // 3. Call setMenu(..., replace: true) with items that do NOT carry category options
+        final newItems = [
+          const MenuItem(
+            id: 'item_veg_momo',
+            name: 'Veg Momos',
+            category: ItemCategory(id: 'cat_momos', name: 'Momos'),
+            price: 80.0,
+          ),
+          const MenuItem(
+            id: 'item_paneer_momo',
+            name: 'Paneer Momos',
+            category: ItemCategory(id: 'cat_momos', name: 'Momos'),
+            price: 100.0,
+          ),
+        ];
+
+        await controller.setMenu(newItems, replace: true);
+
+        // 4. Category options must still be intact!
+        final momosConfig = controller.getCategoryConfig('Momos');
+        expect(momosConfig, isNotNull);
+        expect(momosConfig!.options.length, 3);
+        expect(momosConfig.options.map((o) => o.name), containsAll(['Steam', 'Fried', 'Pan Fried']));
+        expect(momosConfig.additionalCost, 5.0);
+
+        // 5. Menu items should be hydrated with the live category options
+        final vegMomo = controller.menu.firstWhere((m) => m.id == 'item_veg_momo');
+        expect(vegMomo.category.options.length, 3);
+        expect(vegMomo.effectiveVariants.length, 3);
+
+        // 6. Adding customized item with category option calculates correct price (80 + 10 fried + 5 packaging = 95)
+        controller.addCustomizedItemToCart(
+          baseItem: vegMomo,
+          resolvedName: 'Fried',
+        );
+        expect(controller.cartTotal, 95.0);
+      });
+
+      test('Item-level variants are not conflated into category options during sync', () async {
+        final storage = InMemoryStorage();
+        final controller = OrderController(storage: storage);
+        await controller.loadPersistedData();
+
+        // Add item with item-specific variant (Half / Full), but NO category options
+        final burger = MenuItem(
+          id: 'item_burger',
+          name: 'Veg Burger',
+          category: const ItemCategory(id: 'cat_burgers', name: 'Burgers'),
+          price: 50.0,
+          variants: const [
+            CategoryOption(id: 'v_single', name: 'Single', price: 50.0),
+            CategoryOption(id: 'v_double', name: 'Double', price: 80.0),
+          ],
+        );
+
+        await controller.addMenuItem(burger);
+
+        // Burgers category config should NOT have "Single" and "Double" as category sub-categories!
+        final burgerCategory = controller.getCategoryConfig('Burgers');
+        expect(burgerCategory, isNotNull);
+        expect(burgerCategory!.options, isEmpty);
       });
     });
   });

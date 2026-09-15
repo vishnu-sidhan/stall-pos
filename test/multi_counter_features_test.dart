@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:counter_app/controllers/counter_controller.dart';
-import 'package:counter_app/data/services/counter_storage_service.dart';
-import 'package:counter_app/screens/home_screen.dart';
+import 'package:counter_app/src/controllers/counter_controller.dart';
+import 'package:counter_app/src/storage/counter_storage_service.dart';
+import 'package:counter_app/src/views/home_screen.dart';
 
 void main() {
   testWidgets('Multi-counter tagging, goal celebration, and filtering in HomeScreen', (WidgetTester tester) async {

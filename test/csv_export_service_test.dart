@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:counter_app/data/models/counter_log_entry.dart';
-import 'package:counter_app/data/models/stall_models.dart';
-import 'package:counter_app/services/csv_export_service.dart';
+import 'package:counter_app/src/models/counter_log_entry.dart';
+import 'package:counter_app/src/models/stall_models.dart';
+import 'package:counter_app/src/services/csv_export_service.dart';
 
 void main() {
   group('CsvExportService', () {
@@ -108,6 +108,80 @@ void main() {
       // Check Order 3: Partial
       expect(csv.contains('#3,'), isTrue);
       expect(csv.contains(',Pending,Partial,Dine In,"2x Paneer Roll","",140.00,70.00,70.00,'), isTrue);
+    });
+
+    test('generates menu catalog CSV preserving sub-categories with additional prices and category surcharge', () {
+      final momosCategory = ItemCategory(
+        id: 'cat_momos',
+        name: 'Momos',
+        additionalCost: 15.0,
+        colorHex: 0xFFEA580C,
+        options: const [
+          CategoryOption(id: 'opt_steam', name: 'Steam', additionalCost: 0.0),
+          CategoryOption(id: 'opt_fried', name: 'Fried', additionalCost: 10.0),
+          CategoryOption(id: 'opt_pan_fried', name: 'Pan Fried', additionalCost: 20.0),
+          CategoryOption(id: 'opt_special', name: 'Special Jhol', price: 120.0),
+        ],
+      );
+
+      final vegMomos = MenuItem(
+        id: 'item_veg_momos',
+        name: 'Veg Momos',
+        price: 80.0,
+        category: momosCategory,
+        dietaryType: ItemDietaryType.veg,
+        isAvailable: true,
+      );
+
+      final extraDip = MenuItem(
+        id: 'item_extra_dip',
+        name: 'Spicy Dip',
+        price: 20.0,
+        category: ItemCategory.named('Addons'),
+        isAddon: true,
+        linkedCategory: 'Momos',
+        dietaryType: ItemDietaryType.veg,
+      );
+
+      final standaloneCategory = ItemCategory(
+        id: 'cat_drinks',
+        name: 'Beverages',
+        additionalCost: 5.0,
+        colorHex: 0xFF2563EB,
+        options: const [
+          CategoryOption(id: 'opt_small', name: 'Small', additionalCost: 0.0),
+          CategoryOption(id: 'opt_large', name: 'Large', additionalCost: 25.0),
+        ],
+      );
+
+      final csv = CsvExportService.generateMenuCsv(
+        categories: [momosCategory, standaloneCategory],
+        items: [vegMomos, extraDip],
+      );
+
+      // Verify header contains all 10 standard columns
+      expect(
+        csv.contains('name,price,category,dietary_type,is_available,category_color,category_additional_cost,category_variants,is_addon,linked_category'),
+        isTrue,
+      );
+
+      // Verify Veg Momos line with category surcharge 15 and subcategories formatted with additional prices
+      expect(
+        csv.contains('Veg Momos,80,Momos,veg,true,0xFFEA580C,15,Steam|Fried:+10|Pan Fried:+20|Special Jhol:120,false,'),
+        isTrue,
+      );
+
+      // Verify Spicy Dip add-on line
+      expect(
+        csv.contains('Spicy Dip,20,Addons,veg,true,,0.0,,true,Momos'),
+        isTrue,
+      );
+
+      // Verify Standalone Beverages category row
+      expect(
+        csv.contains(',0.0,Beverages,none,true,0xFF2563EB,5,Small|Large:+25,false,'),
+        isTrue,
+      );
     });
   });
 }

@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:counter_app/controllers/counter_controller.dart';
-import 'package:counter_app/data/storage/app_storage.dart';
+import 'package:counter_app/src/controllers/counter_controller.dart';
+import 'package:counter_app/src/storage/app_storage.dart';
 import 'package:counter_app/main.dart';
-import 'package:counter_app/screens/stall_pos_screen.dart';
+import 'package:counter_app/src/views/stall_pos_screen.dart';
 
 void main() {
   setUp(() {

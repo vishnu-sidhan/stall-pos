@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:counter_app/controllers/counter_controller.dart';
-import 'package:counter_app/data/models/counter_log_entry.dart';
-import 'package:counter_app/data/services/counter_storage_service.dart';
+import 'package:counter_app/src/controllers/counter_controller.dart';
+import 'package:counter_app/src/models/counter_log_entry.dart';
+import 'package:counter_app/src/storage/counter_storage_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

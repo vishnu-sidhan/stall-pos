@@ -1,35 +1,39 @@
 /// Dedicated StallPOS module entrypoint.
 ///
-/// Use this library when embedding only the Point of Sale and Order Management
-/// features into an existing host application.
+/// Use this library when embedding Point of Sale, Catalog Management,
+/// and Order History features into an existing host Flutter application.
 library;
 
-// Data Models
-export 'data/models/stall_models.dart';
+// Domain Models
+export 'src/models/stall_models.dart'
+    show
+        MenuItem,
+        ItemCategory,
+        CategoryVariant,
+        Order,
+        OrderItem,
+        DietaryType,
+        StallOrder,
+        OrderLineItem,
+        ItemDietaryType;
 
-// Storage Contracts & Implementations
-export 'data/storage/app_storage.dart';
-export 'data/storage/stall_storage.dart';
-export 'data/storage/in_memory_storage.dart';
-export 'data/services/stall_storage_service.dart';
+// Storage Interfaces
+export 'src/storage/stall_storage.dart' show StallStorage;
+export 'src/storage/in_memory_storage.dart'
+    show InMemoryStorage, InMemoryStallStorage;
 
 // Controllers
-export 'controllers/order_controller.dart';
-export 'controllers/theme_controller.dart';
+export 'src/controllers/order_controller.dart' show OrderController;
 
-// Screens
-export 'screens/stall_pos_screen.dart';
-export 'screens/order_history_screen.dart';
-
-// Widgets
-export 'widgets/stall_pos/stall_pos_widgets.dart';
-export 'widgets/payment_confirmation_dialog.dart';
-
-// Theme
-export 'theme/app_theme.dart';
+// Embeddable Views & Full-Screen Wrappers
+export 'src/views/stall_pos_view.dart' show StallPosView;
+export 'src/views/stall_pos_screen.dart' show StallPosScreen;
+export 'src/views/store_management_view.dart' show StoreManagementView;
+export 'src/views/store_management_screen.dart' show StoreManagementScreen;
+export 'src/views/order_history_view.dart' show OrderHistoryView;
+export 'src/views/order_history_screen.dart' show OrderHistoryScreen;
 
 // Services
-export 'services/csv_export_service.dart' show CsvExportService;
-
-// Standalone Application Widget
-export 'main.dart' show StallPosApp;
+export 'src/services/csv_export_service.dart' show CsvExportService;
+export 'src/services/csv_import_service.dart'
+    show CsvImportService, MenuCatalogParseResult, CsvParseResult;

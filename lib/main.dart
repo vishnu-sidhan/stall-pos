@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'controllers/counter_controller.dart';
-import 'controllers/theme_controller.dart';
-import 'data/storage/app_storage.dart';
-import 'screens/main_navigation_screen.dart';
-import 'theme/app_theme.dart';
+import 'src/controllers/counter_controller.dart';
+import 'src/controllers/theme_controller.dart';
+import 'src/storage/app_storage.dart';
+import 'src/views/main_navigation_screen.dart';
+import 'src/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

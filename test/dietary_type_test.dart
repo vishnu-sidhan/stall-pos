@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:counter_app/data/models/stall_models.dart';
-import 'package:counter_app/controllers/order_controller.dart';
+import 'package:counter_app/src/models/stall_models.dart';
+import 'package:counter_app/src/controllers/order_controller.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

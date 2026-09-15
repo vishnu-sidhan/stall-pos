@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:counter_app/controllers/counter_controller.dart';
-import 'package:counter_app/data/services/stall_storage_service.dart';
-import 'package:counter_app/data/storage/app_storage.dart';
+import 'package:counter_app/src/controllers/counter_controller.dart';
+import 'package:counter_app/src/storage/stall_storage_service.dart';
+import 'package:counter_app/src/storage/app_storage.dart';
 import 'package:counter_app/main.dart';
-import 'package:counter_app/screens/stall_pos_screen.dart';
-import 'package:counter_app/widgets/stall_pos/category_config_dialog.dart';
-import 'package:counter_app/widgets/stall_pos/daily_menu_availability_dialog.dart';
+import 'package:counter_app/src/views/stall_pos_screen.dart';
+import 'package:counter_app/src/widgets/stall_pos/category_config_dialog.dart';
+import 'package:counter_app/src/widgets/stall_pos/daily_menu_availability_dialog.dart';
 
 void main() {
   group('Daily Menu Availability - Model Tests', () {
@@ -101,7 +101,7 @@ void main() {
         'stall_next_token': 1,
       });
 
-      controller = OrderController(storageService: StallStorageService());
+      controller = OrderController(storage: StallStorageService());
       await controller.loadPersistedData();
     });
 
@@ -201,7 +201,7 @@ void main() {
         'stall_next_token': 1,
       });
 
-      controller = OrderController(storageService: StallStorageService());
+      controller = OrderController(storage: StallStorageService());
       await controller.loadPersistedData();
     });
 
@@ -392,7 +392,7 @@ void main() {
         ]),
       });
 
-      final controller = OrderController(storageService: StallStorageService());
+      final controller = OrderController(storage: StallStorageService());
       await controller.loadPersistedData();
 
       expect(controller.categories.contains('Momos'), isTrue);
@@ -429,7 +429,7 @@ void main() {
         ]),
       });
 
-      final controller = OrderController(storageService: StallStorageService());
+      final controller = OrderController(storage: StallStorageService());
       await controller.loadPersistedData();
 
       var item = controller.findItem('momo_1');
@@ -470,7 +470,7 @@ void main() {
         ]),
       });
 
-      final controller = OrderController(storageService: StallStorageService());
+      final controller = OrderController(storage: StallStorageService());
       await controller.loadPersistedData();
 
       await tester.pumpWidget(
@@ -522,7 +522,7 @@ void main() {
         ]),
       });
 
-      final controller = OrderController(storageService: StallStorageService());
+      final controller = OrderController(storage: StallStorageService());
       await controller.loadPersistedData();
 
       await tester.pumpWidget(

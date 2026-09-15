@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:counter_app/data/models/stall_models.dart';
-import 'package:counter_app/data/services/stall_storage_service.dart';
+import 'package:counter_app/src/models/stall_models.dart';
+import 'package:counter_app/src/storage/stall_storage_service.dart';
 
 void main() {
   setUp(() {

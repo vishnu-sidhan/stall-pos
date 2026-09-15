@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:counter_app/controllers/theme_controller.dart';
-import 'package:counter_app/screens/stall_pos_screen.dart';
-import 'package:counter_app/theme/app_theme.dart';
+import 'package:counter_app/src/controllers/theme_controller.dart';
+import 'package:counter_app/src/views/stall_pos_screen.dart';
+import 'package:counter_app/src/theme/app_theme.dart';
 
 void main() {
   setUp(() {
