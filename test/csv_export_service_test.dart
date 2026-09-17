@@ -122,6 +122,9 @@ void main() {
           CategoryOption(id: 'opt_pan_fried', name: 'Pan Fried', additionalCost: 20.0),
           CategoryOption(id: 'opt_special', name: 'Special Jhol', price: 120.0),
         ],
+        addons: const [
+          CategoryOption(id: 'item_extra_dip', name: 'Spicy Dip', additionalCost: 20.0),
+        ],
       );
 
       final vegMomos = MenuItem(
@@ -131,16 +134,6 @@ void main() {
         category: momosCategory,
         dietaryType: ItemDietaryType.veg,
         isAvailable: true,
-      );
-
-      final extraDip = MenuItem(
-        id: 'item_extra_dip',
-        name: 'Spicy Dip',
-        price: 20.0,
-        category: ItemCategory.named('Addons'),
-        isAddon: true,
-        linkedCategory: 'Momos',
-        dietaryType: ItemDietaryType.veg,
       );
 
       final standaloneCategory = ItemCategory(
@@ -156,30 +149,24 @@ void main() {
 
       final csv = CsvExportService.generateMenuCsv(
         categories: [momosCategory, standaloneCategory],
-        items: [vegMomos, extraDip],
+        items: [vegMomos],
       );
 
-      // Verify header contains all 10 standard columns
+      // Verify header contains all 9 standard columns
       expect(
-        csv.contains('name,price,category,dietary_type,is_available,category_color,category_additional_cost,category_variants,is_addon,linked_category'),
+        csv.contains('name,price,category,dietary_type,is_available,category_color,category_additional_cost,category_variants,addons'),
         isTrue,
       );
 
-      // Verify Veg Momos line with category surcharge 15 and subcategories formatted with additional prices
+      // Verify Veg Momos line with category surcharge 15, category variants, and addons
       expect(
-        csv.contains('Veg Momos,80,Momos,veg,true,0xFFEA580C,15,Steam|Fried:+10|Pan Fried:+20|Special Jhol:120,false,'),
-        isTrue,
-      );
-
-      // Verify Spicy Dip add-on line
-      expect(
-        csv.contains('Spicy Dip,20,Addons,veg,true,,0.0,,true,Momos'),
+        csv.contains('Veg Momos,80,Momos,veg,true,0xFFEA580C,15,Steam|Fried:+10|Pan Fried:+20|Special Jhol:120,Spicy Dip:+20'),
         isTrue,
       );
 
       // Verify Standalone Beverages category row
       expect(
-        csv.contains(',0.0,Beverages,none,true,0xFF2563EB,5,Small|Large:+25,false,'),
+        csv.contains(',0.0,Beverages,none,true,0xFF2563EB,5,Small|Large:+25,'),
         isTrue,
       );
     });

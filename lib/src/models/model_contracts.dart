@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/category_colors.dart';
-import 'dietary_type.dart';
+import 'item_category.dart';
 export 'dietary_type.dart';
 
 /// Base contract for any domain entity having a unique identifier and human-readable display name.
@@ -38,7 +37,7 @@ mixin ColorThemed {
 
   /// Effective color hex value, resolving to the dynamic category palette if unset.
   int get resolvedColorHex =>
-      colorHex ?? CategoryColorHelper.getColorForCategory(displayName);
+      colorHex ?? ItemCategory.getColorForCategory(displayName);
 
   /// Material [Color] representation of [resolvedColorHex].
   Color get color => Color(resolvedColorHex);

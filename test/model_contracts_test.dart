@@ -10,11 +10,14 @@ void main() {
         id: 'item_veg_momo',
         name: 'Veg Steam Momo',
         price: 90.0,
-        category: ItemCategory(id: 'cat_momos', name: 'Momos'),
-        variants: [
-          CategoryOption(id: 'opt_steam', name: 'Steam'),
-          CategoryOption(id: 'opt_fried', name: 'Fried', additionalCost: 10.0),
-        ],
+        category: ItemCategory(
+          id: 'cat_momos',
+          name: 'Momos',
+          options: [
+            CategoryOption(id: 'opt_steam', name: 'Steam'),
+            CategoryOption(id: 'opt_fried', name: 'Fried', additionalCost: 10.0),
+          ],
+        ),
       );
 
       // Verify polymorphism

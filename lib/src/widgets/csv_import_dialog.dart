@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/counter_model.dart';
 import '../models/stall_models.dart';
 import '../services/csv_import_service.dart';
-import '../theme/category_colors.dart';
 
 enum CsvImportType { menuItem, counter }
 
@@ -490,7 +489,7 @@ class _CsvImportDialogState<T> extends State<CsvImportDialog<T>>
                 if (item is MenuItem) {
                   final catColor = item.colorHex != null
                       ? Color(item.colorHex!)
-                      : Color(CategoryColorHelper.getColorForCategory(item.categoryName));
+                      : Color(ItemCategory.getColorForCategory(item.categoryName));
 
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),

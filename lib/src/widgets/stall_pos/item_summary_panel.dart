@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
-import '../../theme/category_colors.dart';
+import '../../models/item_category.dart';
 import 'dietary_symbol.dart';
 
 /// Panel displaying consolidated item preparation queue across all active tickets,
@@ -26,7 +26,7 @@ class ItemSummaryPanel extends StatelessWidget {
     if (getCategoryColor != null) {
       return getCategoryColor!(category);
     }
-    return Color(CategoryColorHelper.getColorForCategory(category));
+    return Color(ItemCategory.getColorForCategory(category));
   }
 
   @override
@@ -232,7 +232,7 @@ class ItemSummaryPanel extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
-                          color: CategoryColorHelper.getContrastingTextColor(color),
+                          color: ItemCategory.getContrastingTextColor(color),
                         ),
                       ),
                     ),

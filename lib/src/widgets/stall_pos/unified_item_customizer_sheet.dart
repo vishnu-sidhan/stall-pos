@@ -2,22 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../controllers/order_controller.dart';
 import '../../models/stall_models.dart';
-import 'addons_for_cart_item_modal.dart';
 import 'dietary_symbol.dart';
 
 /// Unified Item Customizer Bottom Sheet.
 ///
-/// Combines variant/option selection, slash choices, applicable add-ons, and
-/// quantity adjustments into a single bottom sheet with real-time price updates
-/// and a 1-tap "Add to Cart • ₹XXX" action. Eliminates modal explosion and
-/// sequential chained dialogs.
+/// Sole entry point for item variant selection, add-ons, quantity adjustment,
+/// and cart re-editing with real-time price calculation.
 class UnifiedItemCustomizerSheet extends StatefulWidget {
   final MenuItem item;
   final OrderController controller;
   final Color Function(String category) getCategoryColor;
-  final MenuItem? targetBaseItem;
   final String buttonLabel;
   final String? initialCartItemId;
+  final CategoryOption? initialSelectedVariant;
+  final Map<String, int>? initialSelectedAddons;
   final int? initialQuantity;
   final VoidCallback? onItemUpdated;
 
@@ -26,9 +24,10 @@ class UnifiedItemCustomizerSheet extends StatefulWidget {
     required this.item,
     required this.controller,
     required this.getCategoryColor,
-    this.targetBaseItem,
     this.buttonLabel = 'Add to Cart',
     this.initialCartItemId,
+    this.initialSelectedVariant,
+    this.initialSelectedAddons,
     this.initialQuantity,
     this.onItemUpdated,
   });
@@ -38,9 +37,10 @@ class UnifiedItemCustomizerSheet extends StatefulWidget {
     required MenuItem item,
     required OrderController controller,
     required Color Function(String category) getCategoryColor,
-    MenuItem? targetBaseItem,
     String? buttonLabel,
     String? initialCartItemId,
+    CategoryOption? initialSelectedVariant,
+    Map<String, int>? initialSelectedAddons,
     int? initialQuantity,
     VoidCallback? onItemUpdated,
   }) {
@@ -52,9 +52,10 @@ class UnifiedItemCustomizerSheet extends StatefulWidget {
         item: item,
         controller: controller,
         getCategoryColor: getCategoryColor,
-        targetBaseItem: targetBaseItem,
         buttonLabel: buttonLabel ?? 'Add to Cart',
         initialCartItemId: initialCartItemId,
+        initialSelectedVariant: initialSelectedVariant,
+        initialSelectedAddons: initialSelectedAddons,
         initialQuantity: initialQuantity,
         onItemUpdated: onItemUpdated,
       ),
@@ -70,108 +71,66 @@ class _UnifiedItemCustomizerSheetState
     extends State<UnifiedItemCustomizerSheet> {
   late List<CategoryOption> _variants;
   CategoryOption? _selectedVariant;
-  String? _selectedSlashName;
-  String? _selectedSlashCategory;
 
-  // Add-ons state (addonId -> quantity)
+  // Add-ons state: addonId -> quantity (0..2)
+  late List<CategoryOption> _addons;
   final Map<String, int> _selectedAddons = {};
-  late List<MenuItem> _availableAddons;
 
-  // Linking state (if item is an add-on)
-  MenuItem? _selectedBaseItem;
-  int _itemQuantity = 1;
+  int _quantity = 1;
 
   @override
   void initState() {
     super.initState();
     if (widget.initialQuantity != null && widget.initialQuantity! > 0) {
-      _itemQuantity = widget.initialQuantity!;
+      _quantity = widget.initialQuantity!;
     }
 
-    final categoryOptions = widget.item.category.options.isNotEmpty
-        ? widget.item.category.options
-        : (widget.controller.getCategoryConfig(widget.item.categoryName)?.options ??
-            const <CategoryOption>[]);
-
-    final slashNames = widget.item.hasSlashNameVariants
-        ? widget.item.slashNameVariants.map((s) => s.trim().toLowerCase()).toSet()
-        : const <String>{};
-    final slashCats = widget.item.hasSlashCategoryVariants
-        ? widget.item.slashCategoryVariants.map((s) => s.trim().toLowerCase()).toSet()
-        : const <String>{};
-
-    // Combine item variants and category options, deduplicating by normalized name
-    final combined = <CategoryOption>[];
-    final seen = <String>{};
-
-    for (final v in widget.item.variants) {
-      final norm = v.name.trim().toLowerCase();
-      if (!slashNames.contains(norm) && !slashCats.contains(norm) && seen.add(norm)) {
-        combined.add(v);
-      }
-    }
-    for (final o in categoryOptions) {
-      final norm = o.name.trim().toLowerCase();
-      if (!slashNames.contains(norm) && !slashCats.contains(norm) && seen.add(norm)) {
-        combined.add(o);
-      }
-    }
-
-    _variants = combined;
-
+    _variants = widget.item.effectiveVariants;
     if (_variants.isNotEmpty) {
-      final available = _variants.where((v) => v.isAvailable).toList();
-      _selectedVariant = available.isNotEmpty ? available.first : null;
+      if (widget.initialSelectedVariant != null) {
+        _selectedVariant = _variants.firstWhere(
+          (v) => v.name.trim().toLowerCase() == widget.initialSelectedVariant!.name.trim().toLowerCase(),
+          orElse: () => _variants.firstWhere((v) => v.isAvailable, orElse: () => _variants.first),
+        );
+      } else {
+        final available = _variants.where((v) => v.isAvailable).toList();
+        _selectedVariant = available.isNotEmpty ? available.first : _variants.first;
+      }
     }
 
-    if (widget.item.hasSlashNameVariants) {
-      _selectedSlashName = widget.item.slashNameVariants.first;
-    }
-
-    if (widget.item.hasSlashCategoryVariants) {
-      _selectedSlashCategory = widget.item.slashCategoryVariants.first;
-    }
-
-    if (widget.item.effectiveIsAddon) {
-      final baseItems = widget.controller.cartBaseItems.where((b) {
-        return widget.item.isApplicableToCategory(b.categoryName);
-      }).toList();
-      _selectedBaseItem = widget.targetBaseItem ??
-          (baseItems.isNotEmpty ? baseItems.first : null);
-      _availableAddons = const [];
-    } else {
-      _availableAddons = widget.controller.getAddonsForCategory(
-        widget.item.categoryName,
-      );
+    _addons = widget.item.effectiveAddons
+        .where((a) =>
+            a.isAvailable &&
+            a.name.trim().isNotEmpty &&
+            !const {'false', 'true', 'null', 'none'}.contains(a.name.trim().toLowerCase()))
+        .toList();
+    if (widget.initialSelectedAddons != null) {
+      for (final entry in widget.initialSelectedAddons!.entries) {
+        if (_addons.any((a) => a.id == entry.key || a.name.trim().toLowerCase() == entry.key.trim().toLowerCase())) {
+          _selectedAddons[entry.key] = entry.value;
+        }
+      }
     }
   }
 
   double get _currentUnitPrice {
-    if (widget.item.effectiveIsAddon) {
-      return widget.item.price;
-    }
-
-    final variantPrice = widget.item.priceForVariant(_selectedVariant);
-    final category = _selectedSlashCategory ?? widget.item.categoryName;
-    final catCost = widget.controller.getCategoryCost(category);
+    final basePrice = widget.item.priceForVariant(_selectedVariant);
+    final catCost = widget.controller.getCategoryCost(widget.item.categoryName);
 
     double addonsTotal = 0.0;
-    _selectedAddons.forEach((addonId, qty) {
-      if (qty > 0) {
-        final addon = widget.controller.findItem(addonId);
-        addonsTotal += addon.price * qty;
+    for (final addon in _addons) {
+      final count = _selectedAddons[addon.id] ?? _selectedAddons[addon.name] ?? 0;
+      if (count > 0) {
+        addonsTotal += addon.priceDelta * count;
       }
-    });
+    }
 
-    return variantPrice + catCost + addonsTotal;
+    return basePrice + catCost + addonsTotal;
   }
 
-  double get _totalPrice => _currentUnitPrice * _itemQuantity;
+  double get _totalPrice => _currentUnitPrice * _quantity;
 
   bool get _canAddToCart {
-    if (widget.item.effectiveIsAddon) {
-      return _selectedBaseItem != null;
-    }
     if (_variants.isNotEmpty) {
       return _selectedVariant != null && _selectedVariant!.isAvailable;
     }
@@ -186,50 +145,20 @@ class _UnifiedItemCustomizerSheetState
       widget.controller.removeFromCart(widget.initialCartItemId!);
     }
 
-    if (widget.item.effectiveIsAddon) {
-      final target = _selectedBaseItem;
-      if (target != null) {
-        final resolvedName = _selectedSlashName ?? _selectedVariant?.name;
-        widget.controller.addAddonToCart(
-          targetCartItemId: target.id,
-          addon: widget.item,
-          resolvedAddonName: resolvedName,
-          quantity: _itemQuantity,
-        );
-      }
-    } else {
-      final resolvedName = _selectedSlashName ??
-          (_selectedVariant?.name != widget.item.name
-              ? _selectedVariant?.name
-              : null);
-      final resolvedCategory = _selectedSlashCategory != widget.item.categoryName
-          ? _selectedSlashCategory
-          : null;
-
-      for (int i = 0; i < _itemQuantity; i++) {
-        widget.controller.addCustomizedItemToCart(
-          baseItem: widget.item,
-          resolvedName: resolvedName,
-          resolvedCategory: resolvedCategory,
-        );
-
-        if (_selectedAddons.isNotEmpty) {
-          final baseKey = widget.controller.cartBaseItems.lastOrNull?.id;
-          if (baseKey != null) {
-            _selectedAddons.forEach((addonId, qty) {
-              if (qty > 0) {
-                final addon = widget.controller.findItem(addonId);
-                widget.controller.addAddonToCart(
-                  targetCartItemId: baseKey,
-                  addon: addon,
-                  quantity: qty,
-                );
-              }
-            });
-          }
-        }
+    final selectedAddonsList = <CategoryOption>[];
+    for (final addon in _addons) {
+      final count = _selectedAddons[addon.id] ?? _selectedAddons[addon.name] ?? 0;
+      for (int i = 0; i < count; i++) {
+        selectedAddonsList.add(addon);
       }
     }
+
+    widget.controller.addCustomizedItemToCart(
+      baseItem: widget.item,
+      selectedVariant: _selectedVariant,
+      selectedAddons: selectedAddonsList,
+      quantity: _quantity,
+    );
 
     widget.onItemUpdated?.call();
     Navigator.pop(context);
@@ -241,8 +170,6 @@ class _UnifiedItemCustomizerSheetState
     final itemColor = widget.item.colorHex != null
         ? Color(widget.item.colorHex!)
         : widget.getCategoryColor(widget.item.categoryName);
-
-    final isAddon = widget.item.effectiveIsAddon;
 
     return Container(
       constraints: BoxConstraints(
@@ -305,9 +232,7 @@ class _UnifiedItemCustomizerSheetState
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                widget.item.hasSlashNameVariants
-                                    ? 'Select Option'
-                                    : widget.item.displayName,
+                                widget.item.displayName,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -318,9 +243,7 @@ class _UnifiedItemCustomizerSheetState
                           ],
                         ),
                         Text(
-                          isAddon
-                              ? 'Add-on • ₹${widget.item.price.toStringAsFixed(0)} each'
-                              : '${widget.item.displayName} • ₹${widget.item.price.toStringAsFixed(0)}',
+                          '${widget.item.categoryName} • Base ₹${widget.item.price.toStringAsFixed(0)}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -338,128 +261,203 @@ class _UnifiedItemCustomizerSheetState
 
             const Divider(height: 1),
 
-            // Scrollable Options Content
+            // Scrollable Content
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Base item selector if item is an add-on
-                    if (isAddon) ...[
-                      Text(
-                        'ATTACH TO ITEM IN CART',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurfaceVariant,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildBaseItemSelector(theme),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // SECTION 1: Variants & Options (Choice Chips)
+                    // Category Variants Section (Single Select)
                     if (_variants.isNotEmpty) ...[
                       Text(
-                        'SELECT PREPARATION / VARIANT',
-                        style: theme.textTheme.labelSmall?.copyWith(
+                        'Select Variant / Portion',
+                        style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurfaceVariant,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildVariantChips(theme, itemColor),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Slash Name Variants (e.g. Rice / Noodles)
-                    if (widget.item.hasSlashNameVariants) ...[
-                      Text(
-                        'SELECT CHOICE',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurfaceVariant,
-                          letterSpacing: 1.1,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: widget.item.slashNameVariants.map((name) {
-                          final isSelected = _selectedSlashName == name;
+                        children: _variants.map((v) {
+                          final isSelected = _selectedVariant?.name == v.name;
+                          final isSoldOut = !v.isAvailable;
+                          final badge = v.costBadge;
+
                           return ChoiceChip(
-                            label: Text(name),
-                            selected: isSelected,
-                            onSelected: (val) {
-                              if (val) setState(() => _selectedSlashName = name);
-                            },
+                            label: Text(
+                              isSoldOut
+                                  ? '${v.name} (Sold Out)'
+                                  : badge.isNotEmpty
+                                      ? '${v.name} ($badge)'
+                                      : v.name,
+                              style: TextStyle(
+                                decoration: isSoldOut ? TextDecoration.lineThrough : null,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                            selected: isSelected && !isSoldOut,
+                            onSelected: isSoldOut
+                                ? null
+                                : (selected) {
+                                    if (selected) {
+                                      setState(() {
+                                        _selectedVariant = v;
+                                      });
+                                    }
+                                  },
                           );
                         }).toList(),
                       ),
                       const SizedBox(height: 16),
                     ],
 
-                    // Slash Category Variants (e.g. Regular / Large)
-                    if (widget.item.hasSlashCategoryVariants) ...[
-                      Text(
-                        'CATEGORY OPTION',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurfaceVariant,
-                          letterSpacing: 1.1,
-                        ),
+                    // Add-ons Section
+                    if (_addons.isNotEmpty) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Add-ons & Extras',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Optional (Max 2 each)',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: widget.item.slashCategoryVariants.map((cat) {
-                          final isSelected = _selectedSlashCategory == cat;
-                          final cost = widget.controller.getCategoryCost(cat);
-                          final label = cost > 0 ? '$cat (+₹${cost.toStringAsFixed(0)})' : cat;
-                          return ChoiceChip(
-                            label: Text(label),
-                            selected: isSelected,
-                            onSelected: (val) {
-                              if (val) setState(() => _selectedSlashCategory = cat);
-                            },
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
+                      ..._addons.map((addon) {
+                        final count = _selectedAddons[addon.id] ?? _selectedAddons[addon.name] ?? 0;
+                        final badge = addon.costBadge;
 
-                    // SECTION 2: Add-ons & Modifiers (Multi-choice)
-                    if (!isAddon && _availableAddons.isNotEmpty) ...[
-                      Text(
-                        'ADD-ONS & MODIFIERS',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurfaceVariant,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ..._availableAddons.map((addon) {
-                        final qty = _selectedAddons[addon.id] ?? 0;
-                        return AddonQuantityRow(
-                          title: addon.displayName,
-                          price: addon.price,
-                          qty: qty,
-                          dietaryType: addon.effectiveDietaryType,
-                          canIncrement: qty < OrderController.maxPerAddonItem,
-                          onChanged: (newQty) {
-                            setState(() {
-                              _selectedAddons[addon.id] = newQty;
-                            });
-                          },
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: count > 0
+                                ? theme.colorScheme.primaryContainer.withAlpha(50)
+                                : theme.colorScheme.surfaceContainerHighest.withAlpha(40),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: count > 0
+                                  ? theme.colorScheme.primary.withAlpha(120)
+                                  : theme.colorScheme.outlineVariant.withAlpha(80),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      addon.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    if (badge.isNotEmpty)
+                                      Text(
+                                        badge,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: theme.colorScheme.primary,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              // Quantity Stepper
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (count > 0)
+                                    IconButton(
+                                      icon: const Icon(Icons.remove_circle_outline, size: 22),
+                                      visualDensity: VisualDensity.compact,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                      onPressed: () {
+                                        setState(() {
+                                          if (count <= 1) {
+                                            _selectedAddons.remove(addon.id);
+                                            _selectedAddons.remove(addon.name);
+                                          } else {
+                                            _selectedAddons[addon.id] = count - 1;
+                                          }
+                                        });
+                                      },
+                                    ),
+                                  if (count > 0)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      child: Text(
+                                        '$count',
+                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  IconButton(
+                                    icon: Icon(
+                                      count > 0 ? Icons.add_circle_outline : Icons.add,
+                                      size: 22,
+                                      color: count >= OrderController.maxPerAddonItem
+                                          ? theme.colorScheme.outline
+                                          : theme.colorScheme.primary,
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                    onPressed: count >= OrderController.maxPerAddonItem
+                                        ? null
+                                        : () {
+                                            setState(() {
+                                              _selectedAddons[addon.id] = count + 1;
+                                            });
+                                          },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         );
                       }),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Category surcharge notification if active
+                    if (widget.item.category.hasAdditionalCost) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.tertiaryContainer.withAlpha(60),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 16, color: theme.colorScheme.tertiary),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Includes ${widget.item.category.costDescription}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: theme.colorScheme.onTertiaryContainer,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                     ],
                   ],
                 ),
@@ -468,7 +466,7 @@ class _UnifiedItemCustomizerSheetState
 
             const Divider(height: 1),
 
-            // SECTION 3: Quantity Stepper & Add to Cart Button
+            // Bottom Bar with Quantity and Add Button
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
               child: Row(
@@ -478,65 +476,42 @@ class _UnifiedItemCustomizerSheetState
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant,
-                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.remove, size: 18),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 36, minHeight: 44),
-                          onPressed: _itemQuantity > 1
-                              ? () => setState(() => _itemQuantity--)
+                          icon: const Icon(Icons.remove, size: 20),
+                          onPressed: _quantity > 1
+                              ? () => setState(() => _quantity--)
                               : null,
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Text(
-                            '$_itemQuantity',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                        Text(
+                          '$_quantity',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.add, size: 18),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 36, minHeight: 44),
-                          onPressed: _itemQuantity < 99
-                              ? () => setState(() => _itemQuantity++)
-                              : null,
+                          icon: const Icon(Icons.add, size: 20),
+                          onPressed: () => setState(() => _quantity++),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 14),
 
-                  const SizedBox(width: 12),
-
-                  // Prominent Action Button
+                  // Add To Cart Button
                   Expanded(
-                    child: SizedBox(
-                      height: 48,
-                      child: FilledButton(
-                        onPressed: _canAddToCart ? _onAddToCart : null,
-                        style: FilledButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          _canAddToCart
-                              ? '${widget.buttonLabel} • ₹${_totalPrice.toStringAsFixed(0)}'
-                              : 'Unavailable',
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      ),
+                      onPressed: _canAddToCart ? _onAddToCart : null,
+                      child: Text(
+                        '${widget.buttonLabel} • ₹${_totalPrice.toStringAsFixed(0)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                     ),
                   ),
@@ -546,95 +521,6 @@ class _UnifiedItemCustomizerSheetState
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildVariantChips(ThemeData theme, Color itemColor) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: _variants.map((variant) {
-        final isSelected = _selectedVariant?.id == variant.id;
-        final isAvailable = variant.isAvailable;
-
-        String labelText = variant.name;
-        if (variant.costBadge.isNotEmpty) {
-          labelText += ' (${variant.costBadge})';
-        }
-        if (!isAvailable) {
-          labelText += ' • Sold Out';
-        }
-
-        return FilterChip(
-          label: Text(labelText),
-          selected: isSelected,
-          onSelected: isAvailable
-              ? (val) {
-                  if (val) setState(() => _selectedVariant = variant);
-                }
-              : null,
-          selectedColor: itemColor.withAlpha(50),
-          checkmarkColor: itemColor,
-          side: BorderSide(
-            color: isSelected ? itemColor : theme.colorScheme.outlineVariant,
-            width: isSelected ? 1.5 : 1,
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildBaseItemSelector(ThemeData theme) {
-    final baseItems = widget.controller.cartBaseItems.where((b) {
-      return widget.item.isApplicableToCategory(b.categoryName);
-    }).toList();
-
-    if (baseItems.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.errorContainer.withAlpha(60),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: theme.colorScheme.error.withAlpha(100)),
-        ),
-        child: Text(
-          'No eligible items in cart for "${widget.item.categoryName}". Add a main item first.',
-          style: TextStyle(fontSize: 13, color: theme.colorScheme.error),
-        ),
-      );
-    }
-
-    return Column(
-      children: baseItems.map((base) {
-        final isSelected = _selectedBaseItem?.id == base.id;
-        return ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(
-            isSelected
-                ? Icons.radio_button_checked_rounded
-                : Icons.radio_button_unchecked_rounded,
-            color: isSelected
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurfaceVariant,
-            size: 20,
-          ),
-          title: Text(
-            base.displayName,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-          ),
-          subtitle: Text(
-            base.categoryName,
-            style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
-          ),
-          selected: isSelected,
-          onTap: () {
-            setState(() {
-              _selectedBaseItem = base;
-            });
-          },
-        );
-      }).toList(),
     );
   }
 }

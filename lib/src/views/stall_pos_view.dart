@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../controllers/order_controller.dart';
+import '../controllers/theme_controller.dart';
 import '../models/stall_models.dart';
+import '../storage/app_storage.dart';
 import '../storage/stall_storage.dart';
 import '../widgets/stall_pos/stall_pos_widgets.dart';
 
@@ -110,95 +112,7 @@ class _StallPosViewState extends State<StallPosView>
   void _handleMenuItemTap(MenuItem item) {
     HapticFeedback.selectionClick();
 
-    // 1. Check if item is an Add-on
-    if (item.effectiveIsAddon) {
-      final baseItems = _controller.cartBaseItems;
-      if (baseItems.isEmpty) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Add-ons must be linked to an item. Please add a main item first.',
-            ),
-            backgroundColor: Colors.deepOrange,
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 2),
-          ),
-        );
-        return;
-      }
-
-      final matchingCategoryItems = baseItems
-          .where((b) => item.isApplicableToCategory(b.categoryName))
-          .toList();
-
-      if (matchingCategoryItems.isEmpty) {
-        final targetCatName = item.linkedCategory?.isNotEmpty == true
-            ? item.linkedCategory!
-            : item.categoryName;
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Add-on [${item.name}] can only be added to "$targetCatName" items. Please add one first.',
-            ),
-            backgroundColor: Colors.deepOrange,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        return;
-      }
-
-      final eligibleBaseItems = matchingCategoryItems.where((b) {
-        if (item.hasSlashNameVariants) {
-          return item.slashNameVariants.any((v) =>
-              _controller.getAddonItemCount(b.id, item.id, resolvedAddonName: v) <
-              OrderController.maxPerAddonItem);
-        }
-        return _controller.getAddonItemCount(b.id, item.id) <
-            OrderController.maxPerAddonItem;
-      }).toList();
-
-      if (eligibleBaseItems.isEmpty) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Maximum 2 [${item.name}] already added to items in cart.',
-            ),
-            backgroundColor: Colors.deepOrange,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        return;
-      }
-
-      // If addon has slash variants (e.g. Cheese / Mayo) OR multiple eligible base items in cart
-      if (item.hasAnySlashVariants || eligibleBaseItems.length > 1) {
-        _showCentralizedSlashSelectionModal(item);
-        return;
-      }
-
-      // Single eligible base item & no slash in addon
-      final target = eligibleBaseItems.first;
-      _controller.addAddonToCart(
-        targetCartItemId: target.id,
-        addon: item,
-      );
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Added [${item.name}] to ${target.displayName}'),
-          duration: const Duration(seconds: 1),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    // Check if item or all variants are available today
+    // 1. Check if item or all variants are available today
     if (!item.isEffectivelyAvailable) {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -216,12 +130,15 @@ class _StallPosViewState extends State<StallPosView>
       return;
     }
 
-    // 2. Check if item has explicit variants or configured category options
-    final hasCategoryOptions = item.category.options.isNotEmpty ||
-        (_controller.getCategoryConfig(item.categoryName)?.options.isNotEmpty ?? false);
+    // 2. Check if item has customizations (category variants or item addons)
+    final categoryOptions = item.category.options.isNotEmpty
+        ? item.category.options
+        : (_controller.getCategoryConfig(item.categoryName)?.options ?? const <CategoryOption>[]);
+    final hasVariants = item.hasVariants || categoryOptions.isNotEmpty;
+    final hasAddons = item.availableAddons.isNotEmpty;
 
-    if (item.variants.isNotEmpty || hasCategoryOptions) {
-      ItemCustomizerSheet.show(
+    if (hasVariants || hasAddons) {
+      UnifiedItemCustomizerSheet.show(
         context,
         item: item,
         controller: _controller,
@@ -230,23 +147,8 @@ class _StallPosViewState extends State<StallPosView>
       return;
     }
 
-    // 3. Check if item has '/' variants in name or category (e.g. Rice / Noodles or Fried Rice / Hakka Noodles)
-    if (item.hasAnySlashVariants) {
-      _showCentralizedSlashSelectionModal(item);
-      return;
-    }
-
-    // 4. Regular item: Direct 1-tap ordering
+    // 3. Regular item without customizations: Direct 1-tap ordering
     _addToCart(item);
-  }
-
-  void _showCentralizedSlashSelectionModal(MenuItem item) {
-    SlashSelectionModal.show(
-      context,
-      item: item,
-      controller: _controller,
-      getCategoryColor: _getCategoryColor,
-    );
   }
 
   void _showCartBottomSheet() {
@@ -1095,3 +997,113 @@ class _StallPosViewState extends State<StallPosView>
     );
   }
 }
+
+/// Full-screen Scaffold wrapper for [StallPosView].
+class StallPosScreen extends StatefulWidget {
+  final StallStorage? storageService;
+  final StallStorage? storage;
+  final OrderController? controller;
+  final List<Widget>? extraActions;
+
+  const StallPosScreen({
+    super.key,
+    this.storageService,
+    this.storage,
+    this.controller,
+    this.extraActions,
+  });
+
+  @override
+  State<StallPosScreen> createState() => _StallPosScreenState();
+}
+
+class _StallPosScreenState extends State<StallPosScreen> {
+  late final OrderController _controller;
+  late final bool _internalController;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.controller != null) {
+      _controller = widget.controller!;
+      _internalController = false;
+    } else {
+      _controller = OrderController(
+        storage: widget.storage ?? widget.storageService ?? AppStorage.instance.stallStorage,
+      );
+      _internalController = true;
+      _controller.loadPersistedData();
+    }
+    _controller.addListener(_onControllerChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onControllerChanged);
+    if (_internalController) {
+      _controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalRevenue = _controller.orders.fold<double>(
+      0,
+      (sum, o) => sum + o.total,
+    );
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          '⚡ StallPOS',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          if (MediaQuery.of(context).size.width >= 420)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Center(
+                child: Text(
+                  'Orders: ${_controller.orders.length} | ₹${totalRevenue.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+          if (widget.extraActions != null) ...widget.extraActions!,
+          ListenableBuilder(
+            listenable: ThemeController.instance,
+            builder: (context, _) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              return IconButton(
+                icon: Icon(
+                  isDark ? Icons.light_mode_rounded : Icons.dark_mode_outlined,
+                ),
+                tooltip: isDark
+                    ? 'Switch to Light Theme'
+                    : 'Switch to Dark Theme',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                onPressed: () => ThemeController.instance.toggleTheme(),
+              );
+            },
+          ),
+        ],
+      ),
+      body: StallPosView(
+        controller: _controller,
+        storage: widget.storage ?? widget.storageService,
+        extraActions: widget.extraActions,
+      ),
+    );
+  }
+}
+

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
 import '../../models/stall_models.dart';
-import '../../theme/category_colors.dart';
 import 'category_config_dialog.dart';
 import 'dietary_symbol.dart';
 
@@ -28,17 +27,15 @@ class AddEditMenuItemDialog {
             ? controller.selectedCategory
             : 'General');
     final categoryCtrl = TextEditingController(text: selectedCat);
-    final linkedCategoryCtrl = TextEditingController(
-      text: existingItem?.linkedCategory ??
-          (existingItem?.isAddon == true ? existingItem?.categoryName ?? '' : ''),
-    );
     int? selectedColorHex = existingItem?.colorHex;
-    bool isAddon = existingItem?.isAddon ?? false;
     bool isAvailable = existingItem?.isAvailable ?? true;
     final variants = List<CategoryOption>.from(existingItem?.variants ?? const []);
+    final addons = List<CategoryOption>.from(existingItem?.addons ?? const []);
     ItemDietaryType? selectedDietary = existingItem?.dietaryType;
     final newVariantNameCtrl = TextEditingController();
     final newVariantPriceCtrl = TextEditingController();
+    final newAddonNameCtrl = TextEditingController();
+    final newAddonPriceCtrl = TextEditingController();
 
     final existingCategories = categories.where((c) => c != 'All').toList();
     if (!existingCategories.contains('General')) {
@@ -351,96 +348,127 @@ class AddEditMenuItemDialog {
                       });
                     },
                   ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Mark as Add-on',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: const Text(
-                      'Must be linked to another item; cannot be added alone',
-                      style: TextStyle(fontSize: 11),
-                    ),
-                    value: isAddon,
-                    onChanged: (val) {
-                      setDialogState(() {
-                        isAddon = val;
-                        if (val && linkedCategoryCtrl.text.trim().isEmpty) {
-                          linkedCategoryCtrl.text = effectiveCategory;
-                        }
-                      });
-                    },
-                  ),
-                  if (isAddon) ...[
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Link to Item Category',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'This add-on will only be available for items in this category.',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Item Add-ons / Extras (Optional)',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                       ),
+                      if (addons.isNotEmpty)
+                        Text(
+                          '${addons.length} add-on(s)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Optional extras specific to this item (e.g. Extra Cheese +₹20, Mayo +₹10).',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(height: 6),
+                  ),
+                  const SizedBox(height: 6),
+                  if (addons.isNotEmpty) ...[
                     Wrap(
                       spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        ...existingCategories.map((cat) {
-                          final isCurrent = linkedCategoryCtrl.text.trim().toLowerCase() ==
-                              cat.trim().toLowerCase();
-                          final catColor = getCategoryColor(cat);
-                          return ChoiceChip(
-                            avatar: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: catColor,
-                                shape: BoxShape.circle,
-                              ),
+                      runSpacing: 6,
+                      children: addons.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final a = entry.value;
+                        final priceStr = a.priceDelta > 0
+                            ? ' • +₹${a.priceDelta.toStringAsFixed(a.priceDelta.truncateToDouble() == a.priceDelta ? 0 : 2)}'
+                            : (a.price != null ? ' • ₹${a.price!.toStringAsFixed(a.price!.truncateToDouble() == a.price! ? 0 : 2)}' : '');
+                        return InputChip(
+                          visualDensity: VisualDensity.compact,
+                          avatar: Icon(
+                            a.isEnabled ? Icons.check_circle : Icons.remove_circle_outline,
+                            size: 14,
+                            color: a.isEnabled ? Colors.green : Colors.red,
+                          ),
+                          label: Text(
+                            '${a.name}$priceStr${a.isEnabled ? '' : ' (Disabled)'}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              decoration: a.isEnabled ? null : TextDecoration.lineThrough,
+                              color: a.isEnabled ? null : Colors.grey,
                             ),
-                            label: Text(cat, style: const TextStyle(fontSize: 12)),
-                            selected: isCurrent,
-                            selectedColor: catColor.withAlpha(50),
-                            side: BorderSide(
-                              color: isCurrent ? catColor : Colors.grey.shade300,
-                              width: isCurrent ? 1.5 : 1.0,
-                            ),
-                            onSelected: (selected) {
-                              setDialogState(() {
-                                linkedCategoryCtrl.text = selected ? cat : '';
-                              });
-                            },
-                          );
-                        }),
-                        ChoiceChip(
-                          avatar: const Icon(Icons.all_inclusive, size: 12),
-                          label: const Text('All Categories', style: TextStyle(fontSize: 12)),
-                          selected: linkedCategoryCtrl.text.trim().toLowerCase() == 'all',
-                          onSelected: (selected) {
+                          ),
+                          onPressed: () {
                             setDialogState(() {
-                              linkedCategoryCtrl.text = selected ? 'All' : '';
+                              addons[idx] = a.copyWith(isEnabled: !a.isEnabled);
                             });
                           },
-                        ),
-                      ],
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          onDeleted: () {
+                            setDialogState(() {
+                              addons.removeAt(idx);
+                            });
+                          },
+                        );
+                      }).toList(),
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: linkedCategoryCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Target Category / Categories',
-                        hintText: 'e.g. Beverages or Fast Food / Snacks',
-                        isDense: true,
-                      ),
-                      onChanged: (_) => setDialogState(() {}),
-                    ),
                   ],
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: newAddonNameCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Add-on Name',
+                            hintText: 'e.g. Extra Cheese',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: newAddonPriceCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Additional Price',
+                            hintText: 'e.g. 20',
+                            prefixText: '+₹ ',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      IconButton.filledTonal(
+                        icon: const Icon(Icons.add, size: 18),
+                        tooltip: 'Add Add-on',
+                        onPressed: () {
+                          final aName = newAddonNameCtrl.text.trim();
+                          if (aName.isNotEmpty) {
+                            final aPrice = double.tryParse(newAddonPriceCtrl.text.trim()) ?? 0.0;
+                            setDialogState(() {
+                              addons.add(
+                                CategoryOption(
+                                  id: 'addon_${DateTime.now().millisecondsSinceEpoch}_${addons.length}',
+                                  name: aName,
+                                  priceDelta: aPrice,
+                                  isEnabled: true,
+                                ),
+                              );
+                              newAddonNameCtrl.clear();
+                              newAddonPriceCtrl.clear();
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -511,9 +539,6 @@ class AddEditMenuItemDialog {
                           if (selected) {
                             setDialogState(() {
                               categoryCtrl.text = cat;
-                              if (isAddon && linkedCategoryCtrl.text.trim().isEmpty) {
-                                linkedCategoryCtrl.text = cat;
-                              }
                             });
                           }
                         },
@@ -565,7 +590,7 @@ class AddEditMenuItemDialog {
                           setDialogState(() => selectedColorHex = null);
                         },
                       ),
-                      ...CategoryColorHelper.palette.map((colorVal) {
+                      ...ItemCategory.palette.map((colorVal) {
                         final isSelected = selectedColorHex == colorVal;
                         final color = Color(colorVal);
                         return GestureDetector(
@@ -662,18 +687,20 @@ class AddEditMenuItemDialog {
                   final resolvedColor =
                       selectedColorHex ??
                       resolvedCategoryColors[category] ??
-                      CategoryColorHelper.getUniqueColor(
+                      ItemCategory.getUniqueColor(
                         categoryName: category,
                         usedColors: resolvedCategoryColors.values.toSet(),
                       );
 
-                  final effectiveLinkedCategory = isAddon
-                      ? (linkedCategoryCtrl.text.trim().isNotEmpty
-                          ? linkedCategoryCtrl.text.trim()
-                          : category)
-                      : null;
                   if (name.isNotEmpty && price > 0) {
-                    final catObj = controller.resolveItemCategory(category);
+                    var catObj = controller.resolveItemCategory(category);
+                    if (variants.isNotEmpty || addons.isNotEmpty) {
+                      catObj = catObj.copyWith(
+                        options: variants.isNotEmpty ? variants : catObj.options,
+                        addons: addons.isNotEmpty ? addons : catObj.addons,
+                      );
+                      controller.updateCategoryConfig(catObj);
+                    }
                     if (isEditing) {
                       controller.updateMenuItem(
                         existingItem.copyWith(
@@ -681,11 +708,7 @@ class AddEditMenuItemDialog {
                           price: price,
                           category: catObj,
                           colorHex: resolvedColor,
-                          isAddon: isAddon,
                           isAvailable: isAvailable,
-                          linkedCategory: effectiveLinkedCategory,
-                          clearLinkedCategory: !isAddon,
-                          variants: variants,
                           dietaryType: selectedDietary,
                           clearDietaryType: selectedDietary == null,
                         ),
@@ -698,10 +721,7 @@ class AddEditMenuItemDialog {
                           price: price,
                           category: catObj,
                           colorHex: resolvedColor,
-                          isAddon: isAddon,
                           isAvailable: isAvailable,
-                          linkedCategory: effectiveLinkedCategory,
-                          variants: variants,
                           dietaryType: selectedDietary,
                         ),
                       );

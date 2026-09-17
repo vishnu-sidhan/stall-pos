@@ -6,7 +6,8 @@ import 'package:counter_app/src/controllers/counter_controller.dart';
 import 'package:counter_app/src/storage/stall_storage_service.dart';
 import 'package:counter_app/src/storage/app_storage.dart';
 import 'package:counter_app/main.dart';
-import 'package:counter_app/src/views/stall_pos_screen.dart';
+import 'package:counter_app/src/models/stall_models.dart';
+import 'package:counter_app/src/controllers/order_controller.dart';
 import 'package:counter_app/src/widgets/stall_pos/category_config_dialog.dart';
 import 'package:counter_app/src/widgets/stall_pos/daily_menu_availability_dialog.dart';
 
@@ -72,6 +73,14 @@ void main() {
             'price': 20.0,
             'category': 'Beverages',
             'isAvailable': true,
+            'addons': [
+              {
+                'id': 'addon_1',
+                'name': 'Extra Milk',
+                'price': 5.0,
+                'isEnabled': true,
+              }
+            ],
           },
           {
             'id': 'bev_2',
@@ -87,15 +96,6 @@ void main() {
             'category': 'Snacks',
             'isAvailable': true,
           },
-          {
-            'id': 'addon_1',
-            'name': 'Extra Milk',
-            'price': 5.0,
-            'category': 'Beverages',
-            'isAddon': true,
-            'linkedCategory': 'Beverages',
-            'isAvailable': true,
-          },
         ]),
         'stall_orders': jsonEncode([]),
         'stall_next_token': 1,
@@ -106,9 +106,9 @@ void main() {
     });
 
     test('Initializes with all items available', () {
-      expect(controller.menu.length, equals(4));
-      expect(controller.availableMenu.length, equals(4));
-      expect(controller.filteredMenu.length, equals(4));
+      expect(controller.menu.length, equals(3));
+      expect(controller.availableMenu.length, equals(3));
+      expect(controller.filteredMenu.length, equals(3));
       expect(controller.groupedMenu.containsKey('Beverages'), isTrue);
       expect(controller.groupedMenu.containsKey('Snacks'), isTrue);
     });
@@ -139,12 +139,12 @@ void main() {
       expect(controller.groupedMenu.containsKey('Snacks'), isTrue);
     });
 
-    test('Disabling add-on excludes it from getAddonsForCategory', () {
+    test('Disabling add-on excludes it from getAddonsForCategory', () async {
       expect(controller.getAddonsForCategory('Beverages').length, equals(1));
       expect(controller.hasAddonsForCategory('Beverages'), isTrue);
 
       // Disable the add-on
-      controller.setItemAvailability('addon_1', false);
+      await controller.setItemAvailability('addon_1', false);
 
       expect(controller.getAddonsForCategory('Beverages').length, equals(0));
       expect(controller.hasAddonsForCategory('Beverages'), isFalse);
@@ -155,7 +155,6 @@ void main() {
 
       expect(controller.findItem('bev_1').isAvailable, isFalse);
       expect(controller.findItem('bev_2').isAvailable, isFalse);
-      expect(controller.findItem('addon_1').isAvailable, isFalse);
       // Snack item was untouched
       expect(controller.findItem('snack_1').isAvailable, isTrue);
 
@@ -172,7 +171,7 @@ void main() {
       expect(controller.allGroupedMenu.isNotEmpty, isTrue);
 
       controller.setAllItemsAvailability(true);
-      expect(controller.availableMenu.length, equals(4));
+      expect(controller.availableMenu.length, equals(3));
     });
   });
 
@@ -331,11 +330,14 @@ void main() {
         id: 'momo_1',
         name: 'Veg Momos',
         price: 80.0,
-        category: const ItemCategory(id: 'cat_momos', name: 'Momos'),
-        variants: const [
-          CategoryOption(id: 'v1', name: 'Steam', isEnabled: true),
-          CategoryOption(id: 'v2', name: 'Fried', isEnabled: true),
-        ],
+        category: const ItemCategory(
+          id: 'cat_momos',
+          name: 'Momos',
+          options: [
+            CategoryOption(id: 'v1', name: 'Steam', isEnabled: true),
+            CategoryOption(id: 'v2', name: 'Fried', isEnabled: true),
+          ],
+        ),
       );
 
       expect(momos.hasVariants, isTrue);
@@ -343,18 +345,26 @@ void main() {
       expect(momos.isEffectivelyAvailable, isTrue);
 
       // Disable 1 variant
-      final oneDisabled = momos.copyWith(variants: const [
-        CategoryOption(id: 'v1', name: 'Steam', isEnabled: true),
-        CategoryOption(id: 'v2', name: 'Fried', isEnabled: false),
-      ]);
+      final oneDisabled = momos.copyWith(
+        category: momos.category.copyWith(
+          options: const [
+            CategoryOption(id: 'v1', name: 'Steam', isEnabled: true),
+            CategoryOption(id: 'v2', name: 'Fried', isEnabled: false),
+          ],
+        ),
+      );
       expect(oneDisabled.hasAvailableVariants, isTrue);
       expect(oneDisabled.isEffectivelyAvailable, isTrue);
 
       // Disable all variants
-      final allDisabled = momos.copyWith(variants: const [
-        CategoryOption(id: 'v1', name: 'Steam', isEnabled: false),
-        CategoryOption(id: 'v2', name: 'Fried', isEnabled: false),
-      ]);
+      final allDisabled = momos.copyWith(
+        category: momos.category.copyWith(
+          options: const [
+            CategoryOption(id: 'v1', name: 'Steam', isEnabled: false),
+            CategoryOption(id: 'v2', name: 'Fried', isEnabled: false),
+          ],
+        ),
+      );
       expect(allDisabled.hasAvailableVariants, isFalse);
       expect(allDisabled.isEffectivelyAvailable, isFalse);
 
@@ -371,15 +381,6 @@ void main() {
             'name': 'Veg Momos',
             'price': 80.0,
             'category': 'Momos',
-            'isAvailable': true,
-          },
-          {
-            'id': 'addon_dip',
-            'name': 'Spicy Dip',
-            'price': 10.0,
-            'category': 'Extras',
-            'isAddon': true,
-            'linkedCategory': 'Momos / Snacks',
             'isAvailable': true,
           },
         ]),
@@ -406,10 +407,6 @@ void main() {
       // Check item category
       final item = controller.findItem('momo_1');
       expect(item.categoryName, equals('Dimsums'));
-
-      // Check linked addon
-      final addon = controller.findItem('addon_dip');
-      expect(addon.linkedCategory, equals('Dimsums / Snacks'));
     });
 
     test('OrderController toggleMenuItemVariantAvailability toggles individual variant and updates availability', () async {

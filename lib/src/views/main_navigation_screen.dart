@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../controllers/counter_controller.dart';
+import '../controllers/order_controller.dart';
 import '../storage/app_storage.dart';
 import 'home_screen.dart';
-import 'stall_pos_screen.dart';
-import 'store_management_screen.dart';
+import 'stall_pos_view.dart';
+import 'store_management_view.dart';
 
 /// Main root screen providing bottom navigation between Multi-Counter, Stall POS, and Store Admin.
 class MainNavigationScreen extends StatefulWidget {

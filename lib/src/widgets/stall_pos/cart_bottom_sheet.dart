@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
 import '../../models/stall_models.dart';
-import '../../helpers/composite_item_helper.dart';
 import 'dietary_symbol.dart';
-import 'slash_selection_modal.dart';
 import 'unified_item_customizer_sheet.dart';
 
 /// Modal bottom sheet displaying detailed cart items, add-on breakdown,
@@ -41,7 +39,13 @@ class CartBottomSheet {
             final cartEntries = cart.entries.map((e) {
               final item = controller.findItem(e.key);
               final breakdown = controller.getCartItemBreakdown(e.key);
-              return (item: item, quantity: e.value, breakdown: breakdown);
+              final displayName = controller.getCartItemDisplayName(e.key);
+              return (
+                item: item,
+                quantity: e.value,
+                breakdown: breakdown,
+                displayName: displayName,
+              );
             }).toList();
 
             return Container(
@@ -214,6 +218,11 @@ class CartBottomSheet {
                                 ? Color(item.colorHex!)
                                 : getCategoryColor(item.categoryName);
                             final itemTotal = item.price * qty;
+                            final rawKey = item.id.contains('+') ? item.id.split('+').first : item.id;
+                            final baseItemId = rawKey.contains('_var_')
+                                ? rawKey.split('_var_').first
+                                : (rawKey.contains('_cat_') ? rawKey.split('_cat_').first : rawKey);
+                            final baseItem = controller.findItem(baseItemId);
 
                             return Row(
                               crossAxisAlignment: CrossAxisAlignment.center,
@@ -230,10 +239,6 @@ class CartBottomSheet {
                                 Expanded(
                                   child: InkWell(
                                     onTap: () {
-                                      final baseItemId =
-                                          CompositeItemHelper.parseBaseId(item.id);
-                                      final baseItem =
-                                          controller.findItem(baseItemId);
                                       UnifiedItemCustomizerSheet.show(
                                         context,
                                         item: baseItem,
@@ -259,7 +264,7 @@ class CartBottomSheet {
                                             const SizedBox(width: 6),
                                             Expanded(
                                               child: Text(
-                                                item.displayName,
+                                                entry.displayName,
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
                                                   fontSize: 15,
@@ -390,7 +395,7 @@ class CartBottomSheet {
                                             ),
                                           ),
                                         ],
-                                        if (controller.hasAddonsForCategory(item.categoryName)) ...[
+                                        if (baseItem.hasAddons || controller.hasAddonsForCategory(item.categoryName)) ...[
                                           const SizedBox(height: 4),
                                           if (!controller.canAddAnyAddon(item.id))
                                             Container(
@@ -426,11 +431,15 @@ class CartBottomSheet {
                                           else
                                             InkWell(
                                               onTap: () {
-                                                AddonsForCartItemModal.show(
+                                                UnifiedItemCustomizerSheet.show(
                                                   context,
-                                                  cartItemId: item.id,
+                                                  item: baseItem,
                                                   controller: controller,
-                                                  onUpdated: () => setSheetState(() {}),
+                                                  getCategoryColor: getCategoryColor,
+                                                  buttonLabel: 'Update Item',
+                                                  initialCartItemId: item.id,
+                                                  initialQuantity: qty,
+                                                  onItemUpdated: () => setSheetState(() {}),
                                                 );
                                               },
                                               borderRadius: BorderRadius.circular(6),

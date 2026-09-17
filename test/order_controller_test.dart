@@ -467,24 +467,31 @@ void main() {
   });
 
   group('OrderController - Slash Items & Add-on Linking', () {
-    test('detects slash variants and adds selected variant to cart', () async {
+    test('detects variants and adds selected variant to cart', () async {
       final orItem = MenuItem(
         id: 'item_or',
-        name: 'Tea / Coffee / Green Tea',
+        name: 'Hot Beverage',
         price: 30.0,
-        category: ItemCategory.named('Hot Drinks'),
+        category: ItemCategory.named(
+          'Hot Drinks',
+          options: const [
+            CategoryOption(id: 'v1', name: 'Tea'),
+            CategoryOption(id: 'v2', name: 'Coffee'),
+            CategoryOption(id: 'v3', name: 'Green Tea'),
+          ],
+        ),
       );
       await controller.addMenuItem(orItem);
 
-      expect(orItem.hasSlashVariants, isTrue);
-      expect(orItem.slashVariants, ['Tea', 'Coffee', 'Green Tea']);
+      expect(orItem.hasVariants, isTrue);
+      expect(orItem.effectiveVariants.map((v) => v.name).toList(), ['Tea', 'Coffee', 'Green Tea']);
 
       controller.addVariantToCart(orItem, 'Coffee');
       expect(controller.cart['item_or_var_Coffee'], 1);
       expect(controller.cartTotal, 30.0);
 
       final found = controller.findItem('item_or_var_Coffee');
-      expect(found.name, 'Coffee');
+      expect(found.name, 'Hot Beverage (Coffee)');
       expect(found.price, 30.0);
       expect(found.categoryName, 'Hot Drinks');
     });
@@ -506,35 +513,23 @@ void main() {
       expect(controller.filteredMenu.any((m) => m.name == 'French Fries'), isTrue);
     });
 
-    test('prevents add-ons from being added standalone', () {
-      final addon = MenuItem(
-        id: 'addon_cheese',
-        name: 'Extra Cheese',
-        price: 20.0,
-        category: ItemCategory.named('Addons'),
-        isAddon: true,
-      );
-      expect(addon.effectiveIsAddon, isTrue);
-
-      expect(
-        () => controller.addToCart(addon),
-        throwsA(isA<StateError>()),
-      );
-    });
-
     test('links add-on to base item, formats name with bracket prefix, and sums price', () async {
       final burger = MenuItem(
         id: 'item_burger',
         name: 'Veg Burger',
         price: 80.0,
-        category: ItemCategory.named('Fast Food'),
+        category: ItemCategory.named(
+          'Fast Food',
+          addons: const [
+            CategoryOption(id: 'addon_cheese', name: 'Extra Cheese', price: 20.0),
+          ],
+        ),
       );
       final addon = MenuItem(
         id: 'addon_cheese',
         name: 'Extra Cheese',
         price: 20.0,
         category: ItemCategory.named('Addons'),
-        isAddon: true,
       );
 
       await controller.addMenuItem(burger);
@@ -568,8 +563,8 @@ void main() {
       );
 
       final punchedOrder = controller.orders.firstWhere((o) => o.token == orderResult.token);
-      expect(punchedOrder.itemsSummary, contains('1x Veg Burger'));
-      expect(punchedOrder.itemsSummary, contains('1x [Extra Cheese] Veg Burger'));
+      expect(punchedOrder.itemsSummary, contains('1x Veg Burger (Fast Food)'));
+      expect(punchedOrder.itemsSummary, contains('1x [Extra Cheese] Veg Burger (Fast Food)'));
       expect(punchedOrder.total, 180.0);
     });
 
@@ -585,7 +580,6 @@ void main() {
         name: 'Extra Cheese',
         price: 20.0,
         category: ItemCategory.named('Addons'),
-        isAddon: true,
       );
 
       await controller.addMenuItem(burger);
@@ -605,8 +599,8 @@ void main() {
       final aggregated = controller.combinedActiveOrders;
 
       // Veg Burger and [Extra Cheese] Veg Burger must be distinct rows!
-      final regularBurgers = aggregated.firstWhere((a) => a.itemName == 'Veg Burger');
-      final cheeseBurgers = aggregated.firstWhere((a) => a.itemName == '[Extra Cheese] Veg Burger');
+      final regularBurgers = aggregated.firstWhere((a) => a.itemName.contains('Veg Burger') && !a.itemName.contains('Extra Cheese'));
+      final cheeseBurgers = aggregated.firstWhere((a) => a.itemName.contains('Extra Cheese'));
 
       expect(regularBurgers.totalQuantity, 3); // 1 from Order 1 + 2 from Order 2
       expect(cheeseBurgers.totalQuantity, 1); // 1 from Order 1
@@ -624,7 +618,6 @@ void main() {
         name: 'Cheese / Mayo',
         price: 30.0,
         category: ItemCategory.named('Extras'),
-        isAddon: true,
       );
 
       await controller.addMenuItem(riceNoodles);
@@ -671,7 +664,6 @@ void main() {
         name: 'Red / Green Chutney',
         price: 15.0,
         category: ItemCategory.named('Extras'),
-        isAddon: true,
       );
 
       await controller.addMenuItem(noodles);
@@ -722,7 +714,6 @@ void main() {
         name: 'Extra Cheese',
         price: 20.0,
         category: ItemCategory.named('Addons'),
-        isAddon: true,
       );
 
       await controller.addMenuItem(burger);
@@ -773,14 +764,12 @@ void main() {
         name: 'Cheese',
         price: 25.0,
         category: ItemCategory.named('Addons'),
-        isAddon: true,
       );
       final mayo = MenuItem(
         id: 'addon_mayo_multi',
         name: 'Mayo',
         price: 15.0,
         category: ItemCategory.named('Addons'),
-        isAddon: true,
       );
 
       await controller.addMenuItem(burger);
@@ -939,7 +928,7 @@ void main() {
 
     test('adding an addon item moves the linked item to confirm payment and excludes it from item summary until paid', () async {
       final burger = const MenuItem(id: 'item_burger', name: 'Veg Burger', price: 50);
-      final cheese = const MenuItem(id: 'item_cheese', name: 'Extra Cheese', price: 20, isAddon: true);
+      final cheese = const MenuItem(id: 'item_cheese', name: 'Extra Cheese', price: 20);
       final chai = const MenuItem(id: 'item_chai', name: 'Masala Chai', price: 20);
       await controller.setMenu([burger, cheese, chai]);
 
@@ -1009,8 +998,8 @@ void main() {
     test('getCartItemBreakdown and cart totals calculate split between item and addons', () {
       final controller = OrderController();
       final burger = MenuItem(id: 'item_burger', name: 'Veg Burger', price: 80.0, category: ItemCategory.named('Fast Food'));
-      final cheese = MenuItem(id: 'item_cheese', name: 'Extra Cheese', price: 20.0, category: ItemCategory.named('Addons'), isAddon: true);
-      final mayo = MenuItem(id: 'item_mayo', name: 'Mayo', price: 15.0, category: ItemCategory.named('Addons'), isAddon: true);
+      final cheese = MenuItem(id: 'item_cheese', name: 'Extra Cheese', price: 20.0, category: ItemCategory.named('Addons'));
+      final mayo = MenuItem(id: 'item_mayo', name: 'Mayo', price: 15.0, category: ItemCategory.named('Addons'));
       final tea = MenuItem(id: 'item_tea', name: 'Tea', price: 10.0, category: ItemCategory.named('Beverages'));
       controller.setMenu([burger, cheese, mayo, tea]);
 
@@ -1045,127 +1034,45 @@ void main() {
       expect(controller.cartTotal, 125.0);
     });
 
-    group('Category-Linked Add-on Architecture', () {
-      test('MenuItem effectiveLinkedCategories and isApplicableToCategory logic', () {
-        // Explicit single category
-        const teaAddon = MenuItem(
-          id: 'addon_ginger',
-          name: 'Extra Ginger',
-          price: 5.0,
-          category: ItemCategory(id: 'cat_addons', name: 'Addons'),
-          isAddon: true,
-          linkedCategory: 'Beverages',
-        );
-        expect(teaAddon.effectiveLinkedCategories, ['Beverages']);
-        expect(teaAddon.isApplicableToCategory('Beverages'), isTrue);
-        expect(teaAddon.isApplicableToCategory('beverages'), isTrue);
-        expect(teaAddon.isApplicableToCategory('Fast Food'), isFalse);
-
-        // Explicit multi-category (slash variants)
-        const multiAddon = MenuItem(
-          id: 'addon_cheese',
-          name: 'Extra Cheese',
-          price: 20.0,
-          category: ItemCategory(id: 'cat_extras', name: 'Extras'),
-          isAddon: true,
-          linkedCategory: 'Fast Food / Snacks',
-        );
-        expect(multiAddon.effectiveLinkedCategories, ['Fast Food', 'Snacks']);
-        expect(multiAddon.isApplicableToCategory('Fast Food'), isTrue);
-        expect(multiAddon.isApplicableToCategory('Snacks'), isTrue);
-        expect(multiAddon.isApplicableToCategory('Beverages'), isFalse);
-
-        // Explicit universal 'All'
-        const universalAddon = MenuItem(
-          id: 'addon_bag',
-          name: 'Eco Carry Bag',
-          price: 10.0,
-          category: ItemCategory(id: 'cat_pkg', name: 'Packaging'),
-          isAddon: true,
-          linkedCategory: 'All',
-        );
-        expect(universalAddon.effectiveLinkedCategories, ['All']);
-        expect(universalAddon.isApplicableToCategory('Beverages'), isTrue);
-        expect(universalAddon.isApplicableToCategory('Desserts'), isTrue);
-
-        // Implicit category inheritance (not named 'addon' or 'extras')
-        const inheritedAddon = MenuItem(
-          id: 'addon_cream',
-          name: 'Whipped Cream',
-          price: 15.0,
-          category: ItemCategory(id: 'cat_desserts', name: 'Desserts'),
-          isAddon: true,
-        );
-        expect(inheritedAddon.effectiveLinkedCategories, ['Desserts']);
-        expect(inheritedAddon.isApplicableToCategory('Desserts'), isTrue);
-        expect(inheritedAddon.isApplicableToCategory('Beverages'), isFalse);
-
-        // Legacy fallback for generic 'Addons' category
-        const legacyAddon = MenuItem(
-          id: 'addon_legacy',
-          name: 'Generic Extra',
-          price: 10.0,
-          category: ItemCategory(id: 'cat_addons', name: 'Addons'),
-          isAddon: true,
-        );
-        expect(legacyAddon.effectiveLinkedCategories, ['All']);
-        expect(legacyAddon.isApplicableToCategory('Anything'), isTrue);
-      });
-
-      test('MenuItem JSON serialization preserves linkedCategory', () {
-        const item = MenuItem(
-          id: 'item_1',
-          name: 'Ketchup',
-          price: 5.0,
-          category: ItemCategory(id: 'cat_condiments', name: 'Condiments'),
-          isAddon: true,
-          linkedCategory: 'Snacks / Fast Food',
-        );
-
-        final json = item.toJson();
-        expect(json['linkedCategory'], 'Snacks / Fast Food');
-
-        final restored = MenuItem.fromJson(json);
-        expect(restored.linkedCategory, 'Snacks / Fast Food');
-        expect(restored.isApplicableToCategory('Snacks'), isTrue);
-        expect(restored.isApplicableToCategory('Fast Food'), isTrue);
-        expect(restored.isApplicableToCategory('Beverages'), isFalse);
-      });
-
-      test('OrderController queries and validates category-linked add-ons', () async {
+    group('Item Add-on Architecture', () {
+      test('OrderController queries and validates item add-ons', () async {
         final burger = MenuItem(
           id: 'item_burger',
           name: 'Veg Burger',
           price: 80.0,
-          category: ItemCategory.named('Fast Food'),
+          category: ItemCategory.named(
+            'Fast Food',
+            addons: const [
+              CategoryOption(id: 'addon_cheese', name: 'Extra Cheese', price: 25.0),
+            ],
+          ),
         );
         final tea = MenuItem(
           id: 'item_tea',
           name: 'Masala Chai',
           price: 20.0,
-          category: ItemCategory.named('Beverages'),
+          category: ItemCategory.named(
+            'Beverages',
+            addons: const [
+              CategoryOption(id: 'addon_ginger', name: 'Ginger', price: 5.0),
+            ],
+          ),
         );
         final cheese = MenuItem(
           id: 'addon_cheese',
           name: 'Extra Cheese',
           price: 25.0,
           category: ItemCategory.named('Extras'),
-          isAddon: true,
-          linkedCategory: 'Fast Food',
         );
         final ginger = MenuItem(
           id: 'addon_ginger',
           name: 'Ginger',
           price: 5.0,
           category: ItemCategory.named('Extras'),
-          isAddon: true,
-          linkedCategory: 'Beverages',
         );
 
         await controller.addMenuItem(burger);
         await controller.addMenuItem(tea);
-        await controller.addMenuItem(cheese);
-        await controller.addMenuItem(ginger);
 
         // getAddonsForCategory & hasAddonsForCategory
         final fastFoodAddons = controller.getAddonsForCategory('Fast Food');
@@ -1184,26 +1091,6 @@ void main() {
         // Add burger and tea to cart
         controller.addToCart(burger);
         controller.addToCart(tea);
-
-        // canAddAddonItem checks category compatibility
-        expect(controller.canAddAddonItem(burger.id, cheese), isTrue);
-        expect(controller.canAddAddonItem(burger.id, ginger), isFalse);
-        expect(controller.canAddAddonItem(tea.id, ginger), isTrue);
-        expect(controller.canAddAddonItem(tea.id, cheese), isFalse);
-
-        // canAddAnyAddon checks availability for that item's category
-        expect(controller.canAddAnyAddon(burger.id), isTrue);
-        expect(controller.canAddAnyAddon(tea.id), isTrue);
-
-        // addAddonToCart throws ArgumentError if cross-category
-        expect(
-          () => controller.addAddonToCart(targetCartItemId: burger.id, addon: ginger),
-          throwsA(isA<ArgumentError>()),
-        );
-        expect(
-          () => controller.addAddonToCart(targetCartItemId: tea.id, addon: cheese),
-          throwsA(isA<ArgumentError>()),
-        );
 
         // Successfully add matching add-ons
         controller.addAddonToCart(targetCartItemId: burger.id, addon: cheese);
@@ -1227,6 +1114,9 @@ void main() {
             CategoryOption(id: 'opt_fried', name: 'Fried', additionalCost: 10.0),
             CategoryOption(id: 'opt_pan_fried', name: 'Pan Fried', additionalCost: 20.0),
             CategoryOption(id: 'opt_special', name: 'Special Jhol', price: 120.0),
+          ],
+          addons: const [
+            CategoryOption(id: 'opt_dip', name: 'Schezwan Dip', price: 20.0, dietaryType: ItemDietaryType.veg),
           ],
         );
 
@@ -1263,16 +1153,6 @@ void main() {
             category: rollsCategory,
             dietaryType: ItemDietaryType.egg,
           ),
-          MenuItem(
-            id: 'item_schezwan_dip',
-            name: 'Schezwan Dip',
-            price: 20.0,
-            category: ItemCategory.named('Addons', colorHex: 0xFFE11D48),
-            colorHex: 0xFFE11D48,
-            isAddon: true,
-            linkedCategory: 'Momos',
-            dietaryType: ItemDietaryType.veg,
-          ),
         ];
 
         // 2. Initialize Controller A and import catalog
@@ -1284,8 +1164,8 @@ void main() {
           replace: true,
         );
 
-        expect(controllerA.menu.length, 4);
-        expect(controllerA.categoryConfigs.length, 3); // Momos, Rolls, Addons
+        expect(controllerA.menu.length, 3);
+        expect(controllerA.categoryConfigs.length, 2); // Momos, Rolls
 
         // Verify Controller A has options and surcharges
         final catMomosA = controllerA.categoryConfigs.firstWhere((c) => c.name == 'Momos');
@@ -1312,11 +1192,11 @@ void main() {
         // 5. Import exported CSV into Controller B
         final parseResult = await controllerB.importCatalogFromCsv(exportedCsv, replace: true);
         expect(parseResult.hasItems, isTrue);
-        expect(parseResult.items.length, 4);
+        expect(parseResult.items.length, 3);
 
         // 6. Validate Controller B restored all data with 100% fidelity
-        expect(controllerB.menu.length, 4);
-        expect(controllerB.categoryConfigs.length, 3);
+        expect(controllerB.menu.length, 3);
+        expect(controllerB.categoryConfigs.length, 2);
 
         final catMomosB = controllerB.categoryConfigs.firstWhere((c) => c.name == 'Momos');
         expect(catMomosB.additionalCost, 15.0);
@@ -1338,21 +1218,20 @@ void main() {
         expect(catRollsB.options[1].name, 'Double Egg');
         expect(catRollsB.options[1].additionalCost, 25.0);
 
-        // Verify item-level effectiveVariants in Controller B
+        // Verify item-level effectiveVariants and addons in Controller B
         final vegMomosB = controllerB.menu.firstWhere((m) => m.name == 'Veg Momos');
         expect(vegMomosB.effectiveVariants.length, 4);
         expect(vegMomosB.effectiveVariants[1].additionalCost, 10.0);
-
-        final addonB = controllerB.menu.firstWhere((m) => m.name == 'Schezwan Dip');
-        expect(addonB.isAddon, isTrue);
-        expect(addonB.linkedCategory, 'Momos');
+        expect(vegMomosB.addons.length, 1);
+        expect(vegMomosB.addons.first.name, 'Schezwan Dip');
+        expect(vegMomosB.addons.first.price, 20.0);
 
         // 7. Verify persistence in storage: reload into Controller C from storage B
         final controllerC = OrderController(storage: storageB);
         await controllerC.loadPersistedData();
 
-        expect(controllerC.menu.length, 4);
-        expect(controllerC.categoryConfigs.length, 3);
+        expect(controllerC.menu.length, 3);
+        expect(controllerC.categoryConfigs.length, 2);
         final catMomosC = controllerC.categoryConfigs.firstWhere((c) => c.name == 'Momos');
         expect(catMomosC.additionalCost, 15.0);
         expect(catMomosC.options.length, 4);
@@ -1428,29 +1307,25 @@ void main() {
         expect(controller.cartTotal, 95.0);
       });
 
-      test('Item-level variants are not conflated into category options during sync', () async {
+      test('Items inherit category options and addons without conflation', () async {
         final storage = InMemoryStorage();
         final controller = OrderController(storage: storage);
         await controller.loadPersistedData();
 
-        // Add item with item-specific variant (Half / Full), but NO category options
+        // Add item with category that has NO options
         final burger = MenuItem(
           id: 'item_burger',
           name: 'Veg Burger',
           category: const ItemCategory(id: 'cat_burgers', name: 'Burgers'),
           price: 50.0,
-          variants: const [
-            CategoryOption(id: 'v_single', name: 'Single', price: 50.0),
-            CategoryOption(id: 'v_double', name: 'Double', price: 80.0),
-          ],
         );
 
         await controller.addMenuItem(burger);
 
-        // Burgers category config should NOT have "Single" and "Double" as category sub-categories!
         final burgerCategory = controller.getCategoryConfig('Burgers');
         expect(burgerCategory, isNotNull);
         expect(burgerCategory!.options, isEmpty);
+        expect(burger.hasVariants, isFalse);
       });
     });
   });

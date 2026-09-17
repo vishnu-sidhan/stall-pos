@@ -4,7 +4,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:uuid/uuid.dart';
 import '../models/counter_model.dart';
 import '../models/stall_models.dart';
-import '../theme/category_colors.dart';
 
 /// Result of parsing a full Menu & Catalog CSV with both items and categories.
 class MenuCatalogParseResult {
@@ -193,7 +192,7 @@ Budget Delta,0,10,,true,0xFFDC2626''';
     int categoryIdx = 2;
     int colorIdx = -1;
     int addonIdx = -1;
-    int linkedCategoryIdx = -1;
+    int addonsIdx = -1;
     int dietaryIdx = -1;
     int additionalCostIdx = -1;
     int variantsIdx = -1;
@@ -214,14 +213,10 @@ Budget Delta,0,10,,true,0xFFDC2626''';
           categoryIdx = i;
         } else if (col == 'color' || col == 'colorhex' || col == 'color_hex' || col == 'colour') {
           colorIdx = i;
+        } else if (col == 'addons' || col == 'item_addons') {
+          addonsIdx = i;
         } else if (col == 'is_addon' || col == 'addon' || col == 'isaddon' || col == 'add_on') {
           addonIdx = i;
-        } else if (col == 'linked_category' ||
-            col == 'linkedcategory' ||
-            col == 'target_category' ||
-            col == 'targetcategory' ||
-            col == 'applies_to') {
-          linkedCategoryIdx = i;
         } else if (col == 'dietary' ||
             col == 'diet' ||
             col == 'dietary_type' ||
@@ -265,10 +260,6 @@ Budget Delta,0,10,,true,0xFFDC2626''';
       final rawPrice = priceIdx < row.length ? row[priceIdx].toString().trim() : '';
       var category = categoryIdx < row.length ? row[categoryIdx].toString().trim() : '';
       final rawColor = colorIdx != -1 && colorIdx < row.length ? row[colorIdx].toString().trim() : '';
-      final rawAddon = addonIdx != -1 && addonIdx < row.length ? row[addonIdx].toString().trim().toLowerCase() : '';
-      final rawLinked = linkedCategoryIdx != -1 && linkedCategoryIdx < row.length
-          ? row[linkedCategoryIdx].toString().trim()
-          : '';
       final rawDietary = dietaryIdx != -1 && dietaryIdx < row.length
           ? row[dietaryIdx].toString().trim()
           : '';
@@ -278,6 +269,20 @@ Budget Delta,0,10,,true,0xFFDC2626''';
       final rawVariants = variantsIdx != -1 && variantsIdx < row.length
           ? row[variantsIdx].toString().trim()
           : '';
+      String rawAddons = '';
+      if (addonsIdx != -1 && addonsIdx < row.length) {
+        final val = row[addonsIdx].toString().trim();
+        final lower = val.toLowerCase();
+        if (lower != 'false' && lower != 'true' && lower != 'null' && lower != 'none' && lower != '0' && lower != '1') {
+          rawAddons = val;
+        }
+      } else if (addonIdx != -1 && addonIdx < row.length) {
+        final val = row[addonIdx].toString().trim();
+        final lower = val.toLowerCase();
+        if (lower != 'false' && lower != 'true' && lower != 'null' && lower != 'none' && lower != '0' && lower != '1' && lower != 'no' && lower != 'yes') {
+          rawAddons = val;
+        }
+      }
 
       if (name.isEmpty) {
         skippedCount++;
@@ -299,20 +304,8 @@ Budget Delta,0,10,,true,0xFFDC2626''';
         category = 'General';
       }
 
-      final isAddonExplicit = rawAddon == 'true' || rawAddon == '1' || rawAddon == 'yes';
-      final isAddon = isAddonExplicit ||
-          category.toLowerCase().contains('addon') ||
-          category.toLowerCase().contains('add-on') ||
-          category.toLowerCase() == 'extras';
-      final linkedCategory = rawLinked.isNotEmpty ? rawLinked : null;
-
-      final parsedDietary = rawDietary.isNotEmpty
-          ? ItemDietaryType.fromString(rawDietary)
-          : ItemDietaryType.infer(name: name, category: category);
-      final effectiveDietary = parsedDietary != ItemDietaryType.none ? parsedDietary : null;
-
       // Determine category color: if color is defined, use it; if not defined, assign a guaranteed unique, visually distinct color!
-      final parsedColor = CategoryColorHelper.parseColor(rawColor);
+      final parsedColor = ItemCategory.parseColor(rawColor);
       final normalizedCat = category.toLowerCase();
       int assignedColor;
 
@@ -323,7 +316,7 @@ Budget Delta,0,10,,true,0xFFDC2626''';
       } else if (categoryColors.containsKey(normalizedCat)) {
         assignedColor = categoryColors[normalizedCat]!;
       } else {
-        assignedColor = CategoryColorHelper.getUniqueColor(
+        assignedColor = ItemCategory.getUniqueColor(
           categoryName: category,
           usedColors: usedColors,
         );
@@ -332,39 +325,34 @@ Budget Delta,0,10,,true,0xFFDC2626''';
       }
 
       final addCost = double.tryParse(rawAddCost.replaceAll(RegExp(r'[^\d.-]'), '')) ?? 0.0;
-      final variantOptions = <CategoryOption>[];
-      if (rawVariants.isNotEmpty) {
-        final splitVariants = rawVariants.contains('|')
-            ? rawVariants.split('|')
-            : rawVariants.split(',');
-        for (int vIdx = 0; vIdx < splitVariants.length; vIdx++) {
-          final vStr = splitVariants[vIdx].trim();
-          if (vStr.isNotEmpty) {
-            variantOptions.add(parseCategoryOption(vStr, normalizedCat, vIdx));
-          }
-        }
-      }
+      final variantOptions = CategoryOption.parseVariants(rawVariants);
+      final addonOptions = CategoryOption.parseVariants(rawAddons);
 
       final itemCategory = ItemCategory(
         id: 'cat_${normalizedCat.replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
         name: category,
         colorHex: assignedColor,
         additionalCost: addCost,
-        isAddonCategory: isAddon && linkedCategory == null,
         options: variantOptions,
+        addons: addonOptions,
       );
 
-      items.add(MenuItem(
-        id: 'item_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}',
-        name: name,
-        price: price,
-        category: itemCategory,
-        colorHex: assignedColor,
-        isAddon: isAddon,
-        linkedCategory: linkedCategory,
-        dietaryType: effectiveDietary,
-        variants: variantOptions,
-      ));
+      final subNames = name.split('/').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      for (final subName in subNames) {
+        final parsedDietary = rawDietary.isNotEmpty
+            ? ItemDietaryType.fromString(rawDietary)
+            : ItemDietaryType.infer(name: subName, category: category);
+        final effectiveDietary = parsedDietary != ItemDietaryType.none ? parsedDietary : null;
+
+        items.add(MenuItem(
+          id: 'item_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}',
+          name: subName,
+          price: price,
+          category: itemCategory,
+          colorHex: assignedColor,
+          dietaryType: effectiveDietary,
+        ));
+      }
     }
 
     return CsvParseResult(
@@ -378,7 +366,7 @@ Budget Delta,0,10,,true,0xFFDC2626''';
   /// Parses a complete Menu & Catalog CSV containing both menu items and category configurations.
   ///
   /// Columns:
-  /// `name,price,category,dietary_type,is_available,category_color,category_additional_cost,category_variants,is_addon,linked_category`
+  /// `name,price,category,dietary_type,is_available,category_color,category_additional_cost,category_variants,addons`
   static MenuCatalogParseResult parseCsv(String csvContent) {
     final trimmed = csvContent.trim();
     if (trimmed.isEmpty) {
@@ -423,7 +411,7 @@ Budget Delta,0,10,,true,0xFFDC2626''';
     int additionalCostIdx = -1;
     int variantsIdx = -1;
     int addonIdx = -1;
-    int linkedCategoryIdx = -1;
+    int addonsIdx = -1;
     int startIndex = 0;
 
     final firstRow = rows.first.map((c) => c.toString().trim().toLowerCase()).toList();
@@ -449,14 +437,10 @@ Budget Delta,0,10,,true,0xFFDC2626''';
           additionalCostIdx = i;
         } else if (col == 'category_variants' || col == 'variants' || col == 'options' || col == 'subcategories' || col == 'sub_categories') {
           variantsIdx = i;
+        } else if (col == 'addons' || col == 'item_addons') {
+          addonsIdx = i;
         } else if (col == 'is_addon' || col == 'addon' || col == 'isaddon' || col == 'add_on') {
           addonIdx = i;
-        } else if (col == 'linked_category' ||
-            col == 'linkedcategory' ||
-            col == 'target_category' ||
-            col == 'targetcategory' ||
-            col == 'applies_to') {
-          linkedCategoryIdx = i;
         }
       }
     } else {
@@ -485,36 +469,31 @@ Budget Delta,0,10,,true,0xFFDC2626''';
       final rawColor = colorIdx >= 0 && colorIdx < row.length ? row[colorIdx].toString().trim() : '';
       final rawAddCost = additionalCostIdx >= 0 && additionalCostIdx < row.length ? row[additionalCostIdx].toString().trim() : '';
       final rawVariants = variantsIdx >= 0 && variantsIdx < row.length ? row[variantsIdx].toString().trim() : '';
-      final rawAddon = addonIdx >= 0 && addonIdx < row.length ? row[addonIdx].toString().trim().toLowerCase() : '';
-      final rawLinked = linkedCategoryIdx >= 0 && linkedCategoryIdx < row.length ? row[linkedCategoryIdx].toString().trim() : '';
+      String rawAddons = '';
+      if (addonsIdx >= 0 && addonsIdx < row.length) {
+        final val = row[addonsIdx].toString().trim();
+        final lower = val.toLowerCase();
+        if (lower != 'false' && lower != 'true' && lower != 'null' && lower != 'none' && lower != '0' && lower != '1') {
+          rawAddons = val;
+        }
+      } else if (addonIdx >= 0 && addonIdx < row.length) {
+        final val = row[addonIdx].toString().trim();
+        final lower = val.toLowerCase();
+        if (lower != 'false' && lower != 'true' && lower != 'null' && lower != 'none' && lower != '0' && lower != '1' && lower != 'no' && lower != 'yes') {
+          rawAddons = val;
+        }
+      }
 
       if (catName.isEmpty) {
         catName = 'General';
       }
 
       final normalizedCat = catName.toLowerCase();
-      final parsedColor = CategoryColorHelper.parseColor(rawColor);
+      final parsedColor = ItemCategory.parseColor(rawColor);
       final addCost = double.tryParse(rawAddCost.replaceAll(RegExp(r'[^\d.-]'), '')) ?? 0.0;
 
-      final isAddonExplicit = rawAddon == 'true' || rawAddon == '1' || rawAddon == 'yes';
-      final isAddon = isAddonExplicit ||
-          catName.toLowerCase().contains('addon') ||
-          catName.toLowerCase().contains('add-on') ||
-          catName.toLowerCase() == 'extras';
-      final linkedCategory = rawLinked.isNotEmpty ? rawLinked : null;
-
-      final variantOptions = <CategoryOption>[];
-      if (rawVariants.isNotEmpty) {
-        final splitVariants = rawVariants.contains('|')
-            ? rawVariants.split('|')
-            : rawVariants.split(',');
-        for (int vIdx = 0; vIdx < splitVariants.length; vIdx++) {
-          final vStr = splitVariants[vIdx].trim();
-          if (vStr.isNotEmpty) {
-            variantOptions.add(parseCategoryOption(vStr, normalizedCat, vIdx));
-          }
-        }
-      }
+      final variantOptions = CategoryOption.parseVariants(rawVariants);
+      final addonOptions = CategoryOption.parseVariants(rawAddons);
 
       // Upsert Category
       ItemCategory category;
@@ -522,10 +501,10 @@ Budget Delta,0,10,,true,0xFFDC2626''';
         category = ItemCategory(
           id: 'cat_${normalizedCat.replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
           name: catName,
-          colorHex: parsedColor ?? CategoryColorHelper.getColorForCategory(catName),
+          colorHex: parsedColor ?? ItemCategory.getColorForCategory(catName),
           additionalCost: addCost,
           options: variantOptions,
-          isAddonCategory: isAddon && linkedCategory == null,
+          addons: addonOptions,
         );
         categoriesMap[normalizedCat] = category;
       } else {
@@ -534,6 +513,7 @@ Budget Delta,0,10,,true,0xFFDC2626''';
           colorHex: parsedColor ?? existing.colorHex,
           additionalCost: addCost > 0 ? addCost : existing.additionalCost,
           options: variantOptions.isNotEmpty ? variantOptions : existing.options,
+          addons: addonOptions.isNotEmpty ? addonOptions : existing.addons,
         );
         categoriesMap[normalizedCat] = category;
       }
@@ -557,23 +537,23 @@ Budget Delta,0,10,,true,0xFFDC2626''';
           rawAvailable == '1' ||
           rawAvailable == 'yes';
 
-      final parsedDietary = rawDietary.isNotEmpty
-          ? ItemDietaryType.fromString(rawDietary)
-          : ItemDietaryType.infer(name: name, category: catName);
-      final effectiveDietary = parsedDietary != ItemDietaryType.none ? parsedDietary : null;
+      final subNames = name.split('/').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      for (final subName in subNames) {
+        final parsedDietary = rawDietary.isNotEmpty
+            ? ItemDietaryType.fromString(rawDietary)
+            : ItemDietaryType.infer(name: subName, category: catName);
+        final effectiveDietary = parsedDietary != ItemDietaryType.none ? parsedDietary : null;
 
-      items.add(MenuItem(
-        id: 'item_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}',
-        name: name,
-        price: price,
-        category: category,
-        colorHex: category.colorHex,
-        isAvailable: isAvailable,
-        dietaryType: effectiveDietary,
-        isAddon: isAddon,
-        linkedCategory: linkedCategory,
-        variants: variantOptions.isNotEmpty ? variantOptions : category.options,
-      ));
+        items.add(MenuItem(
+          id: 'item_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}',
+          name: subName,
+          price: price,
+          category: category,
+          colorHex: category.colorHex,
+          isAvailable: isAvailable,
+          dietaryType: effectiveDietary,
+        ));
+      }
     }
 
     return MenuCatalogParseResult(

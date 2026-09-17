@@ -164,7 +164,7 @@ void main() {
       expect(restored.isAddonCategory, isTrue);
     });
 
-    test('MenuItem effectiveIsAddon resolves from isAddonCategory', () {
+    test('MenuItem category resolves isAddonCategory', () {
       final addonCat = const ItemCategory(
         id: 'cat_bev_addons',
         name: 'Beverage Addons',
@@ -177,8 +177,7 @@ void main() {
         category: addonCat,
       );
 
-      expect(item.isAddon, isFalse);
-      expect(item.effectiveIsAddon, isTrue);
+      expect(item.category.isAddonCategory, isTrue);
     });
   });
 

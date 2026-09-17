@@ -26,12 +26,9 @@ export 'src/storage/in_memory_storage.dart'
 export 'src/controllers/order_controller.dart' show OrderController;
 
 // Embeddable Views & Full-Screen Wrappers
-export 'src/views/stall_pos_view.dart' show StallPosView;
-export 'src/views/stall_pos_screen.dart' show StallPosScreen;
-export 'src/views/store_management_view.dart' show StoreManagementView;
-export 'src/views/store_management_screen.dart' show StoreManagementScreen;
-export 'src/views/order_history_view.dart' show OrderHistoryView;
-export 'src/views/order_history_screen.dart' show OrderHistoryScreen;
+export 'src/views/stall_pos_view.dart' show StallPosView, StallPosScreen;
+export 'src/views/store_management_view.dart' show StoreManagementView, StoreManagementScreen;
+export 'src/views/order_history_view.dart' show OrderHistoryView, OrderHistoryScreen;
 
 // Services
 export 'src/services/csv_export_service.dart' show CsvExportService;

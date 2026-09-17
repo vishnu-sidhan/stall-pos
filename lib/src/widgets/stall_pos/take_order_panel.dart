@@ -450,8 +450,9 @@ class TakeOrderPanel extends StatelessWidget {
                                 Text(
                                   cart.entries
                                       .map((e) {
-                                        final item = controller.findItem(e.key);
-                                        return '${e.value}x ${item.displayName}';
+                                        final displayName =
+                                            controller.getCartItemDisplayName(e.key);
+                                        return '${e.value}x $displayName';
                                       })
                                       .join(', '),
                                   style: TextStyle(

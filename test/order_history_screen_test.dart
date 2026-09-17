@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:counter_app/src/models/stall_models.dart';
 import 'package:counter_app/src/storage/stall_storage_service.dart';
-import 'package:counter_app/src/views/order_history_screen.dart';
+import 'package:counter_app/src/views/order_history_view.dart';
 import 'package:counter_app/src/services/csv_export_service.dart';
 
 void main() {

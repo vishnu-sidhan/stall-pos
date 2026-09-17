@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
 import '../../models/item_category.dart';
-import '../../theme/category_colors.dart';
 
 class _OptionEntry {
   final String id;
@@ -482,7 +481,7 @@ class _CategoryConfigDialogState extends State<CategoryConfigDialog> {
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
-                children: CategoryColorHelper.palette.take(8).map((colorInt) {
+                children: ItemCategory.palette.take(8).map((colorInt) {
                   final c = Color(colorInt);
                   final isSelected = _selectedColorHex == colorInt;
                   return InkWell(

@@ -342,7 +342,7 @@ class _DailyMenuAvailabilityViewState extends State<DailyMenuAvailabilityView> {
                                                        const SizedBox(width: 6),
                                                        Expanded(
                                                          child: Text(
-                                                           item.displayName,
+                                                           item.name,
                                                            style: TextStyle(
                                                              fontWeight: FontWeight.w600,
                                                              fontSize: 14,

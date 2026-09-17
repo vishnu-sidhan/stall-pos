@@ -116,14 +116,14 @@ class CsvExportService {
   /// Generates a standardized Menu & Catalog CSV matching CsvImportService format.
   ///
   /// Output columns:
-  /// `name,price,category,dietary_type,is_available,category_color,category_additional_cost,category_variants,is_addon,linked_category`
+  /// `name,price,category,dietary_type,is_available,category_color,category_additional_cost,category_variants,addons`
   static String generateMenuCsv({
     required List<ItemCategory> categories,
     required List<MenuItem> items,
   }) {
     final buffer = StringBuffer();
     buffer.writeln(
-      'name,price,category,dietary_type,is_available,category_color,category_additional_cost,category_variants,is_addon,linked_category',
+      'name,price,category,dietary_type,is_available,category_color,category_additional_cost,category_variants,addons',
     );
 
     // Index categories by name for fast lookup
@@ -170,13 +170,14 @@ class CsvExportService {
       } else {
         optionsToExport = item.variants;
       }
-      final variantsStr = _escapeCsv(optionsToExport.map(_formatOption).join('|'));
-
-      final isAddonStr = item.isAddon ? 'true' : 'false';
-      final linkedCategoryStr = _escapeCsv(item.linkedCategory ?? '');
+      final variantsStr = _escapeCsv(CategoryOption.formatVariants(optionsToExport));
+      final List<CategoryOption> addonsToExport = effectiveCategory.addons.isNotEmpty
+          ? effectiveCategory.addons
+          : item.category.addons;
+      final addonsStr = _escapeCsv(CategoryOption.formatVariants(addonsToExport));
 
       buffer.writeln(
-        '$safeName,$priceStr,$safeCategory,$dietaryStr,$isAvailableStr,$colorStr,$addCostStr,$variantsStr,$isAddonStr,$linkedCategoryStr',
+        '$safeName,$priceStr,$safeCategory,$dietaryStr,$isAvailableStr,$colorStr,$addCostStr,$variantsStr,$addonsStr',
       );
     }
 
@@ -194,36 +195,15 @@ class CsvExportService {
                     : 2,
               )
             : '0.0';
-        final variantsStr = _escapeCsv(category.options.map(_formatOption).join('|'));
-        buffer.writeln(',0.0,$safeCategory,none,true,$colorStr,$addCostStr,$variantsStr,false,');
+        final variantsStr = _escapeCsv(CategoryOption.formatVariants(category.options));
+        final addonsStr = _escapeCsv(CategoryOption.formatVariants(category.addons));
+        buffer.writeln(',0.0,$safeCategory,none,true,$colorStr,$addCostStr,$variantsStr,$addonsStr');
       }
     }
 
     return buffer.toString();
   }
 
-  /// Formats a [CategoryOption] preserving name and additional cost or explicit price.
-  /// Examples:
-  /// - `Steam` (cost: 0) -> "Steam"
-  /// - `Fried` (additionalCost: 10) -> "Fried:+10"
-  /// - `Pan Fried` (additionalCost: 20) -> "Pan Fried:+20"
-  /// - `Regular` (price: 80) -> "Regular:80"
-  static String _formatOption(CategoryOption opt) {
-    final buffer = StringBuffer(opt.name);
-    if (opt.price != null && opt.price! > 0) {
-      final pStr = opt.price!.truncateToDouble() == opt.price!
-          ? opt.price!.toStringAsFixed(0)
-          : opt.price!.toStringAsFixed(2);
-      buffer.write(':$pStr');
-    } else if (opt.additionalCost != 0.0) {
-      final sign = opt.additionalCost > 0 ? '+' : '';
-      final cStr = opt.additionalCost.truncateToDouble() == opt.additionalCost
-          ? opt.additionalCost.toStringAsFixed(0)
-          : opt.additionalCost.toStringAsFixed(2);
-      buffer.write(':$sign$cStr');
-    }
-    return buffer.toString();
-  }
 
   /// Exports stored categories and menu items to CSV format and prompts download/share.
   static Future<void> exportMenuCatalog({

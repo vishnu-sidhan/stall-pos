@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import '../theme/category_colors.dart';
 import 'item_category.dart';
 export 'item_category.dart';
 
@@ -14,11 +13,8 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
   final ItemCategory category;
   @override
   final int? colorHex;
-  final bool isAddon;
-  final String? linkedCategory;
   @override
   final bool isAvailable;
-  final List<CategoryOption> variants;
   @override
   final ItemDietaryType? dietaryType;
 
@@ -28,15 +24,15 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
     required this.price,
     this.category = ItemCategory.general,
     this.colorHex,
-    this.isAddon = false,
-    this.linkedCategory,
     this.isAvailable = true,
-    this.variants = const [],
     this.dietaryType,
   });
 
+  /// Effective list of variants/options inherited from category options.
+  List<CategoryOption> get variants => effectiveVariants;
+
   /// Alias for variants
-  List<CategoryOption> get options => variants;
+  List<CategoryOption> get options => effectiveVariants;
 
   /// Name of the category as a String helper.
   @override
@@ -45,159 +41,78 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
   /// Effective category name.
   String get categoryDisplayName => category.name;
 
-  /// Check if this item qualifies as an add-on either via explicit flag,
-  /// category-level add-on configuration, or legacy category name keywords.
-  bool get effectiveIsAddon {
-    if (isAddon || category.isAddonCategory) return true;
-    final cat = category.name.toLowerCase();
-    return cat.contains('addon') || cat.contains('add-on') || cat == 'extras' || cat == 'extra';
-  }
-
-  /// List of target categories this add-on can be linked to.
-  /// If [linkedCategory] is explicitly provided, it is parsed (supporting '/' separation).
-  /// Defaults to ['All'] for unlinked add-ons.
-  List<String> get effectiveLinkedCategories {
-    if (linkedCategory != null && linkedCategory!.trim().isNotEmpty) {
-      return linkedCategory!
-          .split('/')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
-    }
-    if (category.isAddonCategory) {
-      return const ['All'];
-    }
-    final cat = category.name.toLowerCase().trim();
-    if (!cat.contains('addon') &&
-        !cat.contains('add-on') &&
-        cat != 'extras' &&
-        cat != 'extra') {
-      return slashCategoryVariants;
-    }
-    return const ['All'];
-  }
-
-  /// Whether this add-on can be attached to items of [targetItemCategory].
-  bool isApplicableToCategory(String targetItemCategory) {
-    if (!effectiveIsAddon) return false;
-    final targetVariants = targetItemCategory
-        .split('/')
-        .map((s) => s.trim().toLowerCase())
-        .where((s) => s.isNotEmpty)
-        .toList();
-    for (final linked in effectiveLinkedCategories) {
-      final l = linked.trim().toLowerCase();
-      if (l == 'all' || l == '*') return true;
-      if (targetVariants.contains(l)) return true;
-    }
-    return false;
-  }
-
   /// Clean display name for POS cards, order tickets, and receipts.
   @override
   String get displayName => name;
 
   /// Backwards-compatible alias for [displayName].
-  String get effectiveDisplayName => name;
+  String get effectiveDisplayName => displayName;
 
   /// Display name formatted with the main category name in brackets (e.g. "Veg Momos (Momos)").
   String get displayNameWithCategory {
     final cat = categoryName.trim();
-    if (cat.isNotEmpty && !name.toLowerCase().endsWith('(${cat.toLowerCase()})')) {
+    if (cat.isNotEmpty &&
+        cat.toLowerCase() != 'general' &&
+        !cat.contains('/') &&
+        !name.toLowerCase().endsWith('(${cat.toLowerCase()})')) {
       return '$name ($cat)';
     }
     return name;
   }
 
-  /// Whether the item name contains '/' indicating multiple or-variants.
-  bool get hasSlashNameVariants => name.contains('/');
-
-  /// List of separated variant names when split by '/'.
-  List<String> get slashNameVariants {
-    if (!hasSlashNameVariants) return [name];
-    return name
-        .split('/')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-  }
-
-  /// Whether the category contains '/' indicating multiple or-categories.
-  bool get hasSlashCategoryVariants => category.name.contains('/');
-
-  /// List of separated category names when split by '/'.
-  List<String> get slashCategoryVariants {
-    if (!hasSlashCategoryVariants) return [category.name];
-    return category.name
-        .split('/')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-  }
-
-  /// Effective list of variants/options. Returns explicit [variants] if defined,
-  /// falls back to category options if defined on [category],
-  /// or derives options from slash-separated names or categories for seamless backward compatibility.
+  /// Effective list of variants/options. Inherits from category options.
   List<CategoryOption> get effectiveVariants {
-    if (variants.isNotEmpty) {
-      return variants;
-    }
     if (category.effectiveOptions.isNotEmpty) {
       return category.effectiveOptions;
     }
-    if (hasSlashNameVariants) {
-      return slashNameVariants
-          .map(
-            (v) => CategoryOption(
-              id: 'var_${v.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
-              name: v,
-              additionalCost: 0.0,
-              isEnabled: isAvailable,
-            ),
-          )
+    if (name.contains('/')) {
+      final segments = name
+          .split('/')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
           .toList();
-    }
-    if (hasSlashCategoryVariants) {
-      return slashCategoryVariants
-          .map(
-            (v) => CategoryOption(
-              id: 'cat_${v.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
-              name: v,
-              additionalCost: 0.0,
-              isEnabled: isAvailable,
-            ),
-          )
-          .toList();
+      if (segments.length > 1) {
+        return segments
+            .map((s) => CategoryOption(id: s, name: s))
+            .toList();
+      }
     }
     return const [];
   }
 
+  /// Effective category add-ons.
+  List<CategoryOption> get addons => effectiveAddons;
+
+  /// Effective category add-ons.
+  List<CategoryOption> get effectiveAddons => category.addons;
+
   /// Whether this item has multiple selectable options or variants.
   bool get hasVariants => effectiveVariants.isNotEmpty;
+
+  /// Whether this item has add-ons available.
+  bool get hasAddons => effectiveAddons.any((a) => a.isAvailable);
+
+  /// Available add-ons for this item.
+  List<CategoryOption> get availableAddons =>
+      effectiveAddons.where((a) => a.isAvailable).toList();
+
+  /// Whether this item has any customizations (variants or add-ons).
+  bool get hasCustomizations => hasVariants || hasAddons;
 
   /// Whether the item has at least one selectable variant that is enabled/available.
   bool get hasAvailableVariants => !hasVariants || effectiveVariants.any((v) => v.isAvailable);
 
-  /// Whether this item is available for ordering today (both item-level and variant-level).
+  /// Whether this item is available for ordering today.
   bool get isEffectivelyAvailable => isAvailable && hasAvailableVariants;
 
   /// Returns the resolved price for a given variant/option, falling back to [price].
   double priceForVariant(CategoryOption? variant) {
-    if (variant?.price != null && variant!.price! > 0) {
+    if (variant == null) return price;
+    if (variant.price != null && variant.price! > 0) {
       return variant.price!;
     }
-    if (variant != null && variant.additionalCost != 0.0) {
-      return price + variant.additionalCost;
-    }
-    return price;
+    return price + variant.priceDelta;
   }
-
-  /// Whether the item has any '/' variants in name or category.
-  bool get hasAnySlashVariants => hasSlashNameVariants || hasSlashCategoryVariants || variants.isNotEmpty;
-
-  /// Backwards-compatible aliases
-  bool get hasSlashVariants => hasAnySlashVariants;
-  List<String> get slashVariants => effectiveVariants.map((v) => v.name).toList();
 
   MenuItem copyWith({
     String? id,
@@ -206,11 +121,7 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
     ItemCategory? category,
     int? colorHex,
     bool clearColor = false,
-    bool? isAddon,
-    String? linkedCategory,
-    bool clearLinkedCategory = false,
     bool? isAvailable,
-    List<CategoryOption>? variants,
     ItemDietaryType? dietaryType,
     bool clearDietaryType = false,
   }) {
@@ -220,12 +131,7 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
       price: price ?? this.price,
       category: category ?? this.category,
       colorHex: clearColor ? null : (colorHex ?? this.colorHex),
-      isAddon: isAddon ?? this.isAddon,
-      linkedCategory: clearLinkedCategory
-          ? null
-          : (linkedCategory ?? this.linkedCategory),
       isAvailable: isAvailable ?? this.isAvailable,
-      variants: variants ?? this.variants,
       dietaryType: clearDietaryType ? null : (dietaryType ?? this.dietaryType),
     );
   }
@@ -237,12 +143,7 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
         'category': category.name,
         'categoryObject': category.toJson(),
         if (colorHex != null) 'colorHex': colorHex,
-        if (isAddon) 'isAddon': isAddon,
-        if (linkedCategory != null && linkedCategory!.trim().isNotEmpty)
-          'linkedCategory': linkedCategory,
         'isAvailable': isAvailable,
-        if (variants.isNotEmpty)
-          'variants': variants.map((v) => v.toJson()).toList(),
         if (dietaryType != null && dietaryType != ItemDietaryType.none)
           'dietaryType': dietaryType!.code,
       };
@@ -270,14 +171,7 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
 
     final parsedColor = map['colorHex'] != null
         ? (map['colorHex'] as num?)?.toInt()
-        : CategoryColorHelper.parseColor(map['color']);
-    final isAddonExplicit = map['isAddon'] == true || map['is_addon'] == true;
-    final linkedCategoryRaw = map['linkedCategory']?.toString().trim() ??
-        map['targetCategory']?.toString().trim() ??
-        map['linked_category']?.toString().trim();
-    final linkedCategory = (linkedCategoryRaw != null && linkedCategoryRaw.isNotEmpty)
-        ? linkedCategoryRaw
-        : null;
+        : ItemCategory.parseColor(map['color']);
 
     final rawVariants = map['variants'] ?? map['options'];
     final parsedVariants = (rawVariants is List)
@@ -286,6 +180,31 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
         .map((v) => CategoryOption.fromJson(Map<String, dynamic>.from(v)))
         .toList()
         : const <CategoryOption>[];
+
+    final rawAddons = map['addons'];
+    final parsedAddons = (rawAddons is List)
+        ? rawAddons
+        .whereType<Map>()
+        .map((a) => CategoryOption.fromJson(Map<String, dynamic>.from(a)))
+        .where((a) {
+          final lower = a.name.trim().toLowerCase();
+          return lower.isNotEmpty &&
+              lower != 'false' &&
+              lower != 'true' &&
+              lower != 'null' &&
+              lower != 'none' &&
+              lower != '0' &&
+              lower != '1';
+        })
+        .toList()
+        : const <CategoryOption>[];
+
+    if (parsedCategory.addons.isEmpty && parsedAddons.isNotEmpty) {
+      parsedCategory = parsedCategory.copyWith(addons: parsedAddons);
+    }
+    if (parsedCategory.options.isEmpty && parsedVariants.isNotEmpty) {
+      parsedCategory = parsedCategory.copyWith(options: parsedVariants);
+    }
 
     final parsedDietary = ItemDietaryType.fromString(
       map['dietaryType']?.toString() ??
@@ -298,11 +217,8 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
       name: map['name']?.toString() ?? '',
       price: (map['price'] as num?)?.toDouble() ?? 0.0,
       category: parsedCategory,
-      colorHex: parsedColor ?? CategoryColorHelper.getColorForCategory(parsedCategory.name),
-      isAddon: isAddonExplicit,
-      linkedCategory: linkedCategory,
+      colorHex: parsedColor ?? ItemCategory.getColorForCategory(parsedCategory.name),
       isAvailable: map['isAvailable'] != false && map['is_available'] != false,
-      variants: parsedVariants,
       dietaryType: parsedDietary != ItemDietaryType.none ? parsedDietary : null,
     );
   }

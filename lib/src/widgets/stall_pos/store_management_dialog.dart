@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
 import '../../models/stall_models.dart';
-import '../../views/store_management_screen.dart';
+import '../../views/store_management_view.dart';
 
-export '../../views/store_management_screen.dart';
+export '../../views/store_management_view.dart';
 
 /// Compatibility adapter for StoreManagementDialog forwarding to StoreManagementScreen.
 class StoreManagementDialog {

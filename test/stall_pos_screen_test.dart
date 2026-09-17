@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:counter_app/src/controllers/counter_controller.dart';
 import 'package:counter_app/src/storage/app_storage.dart';
 import 'package:counter_app/main.dart';
-import 'package:counter_app/src/views/stall_pos_screen.dart';
+import 'package:counter_app/src/views/stall_pos_view.dart';
 
 void main() {
   setUp(() {

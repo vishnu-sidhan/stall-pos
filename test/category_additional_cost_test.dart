@@ -221,8 +221,6 @@ void main() {
         name: 'Extra Ginger',
         price: 5.0,
         category: ItemCategory(id: 'cat_addon', name: 'Addon'),
-        isAddon: true,
-        linkedCategory: 'Beverages',
       ),
     ];
 
@@ -1007,12 +1005,14 @@ void main() {
         id: 'item_kurkure',
         name: 'Kurkure Momos',
         price: 150.0,
-        category: ItemCategory.named('Momos'),
-        variants: const [
-          CategoryOption(id: 'v_veg', name: 'Veg'),
-          CategoryOption(id: 'v_paneer', name: 'Paneer'),
-          CategoryOption(id: 'v_chicken', name: 'Chicken'),
-        ],
+        category: ItemCategory.named(
+          'Momos',
+          options: const [
+            CategoryOption(id: 'v_veg', name: 'Veg'),
+            CategoryOption(id: 'v_paneer', name: 'Paneer'),
+            CategoryOption(id: 'v_chicken', name: 'Chicken'),
+          ],
+        ),
       );
       final eggChicken = MenuItem(
         id: 'item_egg_chicken',
@@ -1025,7 +1025,6 @@ void main() {
         name: 'Schezwan',
         price: 30.0,
         category: ItemCategory.named('Addons'),
-        isAddon: true,
       );
 
       final storage = InMemoryStallStorage(initialMenu: [manchuria, kurkure, eggChicken, schezwan]);

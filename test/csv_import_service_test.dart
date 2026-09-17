@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:counter_app/src/services/csv_import_service.dart';
-import 'package:counter_app/src/theme/category_colors.dart';
+import 'package:counter_app/src/models/item_category.dart';
 
 void main() {
   group('CsvImportService - Menu Items', () {
@@ -142,40 +142,44 @@ Combo,120,Combos''';
       final colorsList = categoryColors.values.toList();
       for (int i = 0; i < colorsList.length; i++) {
         for (int j = i + 1; j < colorsList.length; j++) {
-          final dist = CategoryColorHelper.colorDistance(colorsList[i], colorsList[j]);
+          final dist = ItemCategory.colorDistance(colorsList[i], colorsList[j]);
           expect(dist, greaterThanOrEqualTo(70.0),
               reason: 'Colors ${colorsList[i]} and ${colorsList[j]} must be visually distinct');
         }
       }
     });
 
-    test('parses is_addon and linked_category columns for category-linked add-ons', () {
-      const csv = '''name,price,category,is_addon,linked_category
-Veg Burger,80,Fast Food,false,
-Extra Cheese,25,Addons,true,Fast Food
-Ginger,5,Extras,true,Beverages''';
+    test('splits rows with / in item name into separate items', () {
+      const csv = '''name,price,category
+Tea / Coffee,20,Beverages
+Fried Rice / Hakka Noodles,120,Mains''';
 
       final result = CsvImportService.parseMenuItemsFromCsv(csv);
-      expect(result.items.length, 3);
+      expect(result.items.length, 4);
+      expect(result.items[0].name, 'Tea');
+      expect(result.items[0].price, 20.0);
+      expect(result.items[1].name, 'Coffee');
+      expect(result.items[1].price, 20.0);
+      expect(result.items[2].name, 'Fried Rice');
+      expect(result.items[2].price, 120.0);
+      expect(result.items[3].name, 'Hakka Noodles');
+      expect(result.items[3].price, 120.0);
+    });
+
+    test('parses addons column for item-level add-ons', () {
+      const csv = '''name,price,category,addons
+Veg Burger,80,Fast Food,Extra Cheese:+25|Fries:50''';
+
+      final result = CsvImportService.parseMenuItemsFromCsv(csv);
+      expect(result.items.length, 1);
 
       final burger = result.items[0];
       expect(burger.name, 'Veg Burger');
-      expect(burger.isAddon, isFalse);
-      expect(burger.linkedCategory, isNull);
-
-      final cheese = result.items[1];
-      expect(cheese.name, 'Extra Cheese');
-      expect(cheese.isAddon, isTrue);
-      expect(cheese.linkedCategory, 'Fast Food');
-      expect(cheese.isApplicableToCategory('Fast Food'), isTrue);
-      expect(cheese.isApplicableToCategory('Beverages'), isFalse);
-
-      final ginger = result.items[2];
-      expect(ginger.name, 'Ginger');
-      expect(ginger.isAddon, isTrue);
-      expect(ginger.linkedCategory, 'Beverages');
-      expect(ginger.isApplicableToCategory('Beverages'), isTrue);
-      expect(ginger.isApplicableToCategory('Fast Food'), isFalse);
+      expect(burger.addons.length, 2);
+      expect(burger.addons[0].name, 'Extra Cheese');
+      expect(burger.addons[0].additionalCost, 25.0);
+      expect(burger.addons[1].name, 'Fries');
+      expect(burger.addons[1].price, 50.0);
     });
 
     test('parseCategoryOption correctly parses various formats of subcategories and pricing', () {
@@ -211,17 +215,16 @@ Ginger,5,Extras,true,Beverages''';
       expect(opt7.price, isNull);
     });
 
-    test('parseCsv parses full catalog including category surcharges and subcategory options with prices', () {
-      const csv = '''name,price,category,dietary_type,is_available,category_color,category_additional_cost,category_variants,is_addon,linked_category
-Veg Momos,80,Momos,veg,true,0xFFEA580C,15,Steam|Fried:+10|Pan Fried:+20|Special Jhol:120,false,
-Chicken Momos,100,Momos,non_veg,true,0xFFEA580C,15,Steam|Fried:+10|Pan Fried:+20|Special Jhol:120,false,
-Garlic Dip,25,Addons,veg,true,,0.0,,true,Momos
-,0.0,Desserts,none,true,0xFF10B981,5,Single Scoop:40|Double Scoop:70,false,''';
+    test('parseCsv parses full catalog including category surcharges, variants, and addons', () {
+      const csv = '''name,price,category,dietary_type,is_available,category_color,category_additional_cost,category_variants,addons
+Veg Momos,80,Momos,veg,true,0xFFEA580C,15,Steam|Fried:+10|Pan Fried:+20|Special Jhol:120,Garlic Dip:+25
+Chicken Momos,100,Momos,non_veg,true,0xFFEA580C,15,Steam|Fried:+10|Pan Fried:+20|Special Jhol:120,
+,0.0,Desserts,none,true,0xFF10B981,5,Single Scoop:40|Double Scoop:70,''';
 
       final result = CsvImportService.parseCsv(csv);
 
-      expect(result.items.length, 3);
-      expect(result.categories.length, 3); // Momos, Addons, Desserts
+      expect(result.items.length, 2);
+      expect(result.categories.length, 2); // Momos, Desserts
 
       final momosCat = result.categories.firstWhere((c) => c.name == 'Momos');
       expect(momosCat.additionalCost, 15.0);
@@ -236,7 +239,7 @@ Garlic Dip,25,Addons,veg,true,,0.0,,true,Momos
       expect(momosCat.options[3].name, 'Special Jhol');
       expect(momosCat.options[3].price, 120.0);
 
-      // Verify Veg Momos item inherits the subcategories and category surcharge
+      // Verify Veg Momos item inherits the subcategories and category surcharge, plus addons
       final vegMomos = result.items[0];
       expect(vegMomos.name, 'Veg Momos');
       expect(vegMomos.price, 80.0);
@@ -244,12 +247,9 @@ Garlic Dip,25,Addons,veg,true,,0.0,,true,Momos
       expect(vegMomos.category.additionalCost, 15.0);
       expect(vegMomos.effectiveVariants.length, 4);
       expect(vegMomos.effectiveVariants[1].additionalCost, 10.0);
-
-      // Verify Addon
-      final dip = result.items[2];
-      expect(dip.name, 'Garlic Dip');
-      expect(dip.isAddon, isTrue);
-      expect(dip.linkedCategory, 'Momos');
+      expect(vegMomos.addons.length, 1);
+      expect(vegMomos.addons[0].name, 'Garlic Dip');
+      expect(vegMomos.addons[0].priceDelta, 25.0);
 
       // Verify Desserts category from category-only row
       final dessertCat = result.categories.firstWhere((c) => c.name == 'Desserts');

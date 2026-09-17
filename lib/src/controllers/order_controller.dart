@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import '../helpers/composite_item_helper.dart';
 import '../models/stall_models.dart';
 import '../storage/stall_storage.dart';
 import '../storage/in_memory_storage.dart';
-import '../theme/category_colors.dart';
 import '../services/csv_export_service.dart';
 import '../services/csv_import_service.dart';
 
@@ -21,6 +19,59 @@ class OrderController extends ChangeNotifier {
     'No Onion/Garlic',
     'Pack Separately',
   ];
+
+  static String? _parseCategoryFromKey(String key) {
+    final firstPart = key.split('+').first;
+    final catIndex = firstPart.indexOf('_cat_');
+    if (catIndex == -1) return null;
+    final afterCat = firstPart.substring(catIndex + 5);
+    if (afterCat.startsWith('var_')) {
+      final secondCat = afterCat.indexOf('_cat_');
+      if (secondCat == -1) return null;
+      return afterCat.substring(secondCat + 5);
+    }
+    return afterCat;
+  }
+
+  static String? _parseVariantFromKey(String key) {
+    final firstPart = key.split('+').first;
+    final varIndex = firstPart.indexOf('_var_');
+    if (varIndex == -1) return null;
+    final afterVar = firstPart.substring(varIndex + 5);
+    final catIndex = afterVar.indexOf('_cat_');
+    return catIndex != -1 ? afterVar.substring(0, catIndex) : afterVar;
+  }
+
+  static String _parseBaseIdFromKey(String key) {
+    final firstPart = key.split('+').first;
+    final varIndex = firstPart.indexOf('_var_');
+    if (varIndex != -1) {
+      return firstPart.substring(0, varIndex);
+    }
+    final catIndex = firstPart.indexOf('_cat_');
+    if (catIndex != -1) {
+      return firstPart.substring(0, catIndex);
+    }
+    return firstPart;
+  }
+
+  MenuItem? _findBaseMenuItem(String key) {
+    final firstPart = key.split('+').first;
+    for (final m in _menu) {
+      if (firstPart == m.id ||
+          firstPart.startsWith('${m.id}_var_') ||
+          firstPart.startsWith('${m.id}_cat_')) {
+        return m;
+      }
+    }
+    return null;
+  }
+
+  bool _isBaseItemMatch(String cartId, String targetId) {
+    final base = _findBaseMenuItem(cartId);
+    if (base != null) return base.id == targetId;
+    return _parseBaseIdFromKey(cartId) == targetId;
+  }
 
   List<MenuItem> _menu = [];
   List<StallOrder> _orders = [];
@@ -176,7 +227,7 @@ class OrderController extends ChangeNotifier {
 
     for (final cat in allCategories) {
       if (!result.containsKey(cat)) {
-        final uniqueColor = CategoryColorHelper.getUniqueColor(
+        final uniqueColor = ItemCategory.getUniqueColor(
           categoryName: cat,
           usedColors: usedColors,
         );
@@ -195,7 +246,7 @@ class OrderController extends ChangeNotifier {
       return defaultColor ?? const Color(0xFF1D4ED8);
     }
     final hex = resolvedCategoryColors[category] ??
-        CategoryColorHelper.getColorForCategory(category);
+        ItemCategory.getColorForCategory(category);
     return Color(hex);
   }
 
@@ -470,29 +521,61 @@ class OrderController extends ChangeNotifier {
 
   /// Returns all menu add-ons applicable to the given [category].
   List<MenuItem> getAddonsForCategory(String category, {bool onlyAvailable = true}) {
-    return _menu
-        .where((m) => (!onlyAvailable || m.isAvailable) && m.effectiveIsAddon && m.isApplicableToCategory(category))
-        .toList();
+    final result = <MenuItem>[];
+    final seen = <String>{};
+
+    final catConfig = getCategoryConfig(category);
+    final catAddons = catConfig?.addons ?? const [];
+    for (final addon in catAddons) {
+      if (onlyAvailable && !addon.isEnabled) continue;
+      if (seen.add(addon.name)) {
+        result.add(MenuItem(
+          id: addon.id,
+          name: addon.name,
+          price: addon.priceDelta > 0 ? addon.priceDelta : (addon.price ?? 0.0),
+          category: catConfig ?? resolveItemCategory(category),
+          isAvailable: addon.isEnabled,
+        ));
+      }
+    }
+
+    for (final item in _menu.where((m) => m.categoryName.trim().toLowerCase() == category.trim().toLowerCase())) {
+      for (final addon in item.addons) {
+        if (onlyAvailable && !addon.isEnabled) continue;
+        if (seen.add(addon.name)) {
+          result.add(MenuItem(
+            id: addon.id,
+            name: addon.name,
+            price: addon.priceDelta > 0 ? addon.priceDelta : (addon.price ?? 0.0),
+            category: item.category,
+            isAvailable: addon.isEnabled,
+          ));
+        }
+      }
+    }
+    return result;
   }
 
   /// Whether there are any add-ons available for the given [category].
   bool hasAddonsForCategory(String category, {bool onlyAvailable = true}) {
-    return _menu
-        .any((m) => (!onlyAvailable || m.isAvailable) && m.effectiveIsAddon && m.isApplicableToCategory(category));
+    return getAddonsForCategory(category, onlyAvailable: onlyAvailable).isNotEmpty;
   }
 
-  /// Checks if the specified add-on can be added to the cart item without exceeding maxPerAddonItem
-  /// and verifying that it is applicable to the target item's category.
+  /// Returns add-on options available for a specific item.
+  List<CategoryOption> getAddonsForItem(MenuItem item, {bool onlyAvailable = true}) {
+    if (onlyAvailable) {
+      return item.effectiveAddons.where((a) => a.isAvailable).toList();
+    }
+    return item.effectiveAddons;
+  }
+
+  /// Checks if the specified add-on can be added to the cart item without exceeding maxPerAddonItem.
   bool canAddAddonItem(
     String cartItemId,
     MenuItem addon, {
     String? resolvedAddonName,
     int countToAdd = 1,
   }) {
-    final targetItem = findItem(cartItemId);
-    if (!addon.isApplicableToCategory(targetItem.categoryName)) {
-      return false;
-    }
     final current = getAddonItemCount(
       cartItemId,
       addon.id,
@@ -501,23 +584,19 @@ class OrderController extends ChangeNotifier {
     return current + countToAdd <= maxPerAddonItem;
   }
 
-  /// Checks if any available add-on for the cart item's category can still be added to the cart item.
+  /// Checks if any available add-on for the cart item can still be added to the cart item.
   bool canAddAnyAddon(String cartItemId) {
     final targetItem = findItem(cartItemId);
-    final availableAddons = getAddonsForCategory(targetItem.categoryName);
-    if (availableAddons.isEmpty) return false;
-
+    final itemAddons = getAddonsForItem(targetItem, onlyAvailable: true);
+    for (final addon in itemAddons) {
+      if (getAddonItemCount(cartItemId, addon.id, resolvedAddonName: addon.name) < maxPerAddonItem) {
+        return true;
+      }
+    }
+    final availableAddons = getAddonsForCategory(targetItem.categoryName, onlyAvailable: true);
     for (final addon in availableAddons) {
-      if (addon.hasSlashNameVariants) {
-        for (final v in addon.slashNameVariants) {
-          if (getAddonItemCount(cartItemId, addon.id, resolvedAddonName: v) < maxPerAddonItem) {
-            return true;
-          }
-        }
-      } else {
-        if (getAddonItemCount(cartItemId, addon.id) < maxPerAddonItem) {
-          return true;
-        }
+      if (getAddonItemCount(cartItemId, addon.id) < maxPerAddonItem) {
+        return true;
       }
     }
     return false;
@@ -542,13 +621,26 @@ class OrderController extends ChangeNotifier {
     }
 
     // 2. Customized variant / category item (e.g. itemId_var_option or itemId_cat_Rice)
-    if (baseId.contains('_var_') || baseId.contains('_cat_')) {
-      final parsed = CompositeItemHelper.parseKeyParts(baseId);
-      final rawBase = _resolveBaseItem(parsed.baseId);
-      final rawCat = parsed.category != null
-          ? resolveItemCategory(parsed.category!)
+    final matchedBase = _findBaseMenuItem(baseId);
+    if (matchedBase != null && (baseId.contains('_var_') || baseId.contains('_cat_'))) {
+      final firstPart = baseId.split('+').first;
+      final suffix = firstPart.substring(matchedBase.id.length);
+
+      String? parsedVar;
+      String? parsedCat;
+      if (suffix.contains('_var_')) {
+        final afterVar = suffix.split('_var_')[1];
+        parsedVar = afterVar.contains('_cat_') ? afterVar.split('_cat_').first : afterVar;
+      }
+      if (suffix.contains('_cat_')) {
+        parsedCat = suffix.split('_cat_')[1];
+      }
+
+      final rawBase = matchedBase;
+      final rawCat = parsedCat != null
+          ? resolveItemCategory(parsedCat)
           : rawBase.category;
-      final resolvedName = parsed.variant;
+      final resolvedName = parsedVar;
 
       CategoryOption? matchedVariant;
       if (resolvedName != null) {
@@ -581,9 +673,30 @@ class OrderController extends ChangeNotifier {
       }
 
       final effectivePrice = rawBase.priceForVariant(matchedVariant);
-      final effectiveName = (resolvedName != null && rawBase.hasSlashNameVariants)
-          ? resolvedName
-          : rawBase.name;
+      final catKey = rawCat.name.trim().toLowerCase();
+      final baseLower = rawBase.name.trim().toLowerCase();
+      final varLower = resolvedName?.trim().toLowerCase();
+
+      String effectiveName;
+      if (resolvedName != null &&
+          resolvedName.trim().isNotEmpty &&
+          resolvedName.trim() != rawBase.name.trim()) {
+        final cleanVar = resolvedName.trim();
+        if (rawBase.name.contains('/')) {
+          effectiveName = cleanVar;
+        } else if (catKey.isNotEmpty &&
+            baseLower.contains(catKey) &&
+            varLower != null &&
+            !varLower.contains(catKey)) {
+          effectiveName = '$cleanVar (${rawBase.name})';
+        } else if (!rawBase.name.contains('($cleanVar)')) {
+          effectiveName = '${rawBase.name} ($cleanVar)';
+        } else {
+          effectiveName = rawBase.name;
+        }
+      } else {
+        effectiveName = rawBase.name;
+      }
       final effectiveDietary = matchedVariant?.dietaryType ?? rawBase.dietaryType;
 
       return MenuItem(
@@ -592,8 +705,6 @@ class OrderController extends ChangeNotifier {
         price: effectivePrice,
         category: rawCat,
         colorHex: rawBase.colorHex,
-        isAddon: rawBase.isAddon,
-        variants: rawBase.variants,
         dietaryType: effectiveDietary,
       );
     }
@@ -612,10 +723,8 @@ class OrderController extends ChangeNotifier {
     final compositeIndex = itemId.indexOf('+');
     final baseId = compositeIndex != -1 ? itemId.substring(0, compositeIndex) : itemId;
     final baseItem = _resolveBaseItem(baseId);
-    final categoryAdditionalCost =
-        !baseItem.effectiveIsAddon ? getCategoryCost(baseItem.categoryName) : 0.0;
-    final categoryCostReason =
-        !baseItem.effectiveIsAddon ? getCategoryCostReason(baseItem.categoryName) : null;
+    final categoryAdditionalCost = getCategoryCost(baseItem.categoryName);
+    final categoryCostReason = getCategoryCostReason(baseItem.categoryName);
 
     final addonDetails = <CartItemAddonDetail>[];
     double addonsPrice = 0.0;
@@ -632,12 +741,23 @@ class OrderController extends ChangeNotifier {
       }
 
       for (final entry in addonCounts.entries) {
-        final addon = _resolveBaseItem(entry.key);
-        final singlePrice = addon.price;
+        final key = entry.key;
+        CategoryOption? itemAddon;
+        for (final a in baseItem.addons) {
+          if (a.id == key || a.name == key) {
+            itemAddon = a;
+            break;
+          }
+        }
+
+        final addonName = itemAddon != null ? itemAddon.name : _resolveBaseItem(key).name;
+        final singlePrice = itemAddon != null
+            ? (itemAddon.priceDelta > 0 ? itemAddon.priceDelta : (itemAddon.price ?? 0.0))
+            : _resolveBaseItem(key).price;
         final totalAddonPrice = singlePrice * entry.value;
         addonsPrice += totalAddonPrice;
         addonDetails.add((
-          name: addon.name,
+          name: addonName,
           count: entry.value,
           singlePrice: singlePrice,
           totalPrice: totalAddonPrice,
@@ -682,11 +802,11 @@ class OrderController extends ChangeNotifier {
 
         return MenuItem(
           id: itemId,
-          name: '$prefix ${breakdown.baseItem.name}'.trim(),
+          name: '$prefix ${breakdown.baseItem.displayName}'.trim(),
           price: breakdown.totalUnitPrice,
           category: breakdown.baseItem.category,
           colorHex: breakdown.baseItem.colorHex,
-          isAddon: false,
+          dietaryType: breakdown.baseItem.dietaryType,
         );
       }
     }
@@ -694,14 +814,14 @@ class OrderController extends ChangeNotifier {
     // 2. Customized variant / category items (e.g. "item_chai_var_Tea", "item_rice_cat_Rice", or "item_123_var_Fried Rice_cat_Rice")
     if (itemId.contains('_var_') || itemId.contains('_cat_')) {
       final baseItem = _resolveBaseItem(itemId);
-      final catCost = !baseItem.effectiveIsAddon ? getCategoryCost(baseItem.categoryName) : 0.0;
+      final catCost = getCategoryCost(baseItem.categoryName);
       return MenuItem(
         id: itemId,
         name: baseItem.name,
         price: baseItem.price + catCost,
         category: baseItem.category,
         colorHex: baseItem.colorHex,
-        isAddon: baseItem.isAddon,
+        dietaryType: baseItem.dietaryType,
       );
     }
 
@@ -709,7 +829,7 @@ class OrderController extends ChangeNotifier {
     for (final m in _menu) {
       if (m.id == itemId) {
         final hydrated = _hydrateMenuItemCategory(m);
-        final catCost = !hydrated.effectiveIsAddon ? getCategoryCost(hydrated.categoryName) : 0.0;
+        final catCost = getCategoryCost(hydrated.categoryName);
         return catCost > 0 ? hydrated.copyWith(price: hydrated.price + catCost) : hydrated;
       }
     }
@@ -833,6 +953,18 @@ class OrderController extends ChangeNotifier {
     return map;
   }
 
+  /// Single source of truth for resolving the formatted display name of any cart item
+  /// or menu item across ALL screens (Cart, Summary, Active Orders, Receipts).
+  String getCartItemDisplayName(String cartItemId) {
+    final item = findItem(cartItemId);
+    return formatOrderLineItemDisplayName(
+      rawName: item.name,
+      itemId: cartItemId,
+      category: item.categoryName,
+      baseItemName: item.name,
+    );
+  }
+
   /// Formats an item's display name for Active Orders and Item Summary,
   /// dynamically displaying the item name and selected variant / option in brackets
   /// (e.g. "Chicken (Kurkure Momos)", "Gobi (Noodles)"),
@@ -854,8 +986,8 @@ class OrderController extends ChangeNotifier {
     }
 
     // 2. Parse variant and category segments from itemId
-    final catVariant = CompositeItemHelper.parseCategory(itemId);
-    final varVariant = CompositeItemHelper.parseVariant(itemId);
+    final catVariant = _parseCategoryFromKey(itemId);
+    final varVariant = _parseVariantFromKey(itemId);
 
     // 3. Strip any category suffix already in brackets from rawName
     // (e.g. "Chicken (Rolls)" -> "Chicken", "Veg (Steam Momos / Fried Momos / ...)" -> "Veg")
@@ -921,16 +1053,22 @@ class OrderController extends ChangeNotifier {
     String? bracketContent;
 
     if (selectedOption != null && selectedOption.isNotEmpty) {
+      final optLower = selectedOption.toLowerCase();
+      if (itemName.toLowerCase().startsWith('$optLower (') ||
+          itemName.toLowerCase().endsWith('($optLower)')) {
+        return '$addonPrefix$itemName'.trim();
+      }
+
       // If the base item already embeds the category name (e.g. itemName: "Kurkure Momos")
       // and selectedOption is the filling/flavor (e.g. "Chicken"), display "$selectedOption ($itemName)"
       final catKey = category?.trim().toLowerCase();
       final itemLower = itemName.toLowerCase();
-      final optLower = selectedOption.toLowerCase();
 
       if (catKey != null &&
           catKey.isNotEmpty &&
           itemLower.contains(catKey) &&
-          !optLower.contains(catKey)) {
+          !optLower.contains(catKey) &&
+          !itemName.contains('(')) {
         return '$addonPrefix$selectedOption ($itemName)'.trim();
       }
 
@@ -940,6 +1078,9 @@ class OrderController extends ChangeNotifier {
     }
 
     if (bracketContent != null && bracketContent.isNotEmpty) {
+      if (itemName.toLowerCase().endsWith('(${bracketContent.toLowerCase()})')) {
+        return '$addonPrefix$itemName'.trim();
+      }
       return '$addonPrefix$itemName ($bracketContent)'.trim();
     }
 
@@ -1253,7 +1394,6 @@ class OrderController extends ChangeNotifier {
           name: rawCat,
           additionalCost: itemAddCost,
           colorHex: item.colorHex,
-          isAddonCategory: item.effectiveIsAddon && item.linkedCategory == null,
           options: itemOptions,
         );
         _categoryConfigs.add(newCat);
@@ -1371,31 +1511,9 @@ class OrderController extends ChangeNotifier {
     // 2. Update menu items with oldCategory
     for (int i = 0; i < _menu.length; i++) {
       final item = _menu[i];
-      bool itemChanged = false;
-      ItemCategory updatedCategory = item.category;
-      String? updatedLinkedCategory = item.linkedCategory;
-
       if (item.categoryName.trim().toLowerCase() == oldNorm) {
-        updatedCategory = item.category.copyWith(name: newTrimmed);
-        itemChanged = true;
-      }
-
-      // Update linked category if addon links to old category
-      if (item.linkedCategory != null) {
-        final links = item.linkedCategory!.split('/').map((s) => s.trim()).toList();
-        if (links.any((l) => l.toLowerCase() == oldNorm)) {
-          final updatedLinks = links
-              .map((l) => l.toLowerCase() == oldNorm ? newTrimmed : l)
-              .toList();
-          updatedLinkedCategory = updatedLinks.join(' / ');
-          itemChanged = true;
-        }
-      }
-
-      if (itemChanged) {
         _menu[i] = item.copyWith(
-          category: updatedCategory,
-          linkedCategory: updatedLinkedCategory,
+          category: item.category.copyWith(name: newTrimmed),
         );
         menuModified = true;
       }
@@ -1413,6 +1531,9 @@ class OrderController extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  /// Saves or updates a category's configuration and persists it.
+  Future<void> updateCategoryConfig(ItemCategory config) => saveCategoryConfig(config);
 
   /// Saves or updates a category's configuration and persists it.
   Future<void> saveCategoryConfig(ItemCategory config) async {
@@ -1548,57 +1669,52 @@ class OrderController extends ChangeNotifier {
     final list = <MenuItem>[];
     for (final entry in _cart.entries) {
       if (entry.value > 0) {
-        final item = findItem(entry.key);
-        if (!item.effectiveIsAddon) {
-          list.add(item);
-        }
+        list.add(findItem(entry.key));
       }
     }
     return list;
   }
 
   /// Adds a standard item to the cart.
-  /// If the item is an Add-on, throws a StateError because add-ons cannot be added alone.
   void addToCart(MenuItem item) {
-    if (item.effectiveIsAddon) {
-      throw StateError(
-        'Add-ons cannot be added standalone. They must be linked to a main item.',
-      );
-    }
     _cart[item.id] = (_cart[item.id] ?? 0) + 1;
     notifyListeners();
   }
 
-  /// Adds a specific variant of an or-item (slash item) to the cart.
+  /// Adds a specific variant of an item to the cart.
   void addVariantToCart(MenuItem baseItem, String variantName) {
     final variantId = '${baseItem.id}_var_$variantName';
     _cart[variantId] = (_cart[variantId] ?? 0) + 1;
     notifyListeners();
   }
 
-  /// Adds an item with custom variant name and/or resolved category to the cart.
+  /// Adds an item with custom variant and/or add-ons to the cart.
   void addCustomizedItemToCart({
     required MenuItem baseItem,
+    CategoryOption? selectedVariant,
+    List<CategoryOption>? selectedAddons,
+    int quantity = 1,
     String? resolvedName,
     String? resolvedCategory,
   }) {
-    if (baseItem.effectiveIsAddon) {
-      throw StateError(
-        'Add-ons cannot be added standalone. They must be linked to a main item.',
-      );
-    }
     String customId = baseItem.id;
-    if (resolvedName != null &&
-        resolvedName.trim().isNotEmpty &&
-        resolvedName.trim() != baseItem.name.trim()) {
-      customId += '_var_${resolvedName.trim()}';
+    final variantName = selectedVariant?.name ?? resolvedName;
+    if (variantName != null &&
+        variantName.trim().isNotEmpty &&
+        variantName.trim() != baseItem.name.trim()) {
+      customId += '_var_${variantName.trim()}';
     }
     if (resolvedCategory != null &&
         resolvedCategory.trim().isNotEmpty &&
         resolvedCategory.trim() != baseItem.categoryName.trim()) {
       customId += '_cat_${resolvedCategory.trim()}';
     }
-    _cart[customId] = (_cart[customId] ?? 0) + 1;
+    if (selectedAddons != null && selectedAddons.isNotEmpty) {
+      for (final addon in selectedAddons) {
+        customId += '+${addon.id}';
+      }
+    }
+    _cart[customId] = (_cart[customId] ?? 0) + quantity;
     notifyListeners();
   }
 
@@ -1616,13 +1732,6 @@ class OrderController extends ChangeNotifier {
     if (!_cart.containsKey(targetCartItemId) || _cart[targetCartItemId]! <= 0) {
       throw StateError(
         'Cannot link add-on to an item not present in the active cart.',
-      );
-    }
-
-    final targetItem = findItem(targetCartItemId);
-    if (!addon.isApplicableToCategory(targetItem.categoryName)) {
-      throw ArgumentError(
-        'Add-on [${addon.name}] is linked to [${addon.effectiveLinkedCategories.join(', ')}] and cannot be added to [${targetItem.name}] (${targetItem.categoryName}).',
       );
     }
 
@@ -1678,13 +1787,7 @@ class OrderController extends ChangeNotifier {
       );
     }
 
-    final targetItem = findItem(targetCartItemId);
     for (final item in validAddons) {
-      if (!item.addon.isApplicableToCategory(targetItem.categoryName)) {
-        throw ArgumentError(
-          'Add-on [${item.addon.name}] is linked to [${item.addon.effectiveLinkedCategories.join(', ')}] and cannot be added to [${targetItem.name}] (${targetItem.categoryName}).',
-        );
-      }
       final currentAddonCount = getAddonItemCount(
         targetCartItemId,
         item.addon.id,
@@ -2195,7 +2298,7 @@ class OrderController extends ChangeNotifier {
 
   Future<void> deleteMenuItem(String id) async {
     _menu.removeWhere((m) => m.id == id);
-    _cart.removeWhere((cartId, _) => CompositeItemHelper.isBaseItemMatch(cartId, id));
+    _cart.removeWhere((cartId, _) => _isBaseItemMatch(cartId, id));
     if (_selectedCategory != 'All' &&
         !_menu.any((m) => m.categoryName == _selectedCategory)) {
       _selectedCategory = 'All';
@@ -2229,14 +2332,82 @@ class OrderController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sets availability of a menu item for today and persists it.
+  /// Sets availability of a menu item or add-on for today and persists it.
   Future<void> setItemAvailability(String id, bool isAvailable) async {
     final index = _menu.indexWhere((m) => m.id == id);
-    if (index == -1) return;
-    if (_menu[index].isAvailable == isAvailable) return;
-    _menu[index] = _menu[index].copyWith(isAvailable: isAvailable);
-    await _storageService.saveMenu(_menu);
+    if (index != -1) {
+      if (_menu[index].isAvailable == isAvailable) return;
+      _menu[index] = _menu[index].copyWith(isAvailable: isAvailable);
+      await _storageService.saveMenu(_menu);
+      notifyListeners();
+      return;
+    }
+
+    // Check if id matches an add-on on any category
+    bool modified = false;
+    for (int i = 0; i < _categoryConfigs.length; i++) {
+      final cat = _categoryConfigs[i];
+      final addonIdx = cat.addons.indexWhere(
+        (a) => a.id == id || a.name.trim().toLowerCase() == id.trim().toLowerCase(),
+      );
+      if (addonIdx != -1) {
+        final updatedAddons = List<CategoryOption>.from(cat.addons);
+        if (updatedAddons[addonIdx].isEnabled != isAvailable) {
+          updatedAddons[addonIdx] = updatedAddons[addonIdx].copyWith(isEnabled: isAvailable);
+          _categoryConfigs[i] = cat.copyWith(addons: updatedAddons);
+          modified = true;
+        }
+      }
+    }
+    if (modified) {
+      await _storageService.saveCategories(_categoryConfigs);
+      notifyListeners();
+    }
+  }
+
+  /// Toggles or sets availability of an individual add-on on a category and persists it.
+  Future<void> toggleCategoryAddonAvailability(
+    String categoryName,
+    String addonIdOrName, {
+    bool? isAvailable,
+  }) async {
+    final catConfig = getCategoryConfig(categoryName);
+    if (catConfig == null) return;
+    final catAddons = List<CategoryOption>.from(catConfig.addons);
+    final targetIdx = catAddons.indexWhere(
+      (a) =>
+          a.id == addonIdOrName ||
+          a.name.trim().toLowerCase() == addonIdOrName.trim().toLowerCase(),
+    );
+    if (targetIdx == -1) return;
+
+    final target = catAddons[targetIdx];
+    final newStatus = isAvailable ?? !target.isEnabled;
+    if (target.isEnabled == newStatus) return;
+
+    catAddons[targetIdx] = target.copyWith(isEnabled: newStatus);
+    final catIndex = _categoryConfigs.indexWhere((c) => c.name.toLowerCase() == categoryName.toLowerCase());
+    if (catIndex != -1) {
+      _categoryConfigs[catIndex] = catConfig.copyWith(addons: catAddons);
+    } else {
+      _categoryConfigs.add(catConfig.copyWith(addons: catAddons));
+    }
+    await _storageService.saveCategories(_categoryConfigs);
     notifyListeners();
+  }
+
+  /// Toggles or sets availability of an individual add-on on a menu item and persists it.
+  Future<void> toggleMenuItemAddonAvailability(
+    String itemId,
+    String addonIdOrName, {
+    bool? isAvailable,
+  }) async {
+    final item = findItem(itemId);
+    await toggleCategoryAddonAvailability(
+      item.categoryName,
+      addonIdOrName,
+      isAvailable: isAvailable,
+    );
   }
 
   /// Toggles or sets availability of an individual variant on a menu item and persists it.
@@ -2245,10 +2416,10 @@ class OrderController extends ChangeNotifier {
     String variantIdOrName, {
     bool? isAvailable,
   }) async {
-    final index = _menu.indexWhere((m) => m.id == itemId);
-    if (index == -1) return;
-    final item = _menu[index];
-    final currentVariants = List<CategoryOption>.from(item.effectiveVariants);
+    final item = findItem(itemId);
+    final catConfig = getCategoryConfig(item.categoryName);
+    if (catConfig == null) return;
+    final currentVariants = List<CategoryOption>.from(catConfig.options);
     if (currentVariants.isEmpty) return;
 
     final targetIdx = currentVariants.indexWhere(
@@ -2260,13 +2431,11 @@ class OrderController extends ChangeNotifier {
 
     final target = currentVariants[targetIdx];
     final newStatus = isAvailable ?? !target.isEnabled;
-    if (target.isEnabled == newStatus && item.variants.isNotEmpty) return;
+    if (target.isEnabled == newStatus) return;
 
     currentVariants[targetIdx] = target.copyWith(isEnabled: newStatus);
 
-    _menu[index] = item.copyWith(variants: currentVariants);
-    await _storageService.saveMenu(_menu);
-    notifyListeners();
+    await saveCategoryConfig(catConfig.copyWith(options: currentVariants));
   }
 
   /// Sets availability for all items in a category for today and persists it.

@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:counter_app/src/controllers/theme_controller.dart';
-import 'package:counter_app/src/views/stall_pos_screen.dart';
+import 'package:counter_app/src/views/stall_pos_view.dart';
 import 'package:counter_app/src/theme/app_theme.dart';
+import 'package:counter_app/src/models/stall_models.dart';
+import 'package:counter_app/src/widgets/stall_pos/unified_item_customizer_sheet.dart';
 
 void main() {
   setUp(() {
@@ -577,8 +579,9 @@ void main() {
       await tester.tap(find.text('Tea / Coffee'));
       await tester.pumpAndSettle();
 
-      // BottomSheet should open with options
-      expect(find.text('Select Option'), findsOneWidget);
+      // UnifiedItemCustomizerSheet should open with variants
+      expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+      expect(find.text('Select Variant / Portion'), findsOneWidget);
       expect(find.text('Tea'), findsOneWidget);
       expect(find.text('Coffee'), findsOneWidget);
 
@@ -586,8 +589,12 @@ void main() {
       await tester.tap(find.text('Coffee'));
       await tester.pumpAndSettle();
 
+      // Tap Add to Cart
+      await tester.tap(find.textContaining('Add to Cart'));
+      await tester.pumpAndSettle();
+
       // BottomSheet closed and cart has Coffee
-      expect(find.text('Select Option'), findsNothing);
+      expect(find.byType(UnifiedItemCustomizerSheet), findsNothing);
       expect(find.text('PUNCH ORDER (#101) • ₹25'), findsOneWidget);
       expect(find.textContaining('Coffee'), findsWidgets);
     },
@@ -610,13 +617,13 @@ void main() {
             'name': 'Veg Burger',
             'price': 80.0,
             'category': 'Fast Food',
-          },
-          {
-            'id': 'item_cheese',
-            'name': 'Extra Cheese',
-            'price': 20.0,
-            'category': 'Addons',
-            'isAddon': true,
+            'addons': [
+              {
+                'id': 'item_cheese',
+                'name': 'Extra Cheese',
+                'priceDelta': 20.0,
+              },
+            ],
           },
         ]),
         'stall_orders': jsonEncode([]),
@@ -628,36 +635,33 @@ void main() {
 
       expect(find.text('+ Add-on'), findsNothing);
 
-      // 1. Try tapping Add-on with empty cart -> blocked
-      await tester.tap(find.text('Extra Cheese'));
-      await tester.pump();
-
-      expect(
-        find.text(
-          'Add-ons must be linked to an item. Please add a main item first.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('TAP ITEMS TO START (#101)'), findsOneWidget);
-
-      // Wait for snackbar to dismiss
-      await tester.pump(const Duration(seconds: 3));
-      await tester.pumpAndSettle();
-
-      // 2. Add main item (Veg Burger)
+      // 1. Tapping Veg Burger opens UnifiedItemCustomizerSheet because it has addons
       await tester.tap(find.text('Veg Burger'));
       await tester.pumpAndSettle();
 
-      expect(find.text('PUNCH ORDER (#101) • ₹80'), findsOneWidget);
+      expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+      expect(find.text('Extra Cheese'), findsOneWidget);
+      expect(find.text('+₹20'), findsOneWidget);
 
-      // 3. Tap Add-on now -> links to the single item
-      await tester.tap(find.text('Extra Cheese'));
+      // 2. Add Extra Cheese via stepper
+      final cheeseFinder = find.ancestor(
+        of: find.text('Extra Cheese'),
+        matching: find.byType(Container),
+      ).first;
+      await tester.tap(find.descendant(of: cheeseFinder, matching: find.byIcon(Icons.add)));
       await tester.pumpAndSettle();
 
-      // Cart total should now be 80 + 20 = 100
+      // Price reflects 80 + 20 = 100
+      expect(find.text('Add to Cart • ₹100'), findsOneWidget);
+
+      // 3. Add to cart
+      await tester.tap(find.text('Add to Cart • ₹100'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(UnifiedItemCustomizerSheet), findsNothing);
       expect(find.text('PUNCH ORDER (#101) • ₹100'), findsOneWidget);
 
-      // Open cart bottom sheet and verify item name has bracketed prefix
+      // 4. Open cart bottom sheet and verify item name has bracketed prefix
       await tester.tap(find.text('View Cart'));
       await tester.pumpAndSettle();
 
@@ -696,13 +700,18 @@ void main() {
             'name': 'Schezwan Platter',
             'price': 130.0,
             'category': 'Rice / Noodles',
-          },
-          {
-            'id': 'item_addon_cm',
-            'name': 'Cheese / Mayo',
-            'price': 25.0,
-            'category': 'Addons',
-            'isAddon': true,
+            'addons': [
+              {
+                'id': 'addon_cheese',
+                'name': 'Cheese',
+                'priceDelta': 25.0,
+              },
+              {
+                'id': 'addon_mayo',
+                'name': 'Mayo',
+                'priceDelta': 25.0,
+              },
+            ],
           },
         ]),
         'stall_orders': jsonEncode([]),
@@ -721,52 +730,48 @@ void main() {
       await tester.tap(find.text('Schezwan Platter').first);
       await tester.pumpAndSettle();
 
-      // Modal appears asking which category in Rice / Noodles!
-      expect(find.text('Select Category'), findsOneWidget);
-      expect(find.text('SELECT CATEGORY'), findsOneWidget);
-      expect(find.descendant(of: find.byType(BottomSheet), matching: find.text('Rice')), findsOneWidget);
-      expect(find.descendant(of: find.byType(BottomSheet), matching: find.text('Noodles')), findsOneWidget);
-
-      // Tap 'Rice' inside modal (single-tap fast-path adds Schezwan Platter to cart and dismisses)
-      await tester.tap(find.byKey(const ValueKey('cat_choice_Rice')));
-      await tester.pumpAndSettle();
-
-      expect(find.text('PUNCH ORDER (#101) • ₹130'), findsOneWidget);
-
-      // 3. Tap Addon with slash in name (Cheese / Mayo)
-      await tester.tap(find.text('Cheese / Mayo'));
-      await tester.pumpAndSettle();
-
-      // Modal appears for addon with variants & quantity steppers
-      expect(find.text('Customize Extra'), findsOneWidget);
-      expect(find.text('CHOOSE EXTRAS & QUANTITIES'), findsOneWidget);
+      // Unified sheet appears with category subcategories (Rice, Noodles) and add-ons (Cheese, Mayo)
+      expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+      expect(find.text('Rice'), findsOneWidget);
+      expect(find.text('Noodles'), findsOneWidget);
       expect(find.text('Cheese'), findsOneWidget);
       expect(find.text('Mayo'), findsOneWidget);
 
-      // Increment Cheese to 2x
-      final addButtons = find.descendant(of: find.byType(BottomSheet), matching: find.byIcon(Icons.add));
-      await tester.tap(addButtons.first); // Cheese +
+      // Select 'Rice' variant (already selected by default or tap)
+      await tester.tap(find.text('Rice'));
       await tester.pumpAndSettle();
 
-      // Verify button reflects 2x Cheese
-      expect(find.textContaining('2x Cheese'), findsOneWidget);
-
-      // Tap confirmation button
-      await tester.tap(find.textContaining('Add [2x Cheese] to Schezwan Platter'));
+      // Increment Cheese to 2x (tap + twice)
+      final cheeseRow = find.ancestor(
+        of: find.text('Cheese'),
+        matching: find.byType(Container),
+      ).first;
+      // First tap (+)
+      await tester.tap(find.descendant(of: cheeseRow, matching: find.byIcon(Icons.add)));
+      await tester.pumpAndSettle();
+      // Second tap (now add_circle_outline)
+      await tester.tap(find.descendant(of: cheeseRow, matching: find.byIcon(Icons.add_circle_outline)));
       await tester.pumpAndSettle();
 
-      // Cart total should now be 130 + 25*2 = 180
+      // Total reflects 130 + 25*2 = 180
+      expect(find.text('Add to Cart • ₹180'), findsOneWidget);
+
+      // Tap Add to Cart
+      await tester.tap(find.text('Add to Cart • ₹180'));
+      await tester.pumpAndSettle();
+
+      // Cart total should now be 180
       expect(find.text('PUNCH ORDER (#101) • ₹180'), findsOneWidget);
 
-      // 4. Open cart bottom sheet and verify centralized displayName with [2x Cheese]
+      // 3. Open cart bottom sheet and verify centralized displayName with [2x Cheese]
       await tester.tap(find.text('View Cart'));
       await tester.pumpAndSettle();
 
-      final cartItemText = tester.widget<Text>(find.text('[2x Cheese] Schezwan Platter'));
+      final cartItemText = tester.widget<Text>(find.text('[2x Cheese] Schezwan Platter (Rice)'));
       expect(cartItemText.overflow, isNull);
       expect(cartItemText.maxLines, isNull);
 
-      expect(find.text('[2x Cheese] Schezwan Platter'), findsOneWidget);
+      expect(find.text('[2x Cheese] Schezwan Platter (Rice)'), findsOneWidget);
       expect(find.text('₹180 each'), findsOneWidget);
       expect(find.text('Split: Item ₹130 + Add-ons ₹50'), findsOneWidget);
       expect(find.text('2x Cheese (+₹50)'), findsOneWidget);
@@ -774,8 +779,12 @@ void main() {
       expect(find.text('Add-ons Subtotal'), findsOneWidget);
       expect(find.text('+₹50'), findsOneWidget);
 
-      // 5. Punch order and verify on Active Orders
-      await tester.tap(find.text('PUNCH ORDER (#101) • ₹180').first, warnIfMissed: false);
+      // 4. Punch order and verify on Active Orders
+      final sheetPunchButton = find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('PUNCH ORDER (#101) • ₹180'),
+      );
+      await tester.tap(sheetPunchButton);
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Active Orders'));
@@ -786,7 +795,7 @@ void main() {
       expect(activeItemText.overflow, isNull);
       expect(activeItemText.maxLines, isNull);
 
-      // 6. Confirm payment via default UPI (1-tap complete)
+      // 5. Confirm payment via default UPI (1-tap complete)
       await tester.tap(find.byKey(const ValueKey('confirm_payment_btn_101')));
       await tester.pumpAndSettle();
 
@@ -797,7 +806,7 @@ void main() {
       expect(find.text('Payment confirmed for Order #101 via UPI!'), findsOneWidget);
       expect(find.text('Paid • UPI'), findsWidgets);
 
-      // 7. Verify in Item Summary tab that item name is fully visible
+      // 6. Verify in Item Summary tab that item name is fully visible
       await tester.tap(find.text('Item Summary'));
       await tester.pumpAndSettle();
 
@@ -916,13 +925,13 @@ void main() {
             'name': 'Veg Burger',
             'price': 50.0,
             'category': 'Fast Food',
-          },
-          {
-            'id': 'item_c1',
-            'name': 'Extra Cheese',
-            'price': 20.0,
-            'category': 'Addons',
-            'isAddon': true,
+            'addons': [
+              {
+                'id': 'item_c1',
+                'name': 'Extra Cheese',
+                'priceDelta': 20.0,
+              },
+            ],
           },
           {
             'id': 'item_c2',
@@ -971,23 +980,45 @@ void main() {
       // We are now on Menu/Cart tab editing Order #101
       expect(find.text('Editing Order #101'), findsWidgets);
 
-      // Tap Extra Cheese add-on item in menu
-      await tester.tap(find.text('Extra Cheese'));
+      // Open Cart bottom sheet to customize the existing cart item
+      await tester.tap(find.text('View Cart'));
       await tester.pumpAndSettle();
 
-      // Add-on selection modal opens; confirm adding Extra Cheese to Veg Burger
-      expect(find.text('Customize Extra'), findsOneWidget);
-      await tester.tap(find.textContaining('Add [Extra Cheese]'));
+      // Tap Veg Burger row inside bottom sheet to customize
+      final burgerCartRow = find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.textContaining('Veg Burger'),
+      );
+      await tester.tap(burgerCartRow);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+      expect(find.text('Extra Cheese'), findsOneWidget);
+
+      // Increment Extra Cheese
+      final cheeseFinder = find.ancestor(
+        of: find.text('Extra Cheese'),
+        matching: find.byType(Container),
+      ).first;
+      await tester.tap(find.descendant(of: cheeseFinder, matching: find.byIcon(Icons.add)));
+      await tester.pumpAndSettle();
+
+      // Update Item
+      await tester.tap(find.text('Update Item • ₹70'));
       await tester.pumpAndSettle();
 
       // Now cart has [Extra Cheese] Veg Burger + Masala Chai (Total ₹90)
-      expect(find.text('Update Order #101 • ₹90'), findsOneWidget);
+      expect(find.text('Update Order #101 • ₹90'), findsWidgets);
 
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
 
       // Tap Update Order #101 • ₹90
-      await tester.tap(find.text('Update Order #101 • ₹90'));
+      final sheetUpdateBtn = find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('Update Order #101 • ₹90'),
+      );
+      await tester.tap(sheetUpdateBtn);
       await tester.pumpAndSettle();
 
       // Additional payment dialog opens (Additional Due ₹20)
@@ -1149,20 +1180,18 @@ void main() {
             'name': 'Veg Burger',
             'price': 80.0,
             'category': 'Fast Food',
-          },
-          {
-            'id': 'item_cheese',
-            'name': 'Extra Cheese',
-            'price': 20.0,
-            'category': 'Addons',
-            'isAddon': true,
-          },
-          {
-            'id': 'item_mayo',
-            'name': 'Mayo',
-            'price': 15.0,
-            'category': 'Addons',
-            'isAddon': true,
+            'addons': [
+              {
+                'id': 'item_cheese',
+                'name': 'Extra Cheese',
+                'priceDelta': 20.0,
+              },
+              {
+                'id': 'item_mayo',
+                'name': 'Mayo',
+                'priceDelta': 15.0,
+              },
+            ],
           },
         ]),
         'stall_orders': jsonEncode([]),
@@ -1172,41 +1201,60 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
       await tester.pumpAndSettle();
 
-      // 1. Add Veg Burger to cart
+      // 1. Tap Veg Burger to open UnifiedItemCustomizerSheet
       await tester.tap(find.text('Veg Burger').first);
       await tester.pumpAndSettle();
 
-      // 2. Add first cheese (count: 1)
-      await tester.tap(find.text('Extra Cheese').first);
-      await tester.pumpAndSettle();
-      expect(find.text('Added [Extra Cheese] to Veg Burger'), findsOneWidget);
+      expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+      expect(find.text('Optional (Max 2 each)'), findsOneWidget);
 
-      // 3. Add second cheese (count: 2)
-      await tester.tap(find.text('Extra Cheese').first);
-      await tester.pumpAndSettle();
-      expect(find.textContaining('Added [Extra Cheese] to'), findsOneWidget);
+      final cheeseFinder = find.ancestor(
+        of: find.text('Extra Cheese'),
+        matching: find.byType(Container),
+      ).first;
+      final mayoFinder = find.ancestor(
+        of: find.text('Mayo'),
+        matching: find.byType(Container),
+      ).first;
 
-      // 4. Try to add third cheese (blocked by max 2 limit for Extra Cheese)
-      await tester.tap(find.text('Extra Cheese').first);
+      // 2. Add first Extra Cheese (count: 1)
+      await tester.tap(find.descendant(of: cheeseFinder, matching: find.byIcon(Icons.add)));
       await tester.pumpAndSettle();
-      expect(find.text('Maximum 2 [Extra Cheese] already added to items in cart.'), findsOneWidget);
+      expect(find.descendant(of: cheeseFinder, matching: find.text('1')), findsOneWidget);
+
+      // 3. Add second Extra Cheese (count: 2)
+      await tester.tap(find.descendant(of: cheeseFinder, matching: find.byIcon(Icons.add_circle_outline)));
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: cheeseFinder, matching: find.text('2')), findsOneWidget);
+
+      // 4. Try to add third Extra Cheese (disabled since max is 2)
+      final cheeseAddBtn = tester.widget<IconButton>(
+        find.descendant(of: cheeseFinder, matching: find.byType(IconButton)).last,
+      );
+      expect(cheeseAddBtn.onPressed, isNull);
 
       // 5. Add first Mayo (count: 1) - allowed because limit is per addon item!
-      await tester.tap(find.text('Mayo').first);
+      await tester.tap(find.descendant(of: mayoFinder, matching: find.byIcon(Icons.add)));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Added [Mayo] to'), findsOneWidget);
+      expect(find.descendant(of: mayoFinder, matching: find.text('1')), findsOneWidget);
 
       // 6. Add second Mayo (count: 2)
-      await tester.tap(find.text('Mayo').first);
+      await tester.tap(find.descendant(of: mayoFinder, matching: find.byIcon(Icons.add_circle_outline)));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Added [Mayo] to'), findsOneWidget);
+      expect(find.descendant(of: mayoFinder, matching: find.text('2')), findsOneWidget);
 
-      // 7. Try to add third Mayo (blocked by max 2 limit for Mayo)
-      await tester.tap(find.text('Mayo').first);
+      // 7. Try to add third Mayo (disabled since max is 2)
+      final mayoAddBtn = tester.widget<IconButton>(
+        find.descendant(of: mayoFinder, matching: find.byType(IconButton)).last,
+      );
+      expect(mayoAddBtn.onPressed, isNull);
+
+      // 8. Total is 80 + 2*20 + 2*15 = 150
+      expect(find.text('Add to Cart • ₹150'), findsOneWidget);
+      await tester.tap(find.text('Add to Cart • ₹150'));
       await tester.pumpAndSettle();
-      expect(find.text('Maximum 2 [Mayo] already added to items in cart.'), findsOneWidget);
 
-      // 8. Open Review Cart bottom sheet
+      // 9. Open Review Cart bottom sheet
       await tester.tap(find.text('View Cart'));
       await tester.pumpAndSettle();
 
@@ -1234,28 +1282,26 @@ void main() {
             'name': 'Masala Chai',
             'price': 20.0,
             'category': 'Beverages',
+            'addons': [
+              {
+                'id': 'addon_ginger',
+                'name': 'Ginger',
+                'priceDelta': 5.0,
+              },
+            ],
           },
           {
             'id': 'item_burger',
             'name': 'Veg Burger',
             'price': 80.0,
             'category': 'Fast Food',
-          },
-          {
-            'id': 'addon_cheese',
-            'name': 'Extra Cheese',
-            'price': 20.0,
-            'category': 'Addons',
-            'isAddon': true,
-            'linkedCategory': 'Fast Food',
-          },
-          {
-            'id': 'addon_ginger',
-            'name': 'Ginger',
-            'price': 5.0,
-            'category': 'Addons',
-            'isAddon': true,
-            'linkedCategory': 'Beverages',
+            'addons': [
+              {
+                'id': 'addon_cheese',
+                'name': 'Extra Cheese',
+                'priceDelta': 20.0,
+              },
+            ],
           },
         ]),
         'stall_orders': jsonEncode([]),
@@ -1265,55 +1311,63 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
       await tester.pumpAndSettle();
 
-      // 1. Add Masala Chai to cart
+      // 1. Tap Masala Chai -> opens UnifiedItemCustomizerSheet
       await tester.tap(find.text('Masala Chai').first);
       await tester.pumpAndSettle();
 
-      // 2. Try to tap Extra Cheese (linkedCategory: Fast Food)
-      // Since no Fast Food item is in the cart, it must be rejected with a SnackBar!
-      final cheeseFinder = find.text('Extra Cheese').first;
-      await tester.ensureVisible(cheeseFinder);
-      await tester.tap(cheeseFinder);
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Add-on [Extra Cheese] can only be added to "Fast Food" items. Please add one first.'),
-        findsOneWidget,
-      );
+      // Scoped addons: Ginger is visible, Extra Cheese is NOT visible!
+      expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+      expect(find.text('Ginger'), findsOneWidget);
+      expect(find.text('Extra Cheese'), findsNothing);
 
-      // 3. Add Veg Burger to cart
+      // Add Ginger to Masala Chai
+      final gingerFinder = find.ancestor(
+        of: find.text('Ginger'),
+        matching: find.byType(Container),
+      ).first;
+      await tester.tap(find.descendant(of: gingerFinder, matching: find.byIcon(Icons.add)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Add to Cart • ₹25'));
+      await tester.pumpAndSettle();
+
+      // 2. Tap Veg Burger -> opens UnifiedItemCustomizerSheet
       await tester.tap(find.text('Veg Burger').first);
       await tester.pumpAndSettle();
 
-      // 4. Tap Extra Cheese again - it should now link directly to Veg Burger!
-      await tester.tap(find.text('Extra Cheese').first);
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Added [Extra Cheese] to Veg Burger'),
-        findsOneWidget,
-      );
+      // Scoped addons: Extra Cheese is visible, Ginger is NOT visible!
+      expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+      expect(find.text('Extra Cheese'), findsOneWidget);
+      expect(find.text('Ginger'), findsNothing);
 
-      // 5. Open Review Cart bottom sheet
+      // Add Extra Cheese to Veg Burger
+      final cheeseFinder = find.ancestor(
+        of: find.text('Extra Cheese'),
+        matching: find.byType(Container),
+      ).first;
+      await tester.tap(find.descendant(of: cheeseFinder, matching: find.byIcon(Icons.add)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Add to Cart • ₹100'));
+      await tester.pumpAndSettle();
+
+      // 3. Open Review Cart bottom sheet
       await tester.tap(find.text('View Cart'));
       await tester.pumpAndSettle();
 
-      // 6. Chai (Beverages) should have '+ Extras / Add-on' button
-      final extrasButtons = find.text('+ Extras / Add-on');
-      expect(extrasButtons, findsWidgets);
+      expect(find.text('[Ginger] Masala Chai'), findsOneWidget);
+      expect(find.text('[Extra Cheese] Veg Burger'), findsOneWidget);
 
-      // Tap the first extras button (which is on Masala Chai)
-      await tester.tap(extrasButtons.first);
+      // 4. Re-open edit from cart for Masala Chai -> only shows Ginger
+      await tester.tap(find.text('[Ginger] Masala Chai'));
       await tester.pumpAndSettle();
 
-      // 7. Verify AddonsForCartItemModal only shows Ginger, NOT Extra Cheese!
-      final modalFinder = find.byType(BottomSheet);
-      expect(
-        find.descendant(of: modalFinder, matching: find.text('Ginger')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: modalFinder, matching: find.text('Extra Cheese')),
-        findsNothing,
-      );
+      expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+      expect(find.text('Ginger'), findsOneWidget);
+      expect(find.text('Extra Cheese'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.close).last);
+      await tester.pumpAndSettle();
     },
   );
 
@@ -1399,6 +1453,111 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('#201 📦'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Show add-on only if available: hides unavailable add-ons and boolean strings',
+    (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      // 1. Verify model and parser behavior
+      expect(CategoryOption.parseVariants('false'), isEmpty);
+      expect(CategoryOption.parseVariants('true'), isEmpty);
+      expect(CategoryOption.parseVariants('Cheese:20|false|Mayo:10').map((o) => o.name), ['Cheese', 'Mayo']);
+
+      final itemWithBadAddons = MenuItem.fromJson({
+        'id': 'test_item',
+        'name': 'Sample Roll',
+        'price': 100.0,
+        'category': 'Rolls',
+        'addons': [
+          {'name': 'false', 'isEnabled': true},
+          {'name': 'Extra Cheese', 'priceDelta': 20.0, 'isEnabled': true},
+          {'name': 'Peri Peri Dip', 'priceDelta': 15.0, 'isEnabled': false},
+        ],
+      });
+      // 'false' is filtered out from JSON deserialization
+      expect(itemWithBadAddons.addons.map((a) => a.name), ['Extra Cheese', 'Peri Peri Dip']);
+      // availableAddons only contains enabled add-ons
+      expect(itemWithBadAddons.availableAddons.map((a) => a.name), ['Extra Cheese']);
+      expect(itemWithBadAddons.hasAddons, isTrue);
+
+      // Item with ONLY disabled add-ons
+      final itemOnlyDisabledAddon = MenuItem(
+        id: 'disabled_item',
+        name: 'Plain Soda',
+        price: 30.0,
+        category: const ItemCategory(
+          id: 'drinks',
+          name: 'Drinks',
+          addons: [
+            CategoryOption(id: 'lemon', name: 'Lemon Slice', isEnabled: false),
+          ],
+        ),
+      );
+      expect(itemOnlyDisabledAddon.hasAddons, isFalse);
+      expect(itemOnlyDisabledAddon.availableAddons, isEmpty);
+
+      // 2. UI Test with mock storage
+      SharedPreferences.setMockInitialValues({
+        'stall_menu': jsonEncode([
+          {
+            'id': 'item_roll',
+            'name': 'Chicken Roll',
+            'price': 120.0,
+            'category': 'Rolls',
+            'addons': [
+              {'id': 'a1', 'name': 'Extra Mayo', 'priceDelta': 10.0, 'isEnabled': true},
+              {'id': 'a2', 'name': 'Truffle Sauce', 'priceDelta': 30.0, 'isEnabled': false},
+              {'id': 'a3', 'name': 'false', 'priceDelta': 0.0, 'isEnabled': false},
+            ],
+          },
+          {
+            'id': 'item_simple',
+            'name': 'Cold Drink',
+            'price': 40.0,
+            'category': 'Beverages',
+            'addons': [
+              {'id': 'a_ice', 'name': 'Extra Ice', 'priceDelta': 5.0, 'isEnabled': false},
+            ],
+          },
+        ]),
+        'stall_orders': jsonEncode([]),
+        'stall_next_token': 1,
+      });
+
+      await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
+      await tester.pumpAndSettle();
+
+      // 3. Tap 'Chicken Roll': opens UnifiedItemCustomizerSheet
+      await tester.tap(find.text('Chicken Roll'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+      // Available addon 'Extra Mayo' is shown
+      expect(find.text('Extra Mayo'), findsOneWidget);
+      // Unavailable addon 'Truffle Sauce' is NOT shown
+      expect(find.text('Truffle Sauce'), findsNothing);
+      // Bogus addon 'false' is NOT shown
+      expect(find.text('false'), findsNothing);
+
+      // Close customizer sheet
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      // 4. Tap 'Cold Drink' (only has unavailable add-on and no variants)
+      // Should NOT open customizer sheet; should directly add to cart!
+      await tester.tap(find.text('Cold Drink'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(UnifiedItemCustomizerSheet), findsNothing);
+      // Cart should directly reflect Cold Drink (1 item, ₹40)
+      expect(find.text('PUNCH ORDER (#1) • ₹40'), findsOneWidget);
     },
   );
 }

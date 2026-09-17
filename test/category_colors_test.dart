@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:counter_app/src/theme/category_colors.dart';
 import 'package:counter_app/src/models/stall_models.dart';
 
 void main() {

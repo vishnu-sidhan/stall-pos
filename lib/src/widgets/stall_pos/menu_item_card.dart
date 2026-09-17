@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../helpers/composite_item_helper.dart';
 import '../../models/stall_models.dart';
-import '../../theme/category_colors.dart';
 import 'dietary_symbol.dart';
 
 /// Card displaying an individual menu item in the POS register grid with category accents,
@@ -25,7 +23,11 @@ class MenuItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inCartQty = cart.entries.where((entry) {
-      return CompositeItemHelper.isBaseItemMatch(entry.key, item.id);
+      final rawKey = entry.key.contains('+') ? entry.key.split('+').first : entry.key;
+      final baseId = rawKey.contains('_var_')
+          ? rawKey.split('_var_').first
+          : (rawKey.contains('_cat_') ? rawKey.split('_cat_').first : rawKey);
+      return baseId == item.id;
     }).fold(0, (sum, entry) => sum + entry.value);
 
     final itemColor = item.colorHex != null
@@ -133,7 +135,7 @@ class MenuItemCard extends StatelessWidget {
                           child: Text(
                             '$inCartQty',
                             style: TextStyle(
-                              color: CategoryColorHelper.getContrastingTextColor(
+                              color: ItemCategory.getContrastingTextColor(
                                 itemColor,
                               ),
                               fontWeight: FontWeight.bold,
