@@ -73,7 +73,7 @@ void main() {
 
     // Verify cart total updated to 160 and cart chip shows item
     expect(find.text('PUNCH ORDER (#1) • ₹160'), findsOneWidget);
-    expect(find.text('2x Veg Roll'), findsOneWidget);
+    expect(find.text('2x Veg Roll (Snacks)'), findsOneWidget);
 
     // Tap 'Clear' button
     await tester.tap(find.text('Clear'));

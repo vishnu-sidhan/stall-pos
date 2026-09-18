@@ -665,7 +665,7 @@ void main() {
       await tester.tap(find.text('View Cart'));
       await tester.pumpAndSettle();
 
-      expect(find.text('[Extra Cheese] Veg Burger'), findsOneWidget);
+      expect(find.text('[Extra Cheese] Veg Burger (Fast Food)'), findsOneWidget);
       expect(find.text('₹100 each'), findsOneWidget);
 
       // Verify money split between item and addons
@@ -1355,11 +1355,11 @@ void main() {
       await tester.tap(find.text('View Cart'));
       await tester.pumpAndSettle();
 
-      expect(find.text('[Ginger] Masala Chai'), findsOneWidget);
-      expect(find.text('[Extra Cheese] Veg Burger'), findsOneWidget);
+      expect(find.text('[Ginger] Masala Chai (Beverages)'), findsOneWidget);
+      expect(find.text('[Extra Cheese] Veg Burger (Fast Food)'), findsOneWidget);
 
       // 4. Re-open edit from cart for Masala Chai -> only shows Ginger
-      await tester.tap(find.text('[Ginger] Masala Chai'));
+      await tester.tap(find.text('[Ginger] Masala Chai (Beverages)'));
       await tester.pumpAndSettle();
 
       expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);

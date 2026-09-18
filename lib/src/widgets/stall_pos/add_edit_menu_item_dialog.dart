@@ -29,13 +29,7 @@ class AddEditMenuItemDialog {
     final categoryCtrl = TextEditingController(text: selectedCat);
     int? selectedColorHex = existingItem?.colorHex;
     bool isAvailable = existingItem?.isAvailable ?? true;
-    final variants = List<CategoryOption>.from(existingItem?.variants ?? const []);
-    final addons = List<CategoryOption>.from(existingItem?.addons ?? const []);
     ItemDietaryType? selectedDietary = existingItem?.dietaryType;
-    final newVariantNameCtrl = TextEditingController();
-    final newVariantPriceCtrl = TextEditingController();
-    final newAddonNameCtrl = TextEditingController();
-    final newAddonPriceCtrl = TextEditingController();
 
     final existingCategories = categories.where((c) => c != 'All').toList();
     if (!existingCategories.contains('General')) {
@@ -208,129 +202,7 @@ class AddEditMenuItemDialog {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Variants / Options (Optional)',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                      if (variants.isNotEmpty)
-                        Text(
-                          '${variants.length} variant(s)',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Add size or portion options with optional price overrides (e.g. Small ₹30, Large ₹50).',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  if (variants.isNotEmpty) ...[
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: variants.asMap().entries.map((entry) {
-                        final idx = entry.key;
-                        final v = entry.value;
-                        final priceStr = v.price != null
-                            ? ' • ₹${v.price!.toStringAsFixed(v.price!.truncateToDouble() == v.price! ? 0 : 2)}'
-                            : '';
-                        return InputChip(
-                          visualDensity: VisualDensity.compact,
-                          avatar: Icon(
-                            v.isEnabled ? Icons.check_circle : Icons.remove_circle_outline,
-                            size: 14,
-                            color: v.isEnabled ? Colors.green : Colors.red,
-                          ),
-                          label: Text(
-                            '${v.name}$priceStr${v.isEnabled ? '' : ' (Disabled)'}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              decoration: v.isEnabled ? null : TextDecoration.lineThrough,
-                              color: v.isEnabled ? null : Colors.grey,
-                            ),
-                          ),
-                          tooltip: v.isEnabled ? 'Tap to disable variant' : 'Tap to enable variant',
-                          onPressed: () {
-                            setDialogState(() {
-                              variants[idx] = v.copyWith(isEnabled: !v.isEnabled);
-                            });
-                          },
-                          deleteIcon: const Icon(Icons.close, size: 14),
-                          onDeleted: () {
-                            setDialogState(() {
-                              variants.removeAt(idx);
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: TextField(
-                          controller: newVariantNameCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Variant Name',
-                            hintText: 'e.g. Half, Full',
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 2,
-                        child: TextField(
-                          controller: newVariantPriceCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Price override',
-                            hintText: 'Optional',
-                            prefixText: '₹ ',
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      IconButton.filledTonal(
-                        icon: const Icon(Icons.add, size: 18),
-                        tooltip: 'Add Variant',
-                        onPressed: () {
-                          final vName = newVariantNameCtrl.text.trim();
-                          if (vName.isNotEmpty) {
-                            final vPrice = double.tryParse(newVariantPriceCtrl.text.trim());
-                            setDialogState(() {
-                              variants.add(
-                                CategoryOption(
-                                  id: 'var_${DateTime.now().millisecondsSinceEpoch}_${variants.length}',
-                                  name: vName,
-                                  price: vPrice,
-                                  isEnabled: true,
-                                ),
-                              );
-                              newVariantNameCtrl.clear();
-                              newVariantPriceCtrl.clear();
-                            });
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text(
@@ -347,127 +219,6 @@ class AddEditMenuItemDialog {
                         isAvailable = val;
                       });
                     },
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Item Add-ons / Extras (Optional)',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                      if (addons.isNotEmpty)
-                        Text(
-                          '${addons.length} add-on(s)',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Optional extras specific to this item (e.g. Extra Cheese +₹20, Mayo +₹10).',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  if (addons.isNotEmpty) ...[
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: addons.asMap().entries.map((entry) {
-                        final idx = entry.key;
-                        final a = entry.value;
-                        final priceStr = a.priceDelta > 0
-                            ? ' • +₹${a.priceDelta.toStringAsFixed(a.priceDelta.truncateToDouble() == a.priceDelta ? 0 : 2)}'
-                            : (a.price != null ? ' • ₹${a.price!.toStringAsFixed(a.price!.truncateToDouble() == a.price! ? 0 : 2)}' : '');
-                        return InputChip(
-                          visualDensity: VisualDensity.compact,
-                          avatar: Icon(
-                            a.isEnabled ? Icons.check_circle : Icons.remove_circle_outline,
-                            size: 14,
-                            color: a.isEnabled ? Colors.green : Colors.red,
-                          ),
-                          label: Text(
-                            '${a.name}$priceStr${a.isEnabled ? '' : ' (Disabled)'}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              decoration: a.isEnabled ? null : TextDecoration.lineThrough,
-                              color: a.isEnabled ? null : Colors.grey,
-                            ),
-                          ),
-                          onPressed: () {
-                            setDialogState(() {
-                              addons[idx] = a.copyWith(isEnabled: !a.isEnabled);
-                            });
-                          },
-                          deleteIcon: const Icon(Icons.close, size: 14),
-                          onDeleted: () {
-                            setDialogState(() {
-                              addons.removeAt(idx);
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: TextField(
-                          controller: newAddonNameCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Add-on Name',
-                            hintText: 'e.g. Extra Cheese',
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 2,
-                        child: TextField(
-                          controller: newAddonPriceCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Additional Price',
-                            hintText: 'e.g. 20',
-                            prefixText: '+₹ ',
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      IconButton.filledTonal(
-                        icon: const Icon(Icons.add, size: 18),
-                        tooltip: 'Add Add-on',
-                        onPressed: () {
-                          final aName = newAddonNameCtrl.text.trim();
-                          if (aName.isNotEmpty) {
-                            final aPrice = double.tryParse(newAddonPriceCtrl.text.trim()) ?? 0.0;
-                            setDialogState(() {
-                              addons.add(
-                                CategoryOption(
-                                  id: 'addon_${DateTime.now().millisecondsSinceEpoch}_${addons.length}',
-                                  name: aName,
-                                  priceDelta: aPrice,
-                                  isEnabled: true,
-                                ),
-                              );
-                              newAddonNameCtrl.clear();
-                              newAddonPriceCtrl.clear();
-                            });
-                          }
-                        },
-                      ),
-                    ],
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -693,14 +444,7 @@ class AddEditMenuItemDialog {
                       );
 
                   if (name.isNotEmpty && price > 0) {
-                    var catObj = controller.resolveItemCategory(category);
-                    if (variants.isNotEmpty || addons.isNotEmpty) {
-                      catObj = catObj.copyWith(
-                        options: variants.isNotEmpty ? variants : catObj.options,
-                        addons: addons.isNotEmpty ? addons : catObj.addons,
-                      );
-                      controller.updateCategoryConfig(catObj);
-                    }
+                    final catObj = controller.resolveItemCategory(category);
                     if (isEditing) {
                       controller.updateMenuItem(
                         existingItem.copyWith(
@@ -714,14 +458,15 @@ class AddEditMenuItemDialog {
                         ),
                       );
                     } else {
+                      final newId = DateTime.now().millisecondsSinceEpoch.toString();
                       controller.addMenuItem(
                         MenuItem(
-                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          id: newId,
                           name: name,
                           price: price,
                           category: catObj,
                           colorHex: resolvedColor,
-                          isAvailable: isAvailable,
+                          unavailableVariants: isAvailable ? const [] : [newId],
                           dietaryType: selectedDietary,
                         ),
                       );

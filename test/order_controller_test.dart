@@ -1327,6 +1327,40 @@ void main() {
         expect(burgerCategory!.options, isEmpty);
         expect(burger.hasVariants, isFalse);
       });
+
+      test('getCartItemDisplayName centralizes formatting and appends category in brackets for items without variants', () async {
+        final storage = InMemoryStorage();
+        final controller = OrderController(storage: storage);
+        await controller.loadPersistedData();
+
+        final paneerRoll = MenuItem(
+          id: 'roll_paneer',
+          name: 'Paneer Roll',
+          price: 120.0,
+          category: const ItemCategory(id: 'cat_rolls', name: 'Rolls'),
+        );
+        final startersItem = MenuItem(
+          id: 'starter_chicken',
+          name: 'Chicken Manchuria',
+          price: 160.0,
+          category: const ItemCategory(id: 'cat_starters', name: 'Starters'),
+        );
+
+        await controller.addMenuItem(paneerRoll);
+        await controller.addMenuItem(startersItem);
+
+        // Verify centralized display name for cart/summary/orders
+        expect(controller.getCartItemDisplayName('roll_paneer'), equals('Paneer Roll (Rolls)'));
+        expect(controller.getCartItemDisplayName('starter_chicken'), equals('Chicken Manchuria (Starters)'));
+
+        // Add to cart and check Cart entries
+        controller.addToCart(paneerRoll);
+        controller.addToCart(startersItem);
+
+        expect(controller.cart.containsKey('roll_paneer'), isTrue);
+        expect(controller.cart.containsKey('starter_chicken'), isTrue);
+        expect(controller.getCartItemDisplayName(controller.cart.keys.first), equals('Paneer Roll (Rolls)'));
+      });
     });
   });
 }

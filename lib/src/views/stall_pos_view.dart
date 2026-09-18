@@ -159,6 +159,7 @@ class _StallPosViewState extends State<StallPosView>
       onCheckout: () => _fireOrder(),
       onClearCart: _clearCart,
       onPayAndPunch: () => _fireOrder(immediatePayment: true),
+      onFastCheckout: (method) => _fireOrder(immediatePayment: true, directPaymentMethod: method),
       onCancelEdit: _cancelEdit,
       customerNameController: _customerNameController,
       orderNotesController: _orderNotesController,

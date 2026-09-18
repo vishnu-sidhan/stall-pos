@@ -120,6 +120,7 @@ class OrderController extends ChangeNotifier {
             _categoryConfigs[idx] = current.copyWith(
               additionalCost: cat.additionalCost > 0 ? cat.additionalCost : current.additionalCost,
               options: cat.options.isNotEmpty ? cat.options : current.options,
+              addons: cat.addons.isNotEmpty ? cat.addons : current.addons,
               colorHex: cat.colorHex ?? current.colorHex,
             );
           } else {
@@ -143,6 +144,7 @@ class OrderController extends ChangeNotifier {
             _categoryConfigs[idx] = current.copyWith(
               additionalCost: cat.additionalCost > 0 ? cat.additionalCost : current.additionalCost,
               options: cat.options.isNotEmpty ? cat.options : current.options,
+              addons: cat.addons.isNotEmpty ? cat.addons : current.addons,
               colorHex: cat.colorHex ?? current.colorHex,
             );
           } else {
@@ -534,7 +536,7 @@ class OrderController extends ChangeNotifier {
           name: addon.name,
           price: addon.priceDelta > 0 ? addon.priceDelta : (addon.price ?? 0.0),
           category: catConfig ?? resolveItemCategory(category),
-          isAvailable: addon.isEnabled,
+          unavailableVariants: addon.isEnabled ? const [] : [addon.id],
         ));
       }
     }
@@ -548,7 +550,7 @@ class OrderController extends ChangeNotifier {
             name: addon.name,
             price: addon.priceDelta > 0 ? addon.priceDelta : (addon.price ?? 0.0),
             category: item.category,
-            isAvailable: addon.isEnabled,
+            unavailableVariants: addon.isEnabled ? const [] : [addon.id],
           ));
         }
       }
@@ -743,7 +745,11 @@ class OrderController extends ChangeNotifier {
       for (final entry in addonCounts.entries) {
         final key = entry.key;
         CategoryOption? itemAddon;
-        for (final a in baseItem.addons) {
+        final candidateAddons = [
+          ...baseItem.addons,
+          ...(getCategoryConfig(baseItem.categoryName)?.addons ?? const <CategoryOption>[]),
+        ];
+        for (final a in candidateAddons) {
           if (a.id == key || a.name == key) {
             itemAddon = a;
             break;
@@ -1383,6 +1389,7 @@ class OrderController extends ChangeNotifier {
       final normKey = normalizeCategoryKey(rawCat);
       final itemOptions = item.category.options;
       final itemAddCost = item.category.additionalCost;
+      final itemAddons = item.category.addons;
 
       final existingIdx = existingMap[key] ?? existingMap[normKey];
 
@@ -1395,13 +1402,14 @@ class OrderController extends ChangeNotifier {
           additionalCost: itemAddCost,
           colorHex: item.colorHex,
           options: itemOptions,
+          addons: itemAddons,
         );
         _categoryConfigs.add(newCat);
         existingMap[key] = _categoryConfigs.length - 1;
         existingMap[normKey] = _categoryConfigs.length - 1;
         modified = true;
       } else {
-        // Category already exists in configs: merge/enrich if incoming item brings in sub-categories, fees, or color
+        // Category already exists in configs: merge/enrich if incoming item brings in sub-categories, fees, color, or addons
         final current = _categoryConfigs[existingIdx];
         var updated = current;
         bool catChanged = false;
@@ -1439,6 +1447,28 @@ class OrderController extends ChangeNotifier {
           }
           if (optionsEnriched) {
             updated = updated.copyWith(options: mergedOptions);
+            catChanged = true;
+          }
+        }
+
+        if (itemAddons.isNotEmpty && current.addons.isEmpty) {
+          updated = updated.copyWith(addons: itemAddons);
+          catChanged = true;
+        } else if (itemAddons.isNotEmpty && current.addons.isNotEmpty) {
+          final currentAddonMap = {
+            for (final a in current.addons) a.name.trim().toLowerCase(): a,
+          };
+          bool addonsEnriched = false;
+          final mergedAddons = List<CategoryOption>.from(current.addons);
+          for (final incAddon in itemAddons) {
+            final aKey = incAddon.name.trim().toLowerCase();
+            if (!currentAddonMap.containsKey(aKey)) {
+              mergedAddons.add(incAddon);
+              addonsEnriched = true;
+            }
+          }
+          if (addonsEnriched) {
+            updated = updated.copyWith(addons: mergedAddons);
             catChanged = true;
           }
         }
@@ -1564,6 +1594,49 @@ class OrderController extends ChangeNotifier {
 
     _invalidateCategoryColors();
     await _storageService.saveCategories(_categoryConfigs);
+    notifyListeners();
+  }
+
+  /// Deletes a category by name.
+  /// If [deleteItems] is true, removes all items in this category from the menu.
+  /// If [deleteItems] is false, safely reassigns all items in this category to 'General'.
+  Future<void> deleteCategory(String categoryName, {bool deleteItems = false}) async {
+    final norm = categoryName.trim().toLowerCase();
+    if (norm.isEmpty || norm == 'all') return;
+
+    // 1. Remove from category configs
+    _categoryConfigs.removeWhere((c) => c.name.trim().toLowerCase() == norm);
+
+    // 2. Handle menu items
+    bool menuModified = false;
+    if (deleteItems) {
+      final initialCount = _menu.length;
+      _menu.removeWhere((item) => item.categoryName.trim().toLowerCase() == norm);
+      if (_menu.length != initialCount) {
+        menuModified = true;
+      }
+    } else {
+      const generalCategory = ItemCategory(id: 'cat_general', name: 'General');
+      for (int i = 0; i < _menu.length; i++) {
+        if (_menu[i].categoryName.trim().toLowerCase() == norm) {
+          _menu[i] = _menu[i].copyWith(
+            category: generalCategory,
+          );
+          menuModified = true;
+        }
+      }
+    }
+
+    // 3. Reset selectedCategory if needed
+    if (_selectedCategory.trim().toLowerCase() == norm) {
+      _selectedCategory = 'All';
+    }
+
+    _invalidateCategoryColors();
+    await _storageService.saveCategories(_categoryConfigs);
+    if (menuModified) {
+      await _storageService.saveMenu(_menu);
+    }
     notifyListeners();
   }
 
@@ -2344,7 +2417,6 @@ class OrderController extends ChangeNotifier {
     }
 
     // Check if id matches an add-on on any category
-    bool modified = false;
     for (int i = 0; i < _categoryConfigs.length; i++) {
       final cat = _categoryConfigs[i];
       final addonIdx = cat.addons.indexWhere(
@@ -2354,14 +2426,10 @@ class OrderController extends ChangeNotifier {
         final updatedAddons = List<CategoryOption>.from(cat.addons);
         if (updatedAddons[addonIdx].isEnabled != isAvailable) {
           updatedAddons[addonIdx] = updatedAddons[addonIdx].copyWith(isEnabled: isAvailable);
-          _categoryConfigs[i] = cat.copyWith(addons: updatedAddons);
-          modified = true;
+          await saveCategoryConfig(cat.copyWith(addons: updatedAddons));
+          return;
         }
       }
-    }
-    if (modified) {
-      await _storageService.saveCategories(_categoryConfigs);
-      notifyListeners();
     }
   }
 
@@ -2386,38 +2454,74 @@ class OrderController extends ChangeNotifier {
     if (target.isEnabled == newStatus) return;
 
     catAddons[targetIdx] = target.copyWith(isEnabled: newStatus);
-    final catIndex = _categoryConfigs.indexWhere((c) => c.name.toLowerCase() == categoryName.toLowerCase());
-    if (catIndex != -1) {
-      _categoryConfigs[catIndex] = catConfig.copyWith(addons: catAddons);
-    } else {
-      _categoryConfigs.add(catConfig.copyWith(addons: catAddons));
-    }
-    await _storageService.saveCategories(_categoryConfigs);
-    notifyListeners();
+    await saveCategoryConfig(catConfig.copyWith(addons: catAddons));
   }
 
-  /// Toggles or sets availability of an individual add-on on a menu item and persists it.
+  /// Toggles or sets availability of an individual add-on on a specific menu item.
+  /// Modifies [unavailableAddons] on this item only, keeping other items in the category unaffected.
   Future<void> toggleMenuItemAddonAvailability(
     String itemId,
     String addonIdOrName, {
     bool? isAvailable,
   }) async {
-    final item = findItem(itemId);
-    await toggleCategoryAddonAvailability(
-      item.categoryName,
-      addonIdOrName,
-      isAvailable: isAvailable,
-    );
+    final index = _menu.indexWhere((m) => m.id == itemId);
+    if (index == -1) return;
+    final item = _menu[index];
+
+    final unavail = List<String>.from(item.unavailableAddons);
+    final target = addonIdOrName.trim().toLowerCase();
+    final isCurrentlyUnavail = unavail.any((a) => a.trim().toLowerCase() == target);
+
+    final shouldBeAvailable = isAvailable ?? isCurrentlyUnavail;
+    if (shouldBeAvailable) {
+      unavail.removeWhere((a) => a.trim().toLowerCase() == target);
+    } else {
+      if (!isCurrentlyUnavail) {
+        unavail.add(addonIdOrName.trim());
+      }
+    }
+
+    _menu[index] = item.copyWith(unavailableAddons: unavail);
+    await _storageService.saveMenu(_menu);
+    notifyListeners();
   }
 
-  /// Toggles or sets availability of an individual variant on a menu item and persists it.
+  /// Toggles or sets availability of an individual variant on a specific menu item.
+  /// Modifies [unavailableVariants] on this item only, keeping other items in the category unaffected.
   Future<void> toggleMenuItemVariantAvailability(
     String itemId,
     String variantIdOrName, {
     bool? isAvailable,
   }) async {
-    final item = findItem(itemId);
-    final catConfig = getCategoryConfig(item.categoryName);
+    final index = _menu.indexWhere((m) => m.id == itemId);
+    if (index == -1) return;
+    final item = _menu[index];
+
+    final unavail = List<String>.from(item.unavailableVariants);
+    final target = variantIdOrName.trim().toLowerCase();
+    final isCurrentlyUnavail = unavail.any((v) => v.trim().toLowerCase() == target);
+
+    final shouldBeAvailable = isAvailable ?? isCurrentlyUnavail;
+    if (shouldBeAvailable) {
+      unavail.removeWhere((v) => v.trim().toLowerCase() == target);
+    } else {
+      if (!isCurrentlyUnavail) {
+        unavail.add(variantIdOrName.trim());
+      }
+    }
+
+    _menu[index] = item.copyWith(unavailableVariants: unavail);
+    await _storageService.saveMenu(_menu);
+    notifyListeners();
+  }
+
+  /// Toggles or sets availability of an individual variant across the entire category and persists it.
+  Future<void> toggleCategoryVariantAvailability(
+    String categoryName,
+    String variantIdOrName, {
+    bool? isAvailable,
+  }) async {
+    final catConfig = getCategoryConfig(categoryName);
     if (catConfig == null) return;
     final currentVariants = List<CategoryOption>.from(catConfig.options);
     if (currentVariants.isEmpty) return;
@@ -2434,7 +2538,6 @@ class OrderController extends ChangeNotifier {
     if (target.isEnabled == newStatus) return;
 
     currentVariants[targetIdx] = target.copyWith(isEnabled: newStatus);
-
     await saveCategoryConfig(catConfig.copyWith(options: currentVariants));
   }
 

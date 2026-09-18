@@ -208,6 +208,7 @@ class _DailyMenuAvailabilityViewState extends State<DailyMenuAvailabilityView> {
                         final category = sortedCategories[catIndex];
                         final items = grouped[category]!;
                         final catColor = widget.getCategoryColor(category);
+                        final catConfig = widget.controller.getCategoryConfig(category);
 
                         final catAvailableCount =
                             items.where((i) => i.isAvailable).length;
@@ -280,6 +281,160 @@ class _DailyMenuAvailabilityViewState extends State<DailyMenuAvailabilityView> {
                             ),
                             children: [
                               const Divider(height: 1),
+                              if (catConfig != null &&
+                                  (catConfig.effectiveOptions.isNotEmpty || catConfig.addons.isNotEmpty)) ...[
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                                  color: catColor.withAlpha(15),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(Icons.tune_rounded, size: 14, color: catColor),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Sub-Category & Add-on Daily Availability',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: isDark ? Colors.white70 : Colors.black87,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      if (catConfig.effectiveOptions.isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Sub-Categories (Variants):',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Wrap(
+                                          spacing: 6,
+                                          runSpacing: 4,
+                                          children: catConfig.effectiveOptions.map((opt) {
+                                            final isEnabled = opt.isEnabled;
+                                            return InkWell(
+                                              key: ValueKey('cat_var_toggle_${category}_${opt.name}'),
+                                              onTap: () {
+                                                HapticFeedback.selectionClick();
+                                                widget.controller.toggleCategoryVariantAvailability(
+                                                  category,
+                                                  opt.name,
+                                                );
+                                              },
+                                              borderRadius: BorderRadius.circular(6),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                                decoration: BoxDecoration(
+                                                  color: isEnabled
+                                                      ? Colors.green.withAlpha(25)
+                                                      : Colors.red.withAlpha(25),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  border: Border.all(
+                                                    color: isEnabled
+                                                        ? Colors.green.withAlpha(120)
+                                                        : Colors.red.withAlpha(120),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      isEnabled ? Icons.check : Icons.close,
+                                                      size: 12,
+                                                      color: isEnabled ? Colors.green.shade700 : Colors.red.shade700,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      '${opt.name}${isEnabled ? '' : ' (Disabled)'}',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: isEnabled ? null : Colors.red.shade700,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ],
+                                      if (catConfig.addons.isNotEmpty) ...[
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Category Add-ons:',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Wrap(
+                                          spacing: 6,
+                                          runSpacing: 4,
+                                          children: catConfig.addons.map((addon) {
+                                            final isEnabled = addon.isEnabled;
+                                            return InkWell(
+                                              key: ValueKey('cat_addon_toggle_${category}_${addon.name}'),
+                                              onTap: () {
+                                                HapticFeedback.selectionClick();
+                                                widget.controller.toggleCategoryAddonAvailability(
+                                                  category,
+                                                  addon.name,
+                                                );
+                                              },
+                                              borderRadius: BorderRadius.circular(6),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                                decoration: BoxDecoration(
+                                                  color: isEnabled
+                                                      ? Colors.blue.withAlpha(25)
+                                                      : Colors.red.withAlpha(25),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  border: Border.all(
+                                                    color: isEnabled
+                                                        ? Colors.blue.withAlpha(120)
+                                                        : Colors.red.withAlpha(120),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      isEnabled ? Icons.check : Icons.close,
+                                                      size: 12,
+                                                      color: isEnabled ? Colors.blue.shade700 : Colors.red.shade700,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      '+${addon.name}${isEnabled ? '' : ' (Disabled)'}',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: isEnabled ? null : Colors.red.shade700,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const Divider(height: 1),
+                              ],
                               ...items.map((item) {
                                 final isAvailable = item.isAvailable;
                                 final variants = item.effectiveVariants;
@@ -496,6 +651,79 @@ class _DailyMenuAvailabilityViewState extends State<DailyMenuAvailabilityView> {
                                                         '(Sold Out)',
                                                         style: TextStyle(
                                                           fontSize: 10,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Colors.red.shade700,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                        const SizedBox(height: 2),
+                                      ],
+                                      if (item.effectiveAddons.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Wrap(
+                                          spacing: 6,
+                                          runSpacing: 4,
+                                          children: item.effectiveAddons.map((addon) {
+                                            final isAddonAvail = isAvailable && addon.isAvailable;
+                                            return InkWell(
+                                              key: ValueKey('addon_toggle_${item.id}_${addon.name}'),
+                                              onTap: isAvailable
+                                                  ? () {
+                                                      HapticFeedback.selectionClick();
+                                                      widget.controller.toggleMenuItemAddonAvailability(
+                                                        item.id,
+                                                        addon.name,
+                                                      );
+                                                    }
+                                                  : null,
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: AnimatedContainer(
+                                                duration: const Duration(milliseconds: 150),
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                decoration: BoxDecoration(
+                                                  color: isAddonAvail
+                                                      ? Colors.blue.withAlpha(20)
+                                                      : (isDark ? Colors.red.withAlpha(20) : Colors.red.withAlpha(15)),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: isAddonAvail
+                                                        ? Colors.blue.withAlpha(100)
+                                                        : Colors.red.withAlpha(80),
+                                                    width: 1,
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      isAddonAvail ? Icons.add_circle_outline : Icons.cancel_rounded,
+                                                      size: 12,
+                                                      color: isAddonAvail ? Colors.blue.shade700 : Colors.red.shade700,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      '+${addon.name}',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.w600,
+                                                        decoration: isAddonAvail ? null : TextDecoration.lineThrough,
+                                                        color: isAddonAvail
+                                                            ? (isDark ? Colors.white70 : Colors.black87)
+                                                            : theme.colorScheme.outline,
+                                                      ),
+                                                    ),
+                                                    if (!isAddonAvail && isAvailable) ...[
+                                                      const SizedBox(width: 3),
+                                                      Text(
+                                                        '(Sold Out)',
+                                                        style: TextStyle(
+                                                          fontSize: 9,
                                                           fontWeight: FontWeight.bold,
                                                           color: Colors.red.shade700,
                                                         ),

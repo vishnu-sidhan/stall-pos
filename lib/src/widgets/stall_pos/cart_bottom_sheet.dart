@@ -797,99 +797,88 @@ class CartBottomSheet {
                               ],
                             ),
                             const SizedBox(height: 10),
-                            if (!controller.isEditing && onFastCheckout != null)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: SizedBox(
-                                        height: 42,
-                                        child: FilledButton.icon(
-                                          onPressed: () {
-                                            Navigator.pop(sheetContext);
-                                            onFastCheckout('Cash');
-                                          },
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor: Colors.teal.shade700,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(10),
-                                            ),
-                                          ),
-                                          icon: const Icon(Icons.payments_rounded, size: 18),
-                                          label: const Text(
-                                            '1-Tap Cash',
-                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: SizedBox(
-                                        height: 42,
-                                        child: FilledButton.icon(
-                                          onPressed: () {
-                                            Navigator.pop(sheetContext);
-                                            onFastCheckout('UPI');
-                                          },
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor: Colors.indigo.shade700,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(10),
-                                            ),
-                                          ),
-                                          icon: const Icon(Icons.qr_code_rounded, size: 18),
-                                          label: const Text(
-                                            '1-Tap UPI',
-                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            if (!controller.isEditing && onPayAndPunch != null)
+                            if (!controller.isEditing)
                               Row(
                                 children: [
+                                  // Cash Quick Punch
                                   Expanded(
+                                    flex: 1,
                                     child: SizedBox(
                                       height: 52,
                                       child: FilledButton.icon(
+                                        key: const ValueKey('cart_fast_cash_btn'),
                                         onPressed: () {
                                           Navigator.pop(sheetContext);
-                                          onPayAndPunch();
+                                          if (onFastCheckout != null) {
+                                            onFastCheckout('Cash');
+                                          } else if (onPayAndPunch != null) {
+                                            onPayAndPunch();
+                                          } else {
+                                            onCheckout();
+                                          }
                                         },
                                         style: FilledButton.styleFrom(
-                                          backgroundColor: Colors.blue.shade700,
+                                          backgroundColor: Colors.teal.shade700,
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(12),
                                           ),
-                                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                                          padding: const EdgeInsets.symmetric(horizontal: 4),
                                         ),
-                                        icon: const Icon(
-                                          Icons.payment_rounded,
-                                          size: 20,
-                                        ),
-                                        label: FittedBox(
+                                        icon: const Icon(Icons.payments_rounded, size: 18),
+                                        label: const FittedBox(
                                           fit: BoxFit.scaleDown,
                                           child: Text(
-                                            'PAY & PUNCH (#${controller.nextToken}) • ₹${controller.cartTotal.toStringAsFixed(0)}',
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w900,
-                                            ),
+                                            'Cash',
+                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 6),
+                                  // UPI Quick Punch
                                   Expanded(
+                                    flex: 1,
                                     child: SizedBox(
                                       height: 52,
                                       child: FilledButton.icon(
+                                        key: const ValueKey('cart_fast_upi_btn'),
+                                        onPressed: () {
+                                          Navigator.pop(sheetContext);
+                                          if (onFastCheckout != null) {
+                                            onFastCheckout('UPI');
+                                          } else if (onPayAndPunch != null) {
+                                            onPayAndPunch();
+                                          } else {
+                                            onCheckout();
+                                          }
+                                        },
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: Colors.indigo.shade700,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                                        ),
+                                        icon: const Icon(Icons.qr_code_rounded, size: 18),
+                                        label: const FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            'UPI',
+                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  // Punch Order (Pay Later) Button
+                                  Expanded(
+                                    flex: 2,
+                                    child: SizedBox(
+                                      height: 52,
+                                      child: FilledButton.icon(
+                                        key: const ValueKey('cart_punch_order_btn'),
                                         onPressed: () {
                                           Navigator.pop(sheetContext);
                                           onCheckout();
@@ -899,18 +888,18 @@ class CartBottomSheet {
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(12),
                                           ),
-                                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                                          padding: const EdgeInsets.symmetric(horizontal: 6),
                                         ),
                                         icon: const Icon(
                                           Icons.bolt,
-                                          size: 22,
+                                          size: 20,
                                         ),
                                         label: FittedBox(
                                           fit: BoxFit.scaleDown,
                                           child: Text(
                                             'PUNCH ORDER (#${controller.nextToken}) • ₹${controller.cartTotal.toStringAsFixed(0)}',
                                             style: const TextStyle(
-                                              fontSize: 14,
+                                              fontSize: 13,
                                               fontWeight: FontWeight.w900,
                                             ),
                                           ),
@@ -930,25 +919,19 @@ class CartBottomSheet {
                                     onCheckout();
                                   },
                                   style: FilledButton.styleFrom(
-                                    backgroundColor: controller.isEditing
-                                        ? Colors.orange.shade800
-                                        : Colors.green.shade700,
+                                    backgroundColor: Colors.orange.shade800,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-                                  icon: Icon(
-                                    controller.isEditing
-                                        ? Icons.update_rounded
-                                        : Icons.bolt,
+                                  icon: const Icon(
+                                    Icons.update_rounded,
                                     size: 24,
                                   ),
                                   label: FittedBox(
                                     fit: BoxFit.scaleDown,
                                     child: Text(
-                                      controller.isEditing
-                                          ? 'Update Order #${controller.editingOrderId} • ₹${controller.cartTotal.toStringAsFixed(0)}'
-                                          : 'PUNCH ORDER (#${controller.nextToken}) • ₹${controller.cartTotal.toStringAsFixed(0)}',
+                                      'Update Order #${controller.editingOrderId} • ₹${controller.cartTotal.toStringAsFixed(0)}',
                                       style: const TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w900,

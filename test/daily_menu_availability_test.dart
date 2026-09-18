@@ -28,7 +28,7 @@ void main() {
       expect(copy.name, equals('Masala Chai'));
 
       final json = copy.toJson();
-      expect(json['isAvailable'], isFalse);
+      expect(json['unavailableVariants'], contains('chai_1'));
 
       final fromJson = MenuItem.fromJson(json);
       expect(fromJson.isAvailable, isFalse);
@@ -483,8 +483,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Expect variant chips to be visible
-      expect(find.text('Steam'), findsOneWidget);
-      expect(find.text('Fried'), findsOneWidget);
+      expect(find.byKey(const ValueKey('var_toggle_momo_1_Steam')), findsOneWidget);
+      expect(find.byKey(const ValueKey('var_toggle_momo_1_Fried')), findsOneWidget);
       expect(find.text('2/2 In Stock'), findsOneWidget);
 
       // Tap on Fried variant chip to toggle off
@@ -562,6 +562,94 @@ void main() {
       // Verify category renamed
       expect(controller.categories.contains('Rice / Hakka Noodles'), isTrue);
       expect(controller.findItem('rice_1').categoryName, equals('Rice / Hakka Noodles'));
+    });
+
+    test('OrderController isolates item-level variant and addon availability from other items', () async {
+      final momosCat = ItemCategory(
+        id: 'cat_momos',
+        name: 'Momos',
+        options: const [
+          CategoryOption(id: 'v_steam', name: 'Steam', isEnabled: true),
+          CategoryOption(id: 'v_fried', name: 'Fried', isEnabled: true),
+        ],
+        addons: const [
+          CategoryOption(id: 'a_mayo', name: 'Extra Mayo', priceDelta: 10.0, isEnabled: true),
+          CategoryOption(id: 'a_cheese', name: 'Cheese Dip', priceDelta: 20.0, isEnabled: true),
+        ],
+      );
+
+      final vegMomo = MenuItem(
+        id: 'veg_momo',
+        name: 'Veg Momos',
+        price: 80.0,
+        category: momosCat,
+      );
+
+      final chickenMomo = MenuItem(
+        id: 'chicken_momo',
+        name: 'Chicken Momos',
+        price: 100.0,
+        category: momosCat,
+      );
+
+      SharedPreferences.setMockInitialValues({
+        'stall_menu': jsonEncode([vegMomo.toJson(), chickenMomo.toJson()]),
+        'stall_categories': jsonEncode([momosCat.toJson()]),
+      });
+
+      final controller = OrderController(storage: StallStorageService());
+      await controller.loadPersistedData();
+
+      // Initial state: both items have all variants & addons available
+      expect(controller.findItem('veg_momo').effectiveVariants.every((v) => v.isAvailable), isTrue);
+      expect(controller.findItem('chicken_momo').effectiveVariants.every((v) => v.isAvailable), isTrue);
+      expect(controller.findItem('veg_momo').effectiveAddons.every((a) => a.isAvailable), isTrue);
+      expect(controller.findItem('chicken_momo').effectiveAddons.every((a) => a.isAvailable), isTrue);
+
+      // 1. Toggle Fried variant on veg_momo ONLY
+      await controller.toggleMenuItemVariantAvailability('veg_momo', 'Fried');
+
+      final vegAfterVar = controller.findItem('veg_momo');
+      final chickenAfterVar = controller.findItem('chicken_momo');
+
+      // veg_momo has Fried unavailable
+      expect(vegAfterVar.effectiveVariants.firstWhere((v) => v.name == 'Fried').isAvailable, isFalse);
+      expect(vegAfterVar.effectiveVariants.firstWhere((v) => v.name == 'Steam').isAvailable, isTrue);
+      expect(vegAfterVar.isAvailable, isTrue);
+
+      // chicken_momo is completely unaffected! Fried is still available
+      expect(chickenAfterVar.effectiveVariants.firstWhere((v) => v.name == 'Fried').isAvailable, isTrue);
+      expect(chickenAfterVar.effectiveVariants.firstWhere((v) => v.name == 'Steam').isAvailable, isTrue);
+
+      // 2. Toggle Extra Mayo addon on veg_momo ONLY
+      await controller.toggleMenuItemAddonAvailability('veg_momo', 'Extra Mayo');
+
+      final vegAfterAddon = controller.findItem('veg_momo');
+      final chickenAfterAddon = controller.findItem('chicken_momo');
+
+      expect(vegAfterAddon.effectiveAddons.firstWhere((a) => a.name == 'Extra Mayo').isAvailable, isFalse);
+      expect(vegAfterAddon.effectiveAddons.firstWhere((a) => a.name == 'Cheese Dip').isAvailable, isTrue);
+
+      // chicken_momo is unaffected! Extra Mayo is still available
+      expect(chickenAfterAddon.effectiveAddons.firstWhere((a) => a.name == 'Extra Mayo').isAvailable, isTrue);
+
+      // 3. Category-level variant toggle: disable Steam for the ENTIRE category
+      await controller.toggleCategoryVariantAvailability('Momos', 'Steam', isAvailable: false);
+
+      final vegAfterCat = controller.findItem('veg_momo');
+      final chickenAfterCat = controller.findItem('chicken_momo');
+
+      // Steam is now disabled for both items
+      expect(vegAfterCat.effectiveVariants.firstWhere((v) => v.name == 'Steam').isAvailable, isFalse);
+      expect(chickenAfterCat.effectiveVariants.firstWhere((v) => v.name == 'Steam').isAvailable, isFalse);
+
+      // And since veg_momo also had Fried disabled at item-level, all its variants are disabled!
+      expect(vegAfterCat.hasAvailableVariants, isFalse);
+      expect(vegAfterCat.isAvailable, isFalse); // Dynamically out of stock!
+
+      // chicken_momo still has Fried available!
+      expect(chickenAfterCat.effectiveVariants.firstWhere((v) => v.name == 'Fried').isAvailable, isTrue);
+      expect(chickenAfterCat.isAvailable, isTrue);
     });
   });
 }

@@ -336,10 +336,17 @@ class _UnifiedItemCustomizerSheetState
                       ..._addons.map((addon) {
                         final count = _selectedAddons[addon.id] ?? _selectedAddons[addon.name] ?? 0;
                         final badge = addon.costBadge;
+                        final canAdd = count < OrderController.maxPerAddonItem;
+                        void incrementAddon() {
+                          if (!canAdd) return;
+                          HapticFeedback.lightImpact();
+                          setState(() {
+                            _selectedAddons[addon.id] = count + 1;
+                          });
+                        }
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
                             color: count > 0
                                 ? theme.colorScheme.primaryContainer.withAlpha(50)
@@ -351,82 +358,88 @@ class _UnifiedItemCustomizerSheetState
                                   : theme.colorScheme.outlineVariant.withAlpha(80),
                             ),
                           ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Material(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: canAdd ? incrementAddon : null,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                child: Row(
                                   children: [
-                                    Text(
-                                      addon.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            addon.name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          if (badge.isNotEmpty)
+                                            Text(
+                                              badge,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: theme.colorScheme.primary,
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
-                                    if (badge.isNotEmpty)
-                                      Text(
-                                        badge,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: theme.colorScheme.primary,
+                                    // Quantity Stepper
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (count > 0)
+                                          IconButton(
+                                            icon: const Icon(Icons.remove_circle_outline, size: 22),
+                                            visualDensity: VisualDensity.compact,
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                            onPressed: () {
+                                              HapticFeedback.lightImpact();
+                                              setState(() {
+                                                if (count <= 1) {
+                                                  _selectedAddons.remove(addon.id);
+                                                  _selectedAddons.remove(addon.name);
+                                                } else {
+                                                  _selectedAddons[addon.id] = count - 1;
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        if (count > 0)
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                                            child: Text(
+                                              '$count',
+                                              style: const TextStyle(fontWeight: FontWeight.bold),
+                                            ),
+                                          ),
+                                        IconButton(
+                                          icon: Icon(
+                                            count > 0 ? Icons.add_circle_outline : Icons.add,
+                                            size: 22,
+                                            color: canAdd
+                                                ? theme.colorScheme.primary
+                                                : theme.colorScheme.outline,
+                                          ),
+                                          visualDensity: VisualDensity.compact,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                          onPressed: canAdd ? incrementAddon : null,
                                         ),
-                                      ),
+                                      ],
+                                    ),
                                   ],
                                 ),
                               ),
-                              // Quantity Stepper
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (count > 0)
-                                    IconButton(
-                                      icon: const Icon(Icons.remove_circle_outline, size: 22),
-                                      visualDensity: VisualDensity.compact,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                      onPressed: () {
-                                        setState(() {
-                                          if (count <= 1) {
-                                            _selectedAddons.remove(addon.id);
-                                            _selectedAddons.remove(addon.name);
-                                          } else {
-                                            _selectedAddons[addon.id] = count - 1;
-                                          }
-                                        });
-                                      },
-                                    ),
-                                  if (count > 0)
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                                      child: Text(
-                                        '$count',
-                                        style: const TextStyle(fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  IconButton(
-                                    icon: Icon(
-                                      count > 0 ? Icons.add_circle_outline : Icons.add,
-                                      size: 22,
-                                      color: count >= OrderController.maxPerAddonItem
-                                          ? theme.colorScheme.outline
-                                          : theme.colorScheme.primary,
-                                    ),
-                                    visualDensity: VisualDensity.compact,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                    onPressed: count >= OrderController.maxPerAddonItem
-                                        ? null
-                                        : () {
-                                            setState(() {
-                                              _selectedAddons[addon.id] = count + 1;
-                                            });
-                                          },
-                                  ),
-                                ],
-                              ),
-                            ],
+                            ),
                           ),
                         );
                       }),

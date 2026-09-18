@@ -95,6 +95,95 @@ class _ManageCategoriesViewState extends State<ManageCategoriesView> {
     }
   }
 
+  void _confirmDeleteCategory(String cat) async {
+    final norm = cat.trim().toLowerCase();
+    if (norm == 'all' || norm == 'general') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Category "$cat" cannot be deleted.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final matchingItems = widget.controller.menu
+        .where((i) => i.categoryName.trim().toLowerCase() == norm)
+        .toList();
+
+    bool? shouldDelete;
+    bool deleteItems = false;
+
+    if (matchingItems.isEmpty) {
+      shouldDelete = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Delete Category "$cat"?'),
+          content: const Text('Are you sure you want to delete this category?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      final result = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Delete Category "$cat"?'),
+          content: Text(
+            'This category currently contains ${matchingItems.length} item(s).\n\n'
+            'Choose how to handle existing items:',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'cancel'),
+              child: const Text('Cancel'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, 'reassign'),
+              child: const Text('Reassign to "General"'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+              onPressed: () => Navigator.pop(ctx, 'delete_all'),
+              child: const Text('Delete Items as Well'),
+            ),
+          ],
+        ),
+      );
+
+      if (result == 'reassign') {
+        shouldDelete = true;
+        deleteItems = false;
+      } else if (result == 'delete_all') {
+        shouldDelete = true;
+        deleteItems = true;
+      }
+    }
+
+    if (shouldDelete == true && mounted) {
+      await widget.controller.deleteCategory(cat, deleteItems: deleteItems);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Category "$cat" deleted.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -248,6 +337,26 @@ class _ManageCategoriesViewState extends State<ManageCategoriesView> {
                                             color: Theme.of(context).colorScheme.outline,
                                           ),
                                         ),
+                                      if (config != null && config.hasOptions) ...[
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '• ${config.effectiveOptions.length} option(s)',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Theme.of(context).colorScheme.outline,
+                                          ),
+                                        ),
+                                      ],
+                                      if (config != null && config.addons.isNotEmpty) ...[
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '• ${config.addons.length} add-on(s)',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Theme.of(context).colorScheme.outline,
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ],
@@ -279,6 +388,14 @@ class _ManageCategoriesViewState extends State<ManageCategoriesView> {
                                     );
                                   },
                                 ),
+                                if (cat.trim().toLowerCase() != 'all' && cat.trim().toLowerCase() != 'general')
+                                  IconButton(
+                                    key: ValueKey('delete_category_${cat.replaceAll(' ', '_')}'),
+                                    icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade700),
+                                    tooltip: 'Delete Category',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () => _confirmDeleteCategory(cat),
+                                  ),
                               ],
                             ),
                           ),

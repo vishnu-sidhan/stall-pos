@@ -13,8 +13,8 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
   final ItemCategory category;
   @override
   final int? colorHex;
-  @override
-  final bool isAvailable;
+  final List<String> unavailableVariants;
+  final List<String> unavailableAddons;
   @override
   final ItemDietaryType? dietaryType;
 
@@ -24,7 +24,8 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
     required this.price,
     this.category = ItemCategory.general,
     this.colorHex,
-    this.isAvailable = true,
+    this.unavailableVariants = const [],
+    this.unavailableAddons = const [],
     this.dietaryType,
   });
 
@@ -60,31 +61,58 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
     return name;
   }
 
-  /// Effective list of variants/options. Inherits from category options.
+  /// Effective list of variants/options. Inherits from category options,
+  /// with item-level disabled variants marked as unavailable.
   List<CategoryOption> get effectiveVariants {
+    List<CategoryOption> base;
     if (category.effectiveOptions.isNotEmpty) {
-      return category.effectiveOptions;
-    }
-    if (name.contains('/')) {
+      base = category.effectiveOptions;
+    } else if (name.contains('/')) {
       final segments = name
           .split('/')
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty)
           .toList();
       if (segments.length > 1) {
-        return segments
-            .map((s) => CategoryOption(id: s, name: s))
-            .toList();
+        base = segments.map((s) => CategoryOption(id: s, name: s)).toList();
+      } else {
+        base = const [];
       }
+    } else {
+      base = const [];
     }
-    return const [];
+
+    if (base.isEmpty) return const [];
+    if (unavailableVariants.isEmpty) return base;
+
+    final lowerUnavail = unavailableVariants.map((u) => u.trim().toLowerCase()).toSet();
+    return base.map((opt) {
+      if (lowerUnavail.contains(opt.id.trim().toLowerCase()) ||
+          lowerUnavail.contains(opt.name.trim().toLowerCase())) {
+        return opt.copyWith(isEnabled: false);
+      }
+      return opt;
+    }).toList();
   }
 
-  /// Effective category add-ons.
+  /// Effective category add-ons, with item-level disabled add-ons marked as unavailable.
   List<CategoryOption> get addons => effectiveAddons;
 
-  /// Effective category add-ons.
-  List<CategoryOption> get effectiveAddons => category.addons;
+  /// Effective category add-ons, with item-level disabled add-ons marked as unavailable.
+  List<CategoryOption> get effectiveAddons {
+    final base = category.addons;
+    if (base.isEmpty) return const [];
+    if (unavailableAddons.isEmpty) return base;
+
+    final lowerUnavail = unavailableAddons.map((u) => u.trim().toLowerCase()).toSet();
+    return base.map((addon) {
+      if (lowerUnavail.contains(addon.id.trim().toLowerCase()) ||
+          lowerUnavail.contains(addon.name.trim().toLowerCase())) {
+        return addon.copyWith(isEnabled: false);
+      }
+      return addon;
+    }).toList();
+  }
 
   /// Whether this item has multiple selectable options or variants.
   bool get hasVariants => effectiveVariants.isNotEmpty;
@@ -103,7 +131,20 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
   bool get hasAvailableVariants => !hasVariants || effectiveVariants.any((v) => v.isAvailable);
 
   /// Whether this item is available for ordering today.
-  bool get isEffectivelyAvailable => isAvailable && hasAvailableVariants;
+  /// Evaluates dynamically: not disabled specifically via [unavailableVariants]
+  /// and has at least one available variant.
+  @override
+  bool get isAvailable {
+    final lowerUnavail = unavailableVariants.map((u) => u.trim().toLowerCase()).toSet();
+    if (lowerUnavail.contains(id.trim().toLowerCase()) ||
+        lowerUnavail.contains(name.trim().toLowerCase())) {
+      return false;
+    }
+    return hasAvailableVariants;
+  }
+
+  /// Backwards-compatible alias for [isAvailable].
+  bool get isEffectivelyAvailable => isAvailable;
 
   /// Returns the resolved price for a given variant/option, falling back to [price].
   double priceForVariant(CategoryOption? variant) {
@@ -121,17 +162,41 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
     ItemCategory? category,
     int? colorHex,
     bool clearColor = false,
+    List<String>? unavailableVariants,
+    List<String>? unavailableAddons,
     bool? isAvailable,
     ItemDietaryType? dietaryType,
     bool clearDietaryType = false,
   }) {
+    List<String> resolvedUnavailVars = unavailableVariants ?? this.unavailableVariants;
+    if (isAvailable != null) {
+      final list = List<String>.from(resolvedUnavailVars);
+      final targetId = id ?? this.id;
+      final targetName = name ?? this.name;
+      if (isAvailable) {
+        list.removeWhere((u) {
+          final l = u.trim().toLowerCase();
+          return l == targetId.trim().toLowerCase() || l == targetName.trim().toLowerCase();
+        });
+      } else {
+        final alreadyContains = list.any((u) =>
+            u.trim().toLowerCase() == targetId.trim().toLowerCase() ||
+            u.trim().toLowerCase() == targetName.trim().toLowerCase());
+        if (!alreadyContains) {
+          list.add(targetId);
+        }
+      }
+      resolvedUnavailVars = list;
+    }
+
     return MenuItem(
       id: id ?? this.id,
       name: name ?? this.name,
       price: price ?? this.price,
       category: category ?? this.category,
       colorHex: clearColor ? null : (colorHex ?? this.colorHex),
-      isAvailable: isAvailable ?? this.isAvailable,
+      unavailableVariants: resolvedUnavailVars,
+      unavailableAddons: unavailableAddons ?? this.unavailableAddons,
       dietaryType: clearDietaryType ? null : (dietaryType ?? this.dietaryType),
     );
   }
@@ -143,7 +208,8 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
         'category': category.name,
         'categoryObject': category.toJson(),
         if (colorHex != null) 'colorHex': colorHex,
-        'isAvailable': isAvailable,
+        if (unavailableVariants.isNotEmpty) 'unavailableVariants': unavailableVariants,
+        if (unavailableAddons.isNotEmpty) 'unavailableAddons': unavailableAddons,
         if (dietaryType != null && dietaryType != ItemDietaryType.none)
           'dietaryType': dietaryType!.code,
       };
@@ -211,6 +277,23 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
           map['dietary_type']?.toString() ??
           map['diet']?.toString(),
     );
+    final rawUnavailVariants = map['unavailableVariants'];
+    final parsedUnavailableVariants = (rawUnavailVariants is List)
+        ? rawUnavailVariants.map((e) => e.toString()).toList()
+        : <String>[];
+
+    // Migration: If legacy JSON had isAvailable: false, record id as unavailable variant
+    if (map['isAvailable'] == false || map['is_available'] == false) {
+      final itemId = map['id']?.toString() ?? '';
+      if (itemId.isNotEmpty && !parsedUnavailableVariants.contains(itemId)) {
+        parsedUnavailableVariants.add(itemId);
+      }
+    }
+
+    final rawUnavailAddons = map['unavailableAddons'];
+    final parsedUnavailableAddons = (rawUnavailAddons is List)
+        ? rawUnavailAddons.map((e) => e.toString()).toList()
+        : <String>[];
 
     return MenuItem(
       id: map['id']?.toString() ?? '',
@@ -218,7 +301,8 @@ class MenuItem with DietaryAware, ColorThemed implements CatalogItem {
       price: (map['price'] as num?)?.toDouble() ?? 0.0,
       category: parsedCategory,
       colorHex: parsedColor ?? ItemCategory.getColorForCategory(parsedCategory.name),
-      isAvailable: map['isAvailable'] != false && map['is_available'] != false,
+      unavailableVariants: parsedUnavailableVariants,
+      unavailableAddons: parsedUnavailableAddons,
       dietaryType: parsedDietary != ItemDietaryType.none ? parsedDietary : null,
     );
   }

@@ -133,7 +133,6 @@ void main() {
         price: 80.0,
         category: momosCategory,
         dietaryType: ItemDietaryType.veg,
-        isAvailable: true,
       );
 
       final standaloneCategory = ItemCategory(

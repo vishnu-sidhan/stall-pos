@@ -804,8 +804,8 @@ void main() {
       await tester.tap(find.text('Open Cart'));
       await tester.pumpAndSettle();
 
-      // Verify item title in cart displays 'Veg Steamed Momos'
-      expect(find.text('Veg Steamed Momos'), findsOneWidget);
+      // Verify item title in cart displays 'Veg Steamed Momos (Momos)'
+      expect(find.text('Veg Steamed Momos (Momos)'), findsOneWidget);
     });
 
     test('OrderController normalizeCategoryKey handles uneven whitespace around slashes', () {

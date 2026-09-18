@@ -544,13 +544,14 @@ Budget Delta,0,10,,true,0xFFDC2626''';
             : ItemDietaryType.infer(name: subName, category: catName);
         final effectiveDietary = parsedDietary != ItemDietaryType.none ? parsedDietary : null;
 
+        final itemId = 'item_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}';
         items.add(MenuItem(
-          id: 'item_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}',
+          id: itemId,
           name: subName,
           price: price,
           category: category,
           colorHex: category.colorHex,
-          isAvailable: isAvailable,
+          unavailableVariants: isAvailable ? const [] : [itemId],
           dietaryType: effectiveDietary,
         ));
       }
