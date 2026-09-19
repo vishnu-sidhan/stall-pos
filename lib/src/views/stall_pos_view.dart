@@ -540,7 +540,7 @@ class _StallPosViewState extends State<StallPosView>
             paidAmount: prevPaid,
             paidItems: existingOrder.paidItems.isNotEmpty
                 ? existingOrder.paidItems
-                : existingOrder.items,
+                : existingOrder.legacyItems,
             isParcel: isParcel,
             orderNotes: orderNotes,
           );

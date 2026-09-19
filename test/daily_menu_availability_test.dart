@@ -9,7 +9,7 @@ import 'package:counter_app/main.dart';
 import 'package:counter_app/src/models/stall_models.dart';
 import 'package:counter_app/src/controllers/order_controller.dart';
 import 'package:counter_app/src/widgets/stall_pos/category_config_dialog.dart';
-import 'package:counter_app/src/widgets/stall_pos/daily_menu_availability_dialog.dart';
+import 'package:counter_app/src/widgets/stall_pos/daily_menu_availability_view.dart';
 
 void main() {
   group('Daily Menu Availability - Model Tests', () {

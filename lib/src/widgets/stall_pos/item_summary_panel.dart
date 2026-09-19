@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
-import '../../models/item_category.dart';
+import '../../models/stall_models.dart';
 import 'dietary_symbol.dart';
 
 /// Panel displaying consolidated item preparation queue across all active tickets,
@@ -60,6 +60,7 @@ class ItemSummaryPanel extends StatelessWidget {
       itemBuilder: (context, index) {
         final item = combined[index];
         final color = _resolveCategoryColor(item.category, item.colorHex);
+        final tickets = controller.getTicketsForItem(item.cartKey);
 
         return Card(
           elevation: 1.5,
@@ -123,7 +124,7 @@ class ItemSummaryPanel extends StatelessWidget {
                               color: Colors.grey,
                             ),
                           ),
-                          ...item.tickets.map((t) {
+                          ...tickets.map((t) {
                             final tooltipNote = [
                               'Order #${t.token}',
                               if (t.isParcel) 'Parcel',
@@ -240,8 +241,8 @@ class ItemSummaryPanel extends StatelessWidget {
                     FilledButton.tonalIcon(
                       key: ValueKey('complete_btn_${item.itemId}'),
                       onPressed: () {
-                        if (item.tickets.length == 1) {
-                          final t = item.tickets.first;
+                        if (tickets.length == 1) {
+                          final t = tickets.first;
                           if (onCompleteTicketItem != null) {
                             onCompleteTicketItem!(
                               t.token,
@@ -265,11 +266,11 @@ class ItemSummaryPanel extends StatelessWidget {
                         }
                       },
                       icon: Icon(
-                        item.tickets.length == 1 ? Icons.check : Icons.done_all,
+                        tickets.length == 1 ? Icons.check : Icons.done_all,
                         size: 13,
                       ),
                       label: Text(
-                        item.tickets.length == 1 ? 'Done' : 'All Done',
+                        tickets.length == 1 ? 'Done' : 'All Done',
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,

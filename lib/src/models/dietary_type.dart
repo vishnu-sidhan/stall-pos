@@ -129,6 +129,3 @@ enum ItemDietaryType {
     return ItemDietaryType.none;
   }
 }
-
-/// Alias for [ItemDietaryType] matching clean domain naming.
-typedef DietaryType = ItemDietaryType;

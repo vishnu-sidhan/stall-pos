@@ -149,37 +149,6 @@ void main() {
     });
   });
 
-  group('ItemCategory isAddonCategory Tests', () {
-    test('ItemCategory preserves isAddonCategory in JSON', () {
-      final cat = const ItemCategory(
-        id: 'cat_addons',
-        name: 'Sauces & Dips',
-        isAddonCategory: true,
-      );
-
-      final json = cat.toJson();
-      expect(json['isAddonCategory'], isTrue);
-
-      final restored = ItemCategory.fromJson(json);
-      expect(restored.isAddonCategory, isTrue);
-    });
-
-    test('MenuItem category resolves isAddonCategory', () {
-      final addonCat = const ItemCategory(
-        id: 'cat_bev_addons',
-        name: 'Beverage Addons',
-        isAddonCategory: true,
-      );
-      final item = MenuItem(
-        id: 'addon_1',
-        name: 'Boba Pearls',
-        price: 40,
-        category: addonCat,
-      );
-
-      expect(item.category.isAddonCategory, isTrue);
-    });
-  });
 
   group('OrderController _resolveBaseItem and Dietary Propagation Tests', () {
     test('Resolves base item and preserves dietary classification in active orders', () async {

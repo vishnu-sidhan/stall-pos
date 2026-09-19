@@ -5,6 +5,7 @@ import '../models/counter_model.dart';
 import '../models/counter_log_entry.dart';
 import '../storage/counter_storage.dart';
 import '../storage/app_storage.dart';
+import 'common/common_mixins.dart';
 
 /// Supported sort modes for the counters list.
 enum SortOption {
@@ -19,14 +20,13 @@ enum SortOption {
 
 /// Native state controller for managing multi-counter items,
 /// handling optimistic mutations, search, sort, tags, custom reordering, and background persistence.
-class CounterController extends ChangeNotifier {
+class CounterController extends ChangeNotifier
+    with AsyncLoadingMixin, SearchFilterMixin, ReorderableListMixin {
   final CounterStorage _storageService;
   final Uuid _uuid;
 
   List<CounterModel> _counters = [];
   List<CounterLogEntry> _logs = [];
-  bool _isLoading = true;
-  String _searchQuery = '';
   SortOption _sortOption;
   String? _selectedTag;
   String? _selectedLogCounterId;
@@ -38,12 +38,6 @@ class CounterController extends ChangeNotifier {
   })  : _storageService = storageService ?? AppStorage.instance.counterStorage,
         _uuid = uuid ?? const Uuid(),
         _sortOption = initialSortOption;
-
-  /// Whether the controller is currently loading stored data.
-  bool get isLoading => _isLoading;
-
-  /// Current search query string.
-  String get searchQuery => _searchQuery;
 
   /// Active sorting criterion.
   SortOption get sortOption => _sortOption;
@@ -76,7 +70,7 @@ class CounterController extends ChangeNotifier {
 
   /// Filtered and sorted counters according to search, tag filter, and sort criteria.
   List<CounterModel> get filteredCounters {
-    final query = _searchQuery.trim().toLowerCase();
+    final query = searchQuery.trim().toLowerCase();
     var list = _counters.where((counter) {
       if (_selectedTag != null && counter.tag != _selectedTag) {
         return false;
@@ -120,8 +114,7 @@ class CounterController extends ChangeNotifier {
 
   /// Initializes storage and loads persisted counters and logs.
   Future<void> init() async {
-    _isLoading = true;
-    notifyListeners();
+    setLoading(true);
 
     try {
       _counters = await _storageService.loadCounters();
@@ -137,16 +130,8 @@ class CounterController extends ChangeNotifier {
       _counters = [];
       _logs = [];
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      setLoading(false);
     }
-  }
-
-  /// Updates the active search query.
-  void setSearchQuery(String query) {
-    if (_searchQuery == query) return;
-    _searchQuery = query;
-    notifyListeners();
   }
 
   /// Sets the active sorting mode.

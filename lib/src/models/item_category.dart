@@ -1,23 +1,18 @@
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'model_contracts.dart';
-export 'model_contracts.dart';
+import 'dietary_type.dart';
+export 'dietary_type.dart';
 
-/// Alias for [CategoryOption] matching clean domain naming.
-typedef CategoryVariant = CategoryOption;
 
 /// Represents an individual category option, variant, or add-on
 /// (e.g., 'Steam', 'Fried', 'Pan Fried' for Momos, or 'Extra Cheese' for a Burger).
 @immutable
-class CategoryOption with DietaryAware implements IdentifiableEntity {
-  @override
+class CategoryOption {
   final String id;
   final String name;
   final double additionalCost;
   final double? price;
   final bool isEnabled;
-  @override
   final ItemDietaryType? dietaryType;
 
   const CategoryOption({
@@ -30,8 +25,15 @@ class CategoryOption with DietaryAware implements IdentifiableEntity {
     this.dietaryType,
   }) : additionalCost = priceDelta ?? additionalCost;
 
-  @override
   String get displayName => name;
+
+  /// Effective dietary classification.
+  ItemDietaryType get effectiveDietaryType {
+    if (dietaryType != null && dietaryType != ItemDietaryType.none) {
+      return dietaryType!;
+    }
+    return ItemDietaryType.infer(name: displayName);
+  }
 
   /// Price adjustment or differential for this variant/add-on.
   double get priceDelta => price != null && price! > 0 ? price! : additionalCost;
@@ -197,25 +199,10 @@ class CategoryOption with DietaryAware implements IdentifiableEntity {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CategoryOption &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          name.trim().toLowerCase() == other.name.trim().toLowerCase() &&
-          additionalCost == other.additionalCost &&
-          price == other.price &&
-          isEnabled == other.isEnabled &&
-          dietaryType == other.dietaryType;
+      identical(this, other) || (other is CategoryOption && other.id == id);
 
   @override
-  int get hashCode => Object.hash(
-        id,
-        name.trim().toLowerCase(),
-        additionalCost,
-        price,
-        isEnabled,
-        dietaryType,
-      );
+  int get hashCode => id.hashCode;
 
   @override
   String toString() {
@@ -228,18 +215,15 @@ class CategoryOption with DietaryAware implements IdentifiableEntity {
 
 /// Represents a menu item category and its packaging/prep charge rules.
 @immutable
-class ItemCategory with ColorThemed implements IdentifiableEntity {
+class ItemCategory {
   static const general = ItemCategory(id: 'cat_general', name: 'General');
 
-  @override
   final String id;
   final String name;
   final double additionalCost;
   final String? costReason;
-  @override
   final int? colorHex;
   final bool isEnabled;
-  final bool isAddonCategory;
 
   /// Specific sub-category options / variants with individual charges
   /// (e.g., 'Steam': ₹0, 'Fried': ₹10, 'Pan Fried': ₹20).
@@ -256,13 +240,11 @@ class ItemCategory with ColorThemed implements IdentifiableEntity {
     this.costReason,
     this.colorHex,
     this.isEnabled = true,
-    this.isAddonCategory = false,
     List<CategoryOption> options = const [],
     List<CategoryOption>? categoryVariants,
     this.addons = const [],
   }) : options = categoryVariants ?? options;
 
-  @override
   String get displayName => name;
 
   /// Alias for category-wide variants / options.
@@ -296,12 +278,10 @@ class ItemCategory with ColorThemed implements IdentifiableEntity {
   }
 
   /// Effective hex color value for this category, falling back to dynamic palette color.
-  @override
   int get resolvedColorHex =>
       colorHex ?? getColorForCategory(displayName);
 
   /// Resolved Material Color for chips, cards, and badges.
-  @override
   Color get color => Color(resolvedColorHex);
 
   /// Checks whether this category matches [otherName], ignoring case and surrounding whitespace.
@@ -397,7 +377,6 @@ class ItemCategory with ColorThemed implements IdentifiableEntity {
     int? colorHex,
     bool clearColor = false,
     bool? isEnabled,
-    bool? isAddonCategory,
     List<CategoryOption>? options,
     List<CategoryOption>? categoryVariants,
     List<CategoryOption>? addons,
@@ -409,7 +388,6 @@ class ItemCategory with ColorThemed implements IdentifiableEntity {
       costReason: clearCostReason ? null : (costReason ?? this.costReason),
       colorHex: clearColor ? null : (colorHex ?? this.colorHex),
       isEnabled: isEnabled ?? this.isEnabled,
-      isAddonCategory: isAddonCategory ?? this.isAddonCategory,
       options: categoryVariants ?? options ?? this.options,
       addons: addons ?? this.addons,
     );
@@ -423,7 +401,6 @@ class ItemCategory with ColorThemed implements IdentifiableEntity {
           'costReason': costReason!.trim(),
         if (colorHex != null) 'colorHex': colorHex,
         'isEnabled': isEnabled,
-        if (isAddonCategory) 'isAddonCategory': true,
         if (options.isNotEmpty)
           'options': options.map((o) => o.toJson()).toList(),
         if (addons.isNotEmpty)
@@ -440,7 +417,6 @@ class ItemCategory with ColorThemed implements IdentifiableEntity {
           : null,
       colorHex: (map['colorHex'] as num?)?.toInt(),
       isEnabled: map['isEnabled'] != false,
-      isAddonCategory: map['isAddonCategory'] == true,
       options: (map['options'] as List<dynamic>? ?? map['categoryVariants'] as List<dynamic>?)
               ?.map((e) =>
                   CategoryOption.fromJson(Map<String, dynamic>.from(e as Map)))
@@ -663,29 +639,10 @@ class ItemCategory with ColorThemed implements IdentifiableEntity {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ItemCategory &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          name.toLowerCase().trim() == other.name.toLowerCase().trim() &&
-          additionalCost == other.additionalCost &&
-          costReason == other.costReason &&
-          colorHex == other.colorHex &&
-          isEnabled == other.isEnabled &&
-          listEquals(options, other.options) &&
-          listEquals(addons, other.addons);
+      identical(this, other) || (other is ItemCategory && other.id == id);
 
   @override
-  int get hashCode => Object.hash(
-        id,
-        name.toLowerCase().trim(),
-        additionalCost,
-        costReason,
-        colorHex,
-        isEnabled,
-        Object.hashAll(options),
-        Object.hashAll(addons),
-      );
+  int get hashCode => id.hashCode;
 
   @override
   String toString() =>

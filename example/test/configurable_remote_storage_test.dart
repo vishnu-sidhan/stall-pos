@@ -163,10 +163,10 @@ void main() {
 
       final newOrder = StallOrder(
         token: 101,
-        itemsSummary: '1x Filter Coffee',
+        items: const [
+          OrderItem(itemId: 'item_2', itemName: 'Filter Coffee', price: 25.0, quantity: 1),
+        ],
         timestamp: DateTime.now(),
-        items: {'item_2': 1},
-        total: 25.0,
       );
       await storage.saveOrders([newOrder]);
 

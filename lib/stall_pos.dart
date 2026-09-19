@@ -9,12 +9,9 @@ export 'src/models/stall_models.dart'
     show
         MenuItem,
         ItemCategory,
-        CategoryVariant,
-        Order,
         OrderItem,
-        DietaryType,
         StallOrder,
-        OrderLineItem,
+        ItemPreparationStatus,
         ItemDietaryType;
 
 // Storage Interfaces

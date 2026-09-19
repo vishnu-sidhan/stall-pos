@@ -88,18 +88,18 @@ void main() {
 
     final order1 = StallOrder(
       token: 10,
-      itemsSummary: '2x Dosa',
       timestamp: DateTime.now(),
-      items: {'1': 2},
-      total: 100.0,
+      items: const [
+        OrderItem(itemId: '1', itemName: 'Dosa', price: 50.0, quantity: 2),
+      ],
       isCompleted: false,
     );
     final order2 = StallOrder(
       token: 11,
-      itemsSummary: '1x Dosa',
       timestamp: DateTime.now(),
-      items: {'1': 1},
-      total: 50.0,
+      items: const [
+        OrderItem(itemId: '1', itemName: 'Dosa', price: 50.0, quantity: 1),
+      ],
       isCompleted: true,
       completedAt: DateTime.now().subtract(const Duration(hours: 2)),
     );

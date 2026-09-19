@@ -15,8 +15,10 @@ void main() {
     final orders = [
       StallOrder(
         token: 1,
-        itemsSummary: '1x "Special" Chai, 2x Samosa',
-        total: 60.0,
+        items: const [
+          OrderItem(itemId: '1', itemName: '"Special" Chai', price: 20.0, quantity: 1),
+          OrderItem(itemId: '2', itemName: 'Samosa', price: 20.0, quantity: 2),
+        ],
         timestamp: DateTime(2026, 9, 5, 12, 0),
         isCompleted: true,
         completedAt: DateTime(2026, 9, 5, 12, 4),
@@ -36,16 +38,18 @@ void main() {
     final orders = [
       StallOrder(
         token: 1,
-        itemsSummary: '1x Coffee',
-        total: 50.0,
+        items: const [
+          OrderItem(itemId: '1', itemName: 'Coffee', price: 50.0, quantity: 1),
+        ],
         timestamp: DateTime.now().subtract(const Duration(minutes: 10)),
         isCompleted: true,
         completedAt: DateTime.now().subtract(const Duration(minutes: 5)),
       ),
       StallOrder(
         token: 2,
-        itemsSummary: '2x Tea',
-        total: 40.0,
+        items: const [
+          OrderItem(itemId: '2', itemName: 'Tea', price: 20.0, quantity: 2),
+        ],
         timestamp: DateTime.now(),
         isCompleted: false,
       ),
@@ -108,16 +112,18 @@ void main() {
     final orders = [
       StallOrder(
         token: 101,
-        itemsSummary: '2x Masala Dosa',
-        total: 120.0,
+        items: const [
+          OrderItem(itemId: '1', itemName: 'Masala Dosa', price: 60.0, quantity: 2),
+        ],
         timestamp: now,
         customerName: 'Rahul',
         isCompleted: true,
       ),
       StallOrder(
         token: 102,
-        itemsSummary: '1x Cold Coffee',
-        total: 60.0,
+        items: const [
+          OrderItem(itemId: '2', itemName: 'Cold Coffee', price: 60.0, quantity: 1),
+        ],
         timestamp: now.subtract(const Duration(days: 3)),
         customerName: 'Sneha',
         isCompleted: false,

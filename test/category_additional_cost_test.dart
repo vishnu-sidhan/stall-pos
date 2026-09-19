@@ -5,7 +5,7 @@ import 'package:counter_app/src/storage/in_memory_storage.dart';
 import 'package:counter_app/src/controllers/order_controller.dart';
 import 'package:counter_app/src/widgets/stall_pos/category_accordion_card.dart';
 import 'package:counter_app/src/widgets/stall_pos/category_config_dialog.dart';
-import 'package:counter_app/src/widgets/stall_pos/manage_categories_dialog.dart';
+import 'package:counter_app/src/widgets/stall_pos/manage_categories_view.dart';
 import 'package:counter_app/src/widgets/stall_pos/cart_bottom_sheet.dart';
 import 'package:counter_app/src/widgets/stall_pos/menu_item_card.dart';
 
@@ -350,8 +350,8 @@ void main() {
       );
 
       final order = controller.orders.firstWhere((o) => o.token == orderResult.token);
-      expect(order.itemSnapshots['item_chai']?['categoryAdditionalCost'], 4.0);
-      expect(order.itemSnapshots['item_chai']?['categoryCostReason'], 'Eco Packaging');
+      expect(order.items.first.categoryAdditionalCost, 4.0);
+      expect(controller.getCategoryCostReason('Beverages'), 'Eco Packaging');
     });
   });
 
@@ -689,7 +689,7 @@ void main() {
       expect(fromJson.categoryDisplayName, 'Momos');
     });
 
-    test('AggregatedOrderItem displayName returns itemName', () {
+    test('Aggregated prep item record displayName returns itemName', () {
       const aggItem = (
         itemId: '1',
         itemName: 'Veg Steamed Momos',
@@ -1081,21 +1081,21 @@ void main() {
       expect(eggChickenSummary.displayName, '[Schezwan] Egg Chicken (Rice)');
 
       // Legacy order where Kurkure Momos was saved with "(Momos)" heals to "Chicken (Kurkure Momos)" from itemId
-      final legacyOrder = StallOrder(
-        token: 99,
-        timestamp: DateTime.now(),
-        itemsSummary: '1x Kurkure Momos (Momos)',
-        total: 180,
-        isPaid: true,
-        items: {'item_kurkure_var_Chicken': 1},
-        itemSnapshots: {
+      final legacyOrder = StallOrder.fromJson({
+        'token': 99,
+        'timestamp': DateTime.now().toIso8601String(),
+        'itemsSummary': '1x Kurkure Momos (Momos)',
+        'total': 180,
+        'isPaid': true,
+        'items': {'item_kurkure_var_Chicken': 1},
+        'itemSnapshots': {
           'item_kurkure_var_Chicken': {
             'name': 'Kurkure Momos',
             'displayName': 'Kurkure Momos (Momos)',
             'category': 'Momos',
           },
         },
-      );
+      });
       final legacyLines = controller.getOrderLineItems(legacyOrder);
       expect(legacyLines.first.displayName, 'Chicken (Kurkure Momos)');
     });
@@ -1145,21 +1145,21 @@ void main() {
 
       // 2. Test active order self-healing from storage:
       // An order originally stored with old summary "1x Kurkure Momos (Momos)"
-      final oldOrder = StallOrder(
-        token: 1,
-        timestamp: DateTime.now(),
-        itemsSummary: '1x Kurkure Momos (Momos)',
-        total: 180,
-        isPaid: true,
-        items: {'item_1789369983777_9bc6b93d_var_Kurkure Momos': 1},
-        itemSnapshots: {
+      final oldOrder = StallOrder.fromJson({
+        'token': 1,
+        'timestamp': DateTime.now().toIso8601String(),
+        'itemsSummary': '1x Kurkure Momos (Momos)',
+        'total': 180,
+        'isPaid': true,
+        'items': {'item_1789369983777_9bc6b93d_var_Kurkure Momos': 1},
+        'itemSnapshots': {
           'item_1789369983777_9bc6b93d_var_Kurkure Momos': {
             'name': 'Chicken',
             'displayName': 'Kurkure Momos (Momos)',
             'category': 'Momos',
           },
         },
-      );
+      });
       final storageWithOldOrder = InMemoryStallStorage(
         initialMenu: [chickenMomoItem],
         initialOrders: [oldOrder],

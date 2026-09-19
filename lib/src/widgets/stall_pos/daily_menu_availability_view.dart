@@ -42,17 +42,11 @@ class _DailyMenuAvailabilityViewState extends State<DailyMenuAvailabilityView> {
         final availableCount = allItems.where((item) => item.isAvailable).length;
         final totalCount = allItems.length;
 
-        // Group items by category (respecting search filter)
+        // Group items by category (respecting search filter via centralized helper)
+        final filteredItems = widget.controller.filterMenuItems(query: _searchQuery);
         final Map<String, List<MenuItem>> grouped = {};
-        for (final item in allItems) {
+        for (final item in filteredItems) {
           final groupKey = item.categoryName;
-          if (_searchQuery.isNotEmpty) {
-            final q = _searchQuery.toLowerCase();
-            final matchesName = item.name.toLowerCase().contains(q);
-            final matchesCategory = item.categoryName.toLowerCase().contains(q);
-            final matchesVariants = item.effectiveVariants.any((v) => v.name.toLowerCase().contains(q));
-            if (!matchesName && !matchesCategory && !matchesVariants) continue;
-          }
           grouped.putIfAbsent(groupKey, () => []).add(item);
         }
 

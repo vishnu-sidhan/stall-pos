@@ -152,8 +152,8 @@ void main() {
       expect(updated.total, 65.0);
       expect(updated.customerName, 'Rahul M');
       expect(updated.paymentMethod, 'UPI');
-      expect(updated.items['item_1'], 2);
-      expect(updated.items['item_2'], 1);
+      expect(updated.legacyItems['item_1'], 2);
+      expect(updated.legacyItems['item_2'], 1);
     });
 
     test('edge case: editing an order with removed items', () async {
@@ -185,8 +185,8 @@ void main() {
       );
 
       final updated = controller.orders.first;
-      expect(updated.items.containsKey('item_2'), isFalse);
-      expect(updated.items['item_1'], 2);
+      expect(updated.legacyItems.containsKey('item_2'), isFalse);
+      expect(updated.legacyItems['item_1'], 2);
       expect(updated.total, 40.0);
     });
 
@@ -277,25 +277,28 @@ void main() {
       final chaiSummary = aggregated.firstWhere((a) => a.itemName == 'Masala Chai');
       expect(chaiSummary.totalQuantity, 8);
       expect(chaiSummary.category, 'Beverages');
-      expect(chaiSummary.tickets.length, 3);
-      expect(chaiSummary.tickets[0].token, 101);
-      expect(chaiSummary.tickets[0].quantity, 3);
-      expect(chaiSummary.tickets[1].token, 102);
-      expect(chaiSummary.tickets[1].quantity, 2);
-      expect(chaiSummary.tickets[2].token, 103);
-      expect(chaiSummary.tickets[2].quantity, 3);
+      final chaiTickets = controller.getTicketsForItem(chaiSummary.cartKey);
+      expect(chaiTickets.length, 3);
+      expect(chaiTickets[0].token, 101);
+      expect(chaiTickets[0].quantity, 3);
+      expect(chaiTickets[1].token, 102);
+      expect(chaiTickets[1].quantity, 2);
+      expect(chaiTickets[2].token, 103);
+      expect(chaiTickets[2].quantity, 3);
 
       // Check Cold Coffee: 4
       final coffeeSummary = aggregated.firstWhere((a) => a.itemName == 'Cold Coffee');
       expect(coffeeSummary.totalQuantity, 4);
-      expect(coffeeSummary.tickets.length, 1);
-      expect(coffeeSummary.tickets[0].token, 102);
-      expect(coffeeSummary.tickets[0].quantity, 4);
+      final coffeeTickets = controller.getTicketsForItem(coffeeSummary.cartKey);
+      expect(coffeeTickets.length, 1);
+      expect(coffeeTickets[0].token, 102);
+      expect(coffeeTickets[0].quantity, 4);
 
       // Check Veg Samosa: 2 + 1 = 3
       final samosaSummary = aggregated.firstWhere((a) => a.itemName == 'Veg Samosa');
       expect(samosaSummary.totalQuantity, 3);
-      expect(samosaSummary.tickets.length, 2);
+      final samosaTickets = controller.getTicketsForItem(samosaSummary.cartKey);
+      expect(samosaTickets.length, 2);
     });
 
     test('combinedActiveOrders updates reactively when orders are completed or deleted', () async {
@@ -317,8 +320,9 @@ void main() {
       // Complete Order 101
       await controller.completeOrder(101);
       expect(controller.combinedActiveOrders.first.totalQuantity, 3);
-      expect(controller.combinedActiveOrders.first.tickets.length, 1);
-      expect(controller.combinedActiveOrders.first.tickets.first.token, 102);
+      final remainingTickets = controller.getTicketsForItem(controller.combinedActiveOrders.first.cartKey);
+      expect(remainingTickets.length, 1);
+      expect(remainingTickets.first.token, 102);
 
       // Delete Order 102
       await controller.deleteOrder(102);
@@ -353,7 +357,8 @@ void main() {
       // In combinedActiveOrders, Chai should now have 1 remaining
       final updatedChai = controller.combinedActiveOrders.firstWhere((i) => i.itemName == 'Masala Chai');
       expect(updatedChai.totalQuantity, 1);
-      expect(updatedChai.tickets.first.quantity, 1);
+      final updatedChaiTickets = controller.getTicketsForItem(updatedChai.cartKey);
+      expect(updatedChaiTickets.first.quantity, 1);
 
       // Complete remaining 1x Chai for Order 101
       final orderCompleted2 = await controller.completeOrderItem(
@@ -444,7 +449,8 @@ void main() {
 
       // Only #102 remains in queue with 3x Chai
       expect(controller.combinedActiveOrders.firstWhere((i) => i.itemName == 'Masala Chai').totalQuantity, 3);
-      expect(controller.combinedActiveOrders.firstWhere((i) => i.itemName == 'Masala Chai').tickets.first.token, 102);
+      final chaiRemTickets = controller.getTicketsForItem('item_1');
+      expect(chaiRemTickets.first.token, 102);
     });
 
     test('completeOrder marks all items 100% completed and removes order from active queue', () async {

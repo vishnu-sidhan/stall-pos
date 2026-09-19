@@ -304,13 +304,8 @@ class _StoreManagementViewState extends State<StoreManagementView>
     return ListenableBuilder(
       listenable: widget.controller,
       builder: (context, _) {
-        final allItems = widget.controller.menu;
-        final filteredItems = _menuSearchQuery.isEmpty
-            ? allItems
-            : allItems.where((i) {
-                return i.name.toLowerCase().contains(_menuSearchQuery) ||
-                    i.categoryName.toLowerCase().contains(_menuSearchQuery);
-              }).toList();
+        final filteredItems =
+            widget.controller.filterMenuItems(query: _menuSearchQuery);
 
         return Column(
           children: [

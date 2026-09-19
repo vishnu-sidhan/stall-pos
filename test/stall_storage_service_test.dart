@@ -41,8 +41,9 @@ void main() {
 
     final order1 = StallOrder(
       token: 1,
-      itemsSummary: '1x Chai',
-      total: 20,
+      items: const [
+        OrderItem(itemId: '1', itemName: 'Chai', price: 20, quantity: 1),
+      ],
       timestamp: DateTime(2026, 9, 5, 10, 0),
       isCompleted: true,
       completedAt: DateTime(2026, 9, 5, 10, 5),
@@ -50,8 +51,9 @@ void main() {
 
     final order2 = StallOrder(
       token: 2,
-      itemsSummary: '2x Samosa',
-      total: 40,
+      items: const [
+        OrderItem(itemId: '2', itemName: 'Samosa', price: 20, quantity: 2),
+      ],
       timestamp: DateTime(2026, 9, 5, 10, 10),
       isCompleted: false,
     );
