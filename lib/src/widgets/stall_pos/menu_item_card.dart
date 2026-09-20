@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/stall_models.dart';
 import 'dietary_symbol.dart';
 
@@ -30,13 +31,14 @@ class MenuItemCard extends StatelessWidget {
       return baseId == item.id;
     }).fold(0, (sum, entry) => sum + entry.value);
 
-    final itemColor = item.colorHex != null
-        ? Color(item.colorHex!)
-        : getCategoryColor(item.categoryName);
+    final itemColor = getCategoryColor(item.categoryName);
 
     return InkWell(
       key: ValueKey(item.id),
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
       onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(14),
       child: Ink(

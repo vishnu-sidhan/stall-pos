@@ -6,7 +6,6 @@ import 'package:counter_app/src/controllers/order_controller.dart';
 import 'package:counter_app/src/widgets/stall_pos/cart_bottom_sheet.dart';
 import 'package:counter_app/src/widgets/stall_pos/unified_item_customizer_sheet.dart';
 import 'package:counter_app/src/widgets/stall_pos/manage_categories_view.dart';
-import 'package:counter_app/src/widgets/stall_pos/category_config_dialog.dart';
 import 'package:counter_app/src/widgets/stall_pos/daily_menu_availability_view.dart';
 
 void main() {
@@ -278,8 +277,8 @@ void main() {
     });
   });
 
-  group('Sub-Category Availability in CategoryConfigDialog and DailyMenuAvailabilityView', () {
-    testWidgets('CategoryConfigDialog does not have availability checkboxes', (tester) async {
+  group('Sub-Category Availability in CategoryEditDialog and DailyMenuAvailabilityView', () {
+    testWidgets('CategoryEditDialog does not have availability checkboxes', (tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -290,7 +289,7 @@ void main() {
             body: Builder(
               builder: (ctx) => ElevatedButton(
                 onPressed: () {
-                  CategoryConfigDialog.show(
+                  ManageCategoriesView.showAddEditCategoryDialog(
                     ctx,
                     categoryName: 'Momos',
                     controller: controller,

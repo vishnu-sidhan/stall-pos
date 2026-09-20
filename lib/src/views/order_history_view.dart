@@ -109,6 +109,36 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
+  List<StallOrder> get _ordersForDateFilter {
+    final now = DateTime.now();
+    return _orders.where((o) {
+      switch (_dateFilter) {
+        case OrderDateRangeFilter.allTime:
+          return true;
+        case OrderDateRangeFilter.today:
+          return _isSameDay(o.timestamp, now);
+        case OrderDateRangeFilter.yesterday:
+          final yesterday = now.subtract(const Duration(days: 1));
+          return _isSameDay(o.timestamp, yesterday);
+        case OrderDateRangeFilter.last7Days:
+          return now.difference(o.timestamp).inDays <= 7;
+      }
+    }).toList();
+  }
+
+  String _getDateFilterLabel(OrderDateRangeFilter filter) {
+    switch (filter) {
+      case OrderDateRangeFilter.allTime:
+        return 'All Time';
+      case OrderDateRangeFilter.today:
+        return 'Today';
+      case OrderDateRangeFilter.yesterday:
+        return 'Yesterday';
+      case OrderDateRangeFilter.last7Days:
+        return 'Last 7 Days';
+    }
+  }
+
   List<StallOrder> get _filteredOrders {
     final now = DateTime.now();
     return _orders.where((o) {
@@ -399,6 +429,8 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
                   ],
                 ),
               ),
+              // End-of-Day Quick Settlement Summary
+              _buildSettlementSummaryCard(theme),
               const Divider(height: 1),
 
               // Orders List
@@ -483,6 +515,171 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
           style: const TextStyle(fontSize: 11, color: Colors.grey),
         ),
       ],
+    );
+  }
+
+  Widget _buildSettlementSummaryCard(ThemeData theme) {
+    final baseList = (_filter == OrderHistoryFilter.pending)
+        ? _ordersForDateFilter
+        : _filteredOrders;
+    final completedOrders = baseList.where((o) => o.isCompleted).toList();
+    final completedCount = completedOrders.length;
+
+    double cashInDrawer = 0.0;
+    double upiOnline = 0.0;
+    for (final o in completedOrders) {
+      final method = (o.paymentMethod ?? '').trim().toLowerCase();
+      if (method == 'cash') {
+        cashInDrawer += o.paidAmount;
+      } else {
+        upiOnline += o.paidAmount;
+      }
+    }
+    final totalSales = cashInDrawer + upiOnline;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withAlpha(90),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(120),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.point_of_sale_rounded,
+                size: 16,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Settlement Summary',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _getDateFilterLabel(_dateFilter),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSettlementTile(
+                  theme,
+                  label: 'Completed',
+                  value: '$completedCount',
+                  icon: Icons.check_circle_outline,
+                  color: Colors.teal,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSettlementTile(
+                  theme,
+                  label: 'Cash in Drawer',
+                  value: '₹${cashInDrawer.toStringAsFixed(0)}',
+                  icon: Icons.payments_outlined,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSettlementTile(
+                  theme,
+                  label: 'UPI / Online',
+                  value: '₹${upiOnline.toStringAsFixed(0)}',
+                  icon: Icons.qr_code_2_rounded,
+                  color: Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSettlementTile(
+                  theme,
+                  label: 'Total Sales',
+                  value: '₹${totalSales.toStringAsFixed(0)}',
+                  icon: Icons.account_balance_wallet_outlined,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettlementTile(
+    ThemeData theme, {
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(80),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

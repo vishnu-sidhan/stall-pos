@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:counter_app/src/controllers/counter_controller.dart';
-import 'package:counter_app/src/storage/app_storage.dart';
 import 'package:counter_app/main.dart';
 import 'package:counter_app/src/views/stall_pos_view.dart';
 
@@ -102,7 +101,7 @@ void main() {
     expect(find.text('Veg Samosa'), findsOneWidget);
 
     // Category chips visible
-    expect(find.text('All'), findsOneWidget);
+    expect(find.text('All'), findsWidgets);
     expect(find.text('Beverages'), findsWidgets);
     expect(find.text('Snacks'), findsWidgets);
 
@@ -123,7 +122,7 @@ void main() {
     expect(find.text('Masala Chai'), findsNothing);
 
     // Switch back to 'All'
-    await tester.tap(find.widgetWithText(ChoiceChip, 'All'));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'All').first);
     await tester.pumpAndSettle();
 
     expect(find.text('Masala Chai'), findsOneWidget);
@@ -368,7 +367,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Category filter chips should be present: 'All', 'Beverages', 'Snacks'
-    expect(find.text('All'), findsOneWidget);
+    expect(find.text('All'), findsWidgets);
     expect(find.text('Beverages'), findsWidgets);
     expect(find.text('Snacks'), findsWidgets);
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
 import '../../models/stall_models.dart';
-import 'category_config_dialog.dart';
 import 'dietary_symbol.dart';
 
 /// Modal dialog for adding or editing menu items.
@@ -21,13 +20,13 @@ class AddEditMenuItemDialog {
     final priceCtrl = TextEditingController(
       text: existingItem != null ? existingItem.price.toStringAsFixed(0) : '',
     );
+    final descCtrl = TextEditingController(text: existingItem?.description ?? '');
     String selectedCat =
         existingItem?.categoryName ??
         (controller.selectedCategory != 'All'
             ? controller.selectedCategory
             : 'General');
     final categoryCtrl = TextEditingController(text: selectedCat);
-    int? selectedColorHex = existingItem?.colorHex;
     bool isAvailable = existingItem?.isAvailable ?? true;
     ItemDietaryType? selectedDietary = existingItem?.dietaryType;
 
@@ -43,9 +42,7 @@ class AddEditMenuItemDialog {
           final effectiveCategory = categoryCtrl.text.trim().isEmpty
               ? 'General'
               : categoryCtrl.text.trim();
-          final currentEffectiveColor = selectedColorHex != null
-              ? Color(selectedColorHex!)
-              : getCategoryColor(effectiveCategory);
+          final currentEffectiveColor = getCategoryColor(effectiveCategory);
 
           return AlertDialog(
             title: Text(isEditing ? 'Edit Menu Item' : 'Add Menu Item'),
@@ -221,36 +218,9 @@ class AddEditMenuItemDialog {
                     },
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Category',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                      InkWell(
-                        onTap: () async {
-                          final currentCat = categoryCtrl.text.trim().isNotEmpty
-                              ? categoryCtrl.text.trim()
-                              : 'General';
-                          await CategoryConfigDialog.show(
-                            context,
-                            categoryName: currentCat,
-                            controller: controller,
-                            getCategoryColor: getCategoryColor,
-                          );
-                          setDialogState(() {});
-                        },
-                        child: Text(
-                          'Configure Surcharge',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(ctx).colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ],
+                  const Text(
+                    'Category',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 6),
                   Wrap(
@@ -307,75 +277,17 @@ class AddEditMenuItemDialog {
                     ),
                     onChanged: (_) => setDialogState(() {}),
                   ),
-                  const SizedBox(height: 14),
-                  const Text(
-                    'Item Color Accent',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      ActionChip(
-                        avatar: Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: getCategoryColor(effectiveCategory),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        label: const Text(
-                          'Use Category Color',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        side: BorderSide(
-                          color: selectedColorHex == null
-                              ? Theme.of(ctx).colorScheme.primary
-                              : Colors.grey.shade300,
-                          width: selectedColorHex == null ? 2 : 1,
-                        ),
-                        onPressed: () {
-                          setDialogState(() => selectedColorHex = null);
-                        },
-                      ),
-                      ...ItemCategory.palette.map((colorVal) {
-                        final isSelected = selectedColorHex == colorVal;
-                        final color = Color(colorVal);
-                        return GestureDetector(
-                          onTap: () {
-                            setDialogState(() => selectedColorHex = colorVal);
-                          },
-                          child: Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isSelected ? Colors.black : Colors.white,
-                                width: isSelected ? 2.5 : 1.5,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withAlpha(40),
-                                  blurRadius: 3,
-                                ),
-                              ],
-                            ),
-                            child: isSelected
-                                ? const Icon(
-                                    Icons.check,
-                                    size: 16,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                        );
-                      }),
-                    ],
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descCtrl,
+                    textCapitalization: TextCapitalization.sentences,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Description (Optional)',
+                      hintText: 'e.g. Freshly brewed with ginger and cardamom',
+                      alignLabelWithHint: true,
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
                   ),
                   const SizedBox(height: 12),
                   Container(
@@ -409,7 +321,7 @@ class AddEditMenuItemDialog {
                         Expanded(
                           child: Text(
                             nameCtrl.text.trim().isEmpty
-                                ? 'Preview Card Color'
+                                ? 'Preview ($effectiveCategory)'
                                 : '${nameCtrl.text.trim()} • ₹${priceCtrl.text.trim().isEmpty ? '0' : priceCtrl.text.trim()}',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
@@ -435,13 +347,9 @@ class AddEditMenuItemDialog {
                   final category = categoryCtrl.text.trim().isEmpty
                       ? 'General'
                       : categoryCtrl.text.trim();
-                  final resolvedColor =
-                      selectedColorHex ??
-                      resolvedCategoryColors[category] ??
-                      ItemCategory.getUniqueColor(
-                        categoryName: category,
-                        usedColors: resolvedCategoryColors.values.toSet(),
-                      );
+                  final description = descCtrl.text.trim().isEmpty
+                      ? null
+                      : descCtrl.text.trim();
 
                   if (name.isNotEmpty && price > 0) {
                     final catObj = controller.resolveItemCategory(category);
@@ -451,10 +359,11 @@ class AddEditMenuItemDialog {
                           name: name,
                           price: price,
                           category: catObj,
-                          colorHex: resolvedColor,
                           isAvailable: isAvailable,
                           dietaryType: selectedDietary,
                           clearDietaryType: selectedDietary == null,
+                          description: description,
+                          clearDescription: description == null,
                         ),
                       );
                     } else {
@@ -465,9 +374,9 @@ class AddEditMenuItemDialog {
                           name: name,
                           price: price,
                           category: catObj,
-                          colorHex: resolvedColor,
                           unavailableVariants: isAvailable ? const [] : [newId],
                           dietaryType: selectedDietary,
+                          description: description,
                         ),
                       );
                     }
@@ -522,9 +431,7 @@ class AddEditMenuItemDialog {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: item.colorHex != null
-                          ? Color(item.colorHex!)
-                          : getCategoryColor(item.categoryName),
+                      color: getCategoryColor(item.categoryName),
                       shape: BoxShape.circle,
                     ),
                   ),

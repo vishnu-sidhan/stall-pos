@@ -343,18 +343,59 @@ mixin MenuCatalogControllerMixin on ChangeNotifier {
     return map;
   }
 
+  ItemDietaryType? _selectedDietary;
+
+  /// Currently active dietary type filter (null means "All").
+  ItemDietaryType? get selectedDietaryType => _selectedDietary;
+
+  /// Updates active dietary filter without resetting selected category.
+  void selectDietary(ItemDietaryType? dietary) {
+    if (_selectedDietary == dietary) return;
+    _selectedDietary = dietary;
+    notifyListeners();
+  }
+
+  /// Bulk sets availability for all items of a specific dietary type.
+  Future<void> setDietaryAvailability(ItemDietaryType dietary, bool isAvailable) async {
+    bool modified = false;
+    for (int i = 0; i < _menu.length; i++) {
+      if (_menu[i].effectiveDietaryType == dietary) {
+        if (_menu[i].isAvailable != isAvailable) {
+          _menu[i] = _menu[i].copyWith(isAvailable: isAvailable);
+          modified = true;
+        }
+      }
+    }
+    if (modified) {
+      rebuildIndexes();
+      await saveState();
+      notifyListeners();
+    }
+  }
+
   /// Centralized menu item search and filtering helper.
   List<MenuItem> filterMenuItems({
     String query = '',
     String? categoryId,
     bool onlyAvailable = false,
+    ItemDietaryType? dietary,
   }) {
+    final effectiveDietary = dietary ?? _selectedDietary;
     return _menu.where((item) {
       if (onlyAvailable && !item.isEffectivelyAvailable) return false;
       if (categoryId != null &&
           item.category.id != categoryId &&
           item.categoryName.toLowerCase() != categoryId.toLowerCase()) {
         return false;
+      }
+      if (effectiveDietary != null && effectiveDietary != ItemDietaryType.none) {
+        if (effectiveDietary == ItemDietaryType.veg) {
+          if (item.effectiveDietaryType != ItemDietaryType.veg) return false;
+        } else if (effectiveDietary == ItemDietaryType.nonVeg) {
+          if (item.effectiveDietaryType != ItemDietaryType.nonVeg) return false;
+        } else {
+          if (item.effectiveDietaryType != effectiveDietary) return false;
+        }
       }
       if (query.isNotEmpty) {
         final q = query.toLowerCase().trim();
@@ -646,6 +687,27 @@ mixin MenuCatalogControllerMixin on ChangeNotifier {
       if (_menu[i].isAvailable != isAvailable) {
         _menu[i] = _menu[i].copyWith(isAvailable: isAvailable);
         modified = true;
+      }
+    }
+    if (modified) {
+      rebuildIndexes();
+      await saveState();
+      notifyListeners();
+    }
+  }
+
+  /// Bulk sets availability for a specific list of item IDs (e.g. currently filtered items).
+  Future<void> setItemsAvailability(Iterable<String> itemIds, bool isAvailable) async {
+    final targetIds = itemIds.toSet();
+    if (targetIds.isEmpty) return;
+
+    bool modified = false;
+    for (int i = 0; i < _menu.length; i++) {
+      if (targetIds.contains(_menu[i].id)) {
+        if (_menu[i].isAvailable != isAvailable) {
+          _menu[i] = _menu[i].copyWith(isAvailable: isAvailable);
+          modified = true;
+        }
       }
     }
     if (modified) {

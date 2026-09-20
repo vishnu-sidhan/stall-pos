@@ -2,7 +2,6 @@ export 'active_orders_panel.dart';
 export 'add_edit_menu_item_dialog.dart';
 export 'cart_bottom_sheet.dart';
 export 'category_accordion_card.dart';
-export 'category_config_dialog.dart';
 export 'daily_menu_availability_view.dart';
 export 'delete_order_dialog.dart';
 export 'dietary_symbol.dart';

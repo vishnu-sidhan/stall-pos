@@ -5,6 +5,9 @@ import 'src/storage/app_storage.dart';
 import 'src/views/main_navigation_screen.dart';
 import 'src/theme/app_theme.dart';
 
+export 'src/views/main_navigation_screen.dart' show MainNavigationScreen;
+export 'src/storage/app_storage.dart' show AppStorage;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 

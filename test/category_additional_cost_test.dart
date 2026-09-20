@@ -4,7 +4,6 @@ import 'package:counter_app/src/models/stall_models.dart';
 import 'package:counter_app/src/storage/in_memory_storage.dart';
 import 'package:counter_app/src/controllers/order_controller.dart';
 import 'package:counter_app/src/widgets/stall_pos/category_accordion_card.dart';
-import 'package:counter_app/src/widgets/stall_pos/category_config_dialog.dart';
 import 'package:counter_app/src/widgets/stall_pos/manage_categories_view.dart';
 import 'package:counter_app/src/widgets/stall_pos/cart_bottom_sheet.dart';
 import 'package:counter_app/src/widgets/stall_pos/menu_item_card.dart';
@@ -422,7 +421,7 @@ void main() {
       expect(find.text('Fried (+₹10), Pan Fried (+₹20)'), findsOneWidget);
     });
 
-    testWidgets('CategoryConfigDialog updates category additional cost',
+    testWidgets('CategoryEditDialog updates category additional cost',
         (tester) async {
       final storage = InMemoryStallStorage(initialMenu: [
         const MenuItem(
@@ -441,7 +440,7 @@ void main() {
             builder: (context) => Scaffold(
               body: Center(
                 child: ElevatedButton(
-                  onPressed: () => CategoryConfigDialog.show(
+                  onPressed: () => ManageCategoriesView.showAddEditCategoryDialog(
                     context,
                     categoryName: 'Beverages',
                     controller: controller,
@@ -475,7 +474,7 @@ void main() {
       expect(controller.getCategoryCostReason('Beverages'), 'Packaging Fee');
     });
 
-    testWidgets('CategoryConfigDialog edits multi-category option charges for Momos',
+    testWidgets('CategoryEditDialog edits multi-category option charges for Momos',
         (tester) async {
       final storage = InMemoryStallStorage(initialMenu: [
         const MenuItem(
@@ -494,7 +493,7 @@ void main() {
             builder: (context) => Scaffold(
               body: Center(
                 child: ElevatedButton(
-                  onPressed: () => CategoryConfigDialog.show(
+                  onPressed: () => ManageCategoriesView.showAddEditCategoryDialog(
                     context,
                     categoryName: 'Steam / Fried / Pan Fried',
                     controller: controller,
@@ -1338,6 +1337,140 @@ void main() {
         ),
         'Chicken (Kurkure Momos)',
       );
+    });
+
+    testWidgets('CategoryEditDialog allows adding category add-ons and surcharges together',
+        (WidgetTester tester) async {
+      final storage = InMemoryStorage();
+      final controller = OrderController(storage: storage);
+      await controller.loadPersistedData();
+      await controller.saveCategoryConfig(
+        const ItemCategory(
+          id: 'cat_beverages',
+          name: 'Beverages',
+          additionalCost: 5.0,
+          costReason: 'Cup Fee',
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => ManageCategoriesView.showAddEditCategoryDialog(
+                  context,
+                  categoryName: 'Beverages',
+                  controller: controller,
+                  getCategoryColor: (_) => Colors.blue,
+                ),
+                child: const Text('Edit Beverages'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Edit Beverages'));
+      await tester.pumpAndSettle();
+
+      // Surcharge inputs should be visible
+      expect(find.byKey(const ValueKey('category_additional_cost_input')), findsOneWidget);
+      expect(find.byKey(const ValueKey('category_cost_reason_input')), findsOneWidget);
+
+      // Category Add-ons section should be visible with 'Add Extra' button
+      expect(find.text('Category Add-ons'), findsOneWidget);
+      final addExtraBtn = find.byKey(const ValueKey('add_category_extra_btn'));
+      expect(addExtraBtn, findsOneWidget);
+
+      // Tap 'Add Extra' to open add-on prompt
+      await tester.tap(addExtraBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add Category Add-on / Extra'), findsOneWidget);
+
+      // Enter add-on name and price
+      final textFormFields = find.byType(TextFormField);
+      await tester.enterText(textFormFields.at(0), 'Extra Ice');
+      await tester.enterText(textFormFields.at(1), '10');
+
+      // Tap Add in prompt
+      await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+      await tester.pumpAndSettle();
+
+      // Extra Ice row should now be visible in dialog
+      expect(find.text('Extra Ice'), findsOneWidget);
+
+      // Save category
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+
+      // Verify controller category config has both surcharge and the new addon
+      final updatedCat = controller.getCategoryConfig('Beverages');
+      expect(updatedCat, isNotNull);
+      expect(updatedCat!.additionalCost, 5.0);
+      expect(updatedCat.costReason, 'Cup Fee');
+      expect(updatedCat.addons.length, 1);
+      expect(updatedCat.addons.first.name, 'Extra Ice');
+      expect(updatedCat.addons.first.priceDelta, 10.0);
+    });
+
+    testWidgets('CategoryEditPage shows surcharge option for category WITH variants and saves both',
+        (tester) async {
+      final storage = InMemoryStallStorage(initialMenu: [
+        const MenuItem(
+          id: '1',
+          name: 'Veg Momos',
+          price: 60,
+          category: ItemCategory(id: 'cat_momos', name: 'Steam / Fried / Pan Fried'),
+        ),
+      ]);
+      final controller = OrderController(storage: storage);
+      await controller.loadPersistedData();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => ManageCategoriesView.showAddEditCategoryPage(
+                  context,
+                  categoryName: 'Steam / Fried / Pan Fried',
+                  controller: controller,
+                  getCategoryColor: (_) => Colors.deepOrange,
+                ),
+                child: const Text('Open Page'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Page'));
+      await tester.pumpAndSettle();
+
+      // Verify options are displayed
+      expect(find.text('Steam'), findsOneWidget);
+      expect(find.text('Fried'), findsOneWidget);
+      expect(find.text('Pan Fried'), findsOneWidget);
+
+      // Verify category surcharge inputs ARE visible even though variants exist
+      expect(find.byKey(const ValueKey('category_additional_cost_input')), findsOneWidget);
+      expect(find.byKey(const ValueKey('category_cost_reason_input')), findsOneWidget);
+
+      // Enter surcharge
+      await tester.enterText(find.byKey(const ValueKey('category_additional_cost_input')), '8');
+      await tester.enterText(find.byKey(const ValueKey('category_cost_reason_input')), 'Packaging Box');
+
+      // Save changes
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+
+      final updatedConfig = controller.getCategoryConfig('Steam / Fried / Pan Fried');
+      expect(updatedConfig, isNotNull);
+      expect(updatedConfig!.additionalCost, 8.0);
+      expect(updatedConfig.costReason, 'Packaging Box');
+      expect(updatedConfig.effectiveOptions.length, 3);
     });
   });
 }

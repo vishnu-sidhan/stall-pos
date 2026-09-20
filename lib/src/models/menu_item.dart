@@ -7,10 +7,13 @@ class MenuItem {
   final String name;
   final double price;
   final ItemCategory category;
+  /// Legacy colorHex field retained for backwards-compatible JSON migration.
+  /// Color is now derived strictly from [category.color] and [resolvedColorHex].
   final int? colorHex;
   final List<String> unavailableVariants;
   final List<String> unavailableAddons;
   final ItemDietaryType? dietaryType;
+  final String? description;
 
   const MenuItem({
     required this.id,
@@ -21,6 +24,7 @@ class MenuItem {
     this.unavailableVariants = const [],
     this.unavailableAddons = const [],
     this.dietaryType,
+    this.description,
   });
 
   /// Effective list of variants/options inherited from category options.
@@ -38,7 +42,6 @@ class MenuItem {
   /// Clean display name for POS cards, order tickets, and receipts.
   String get displayName => name;
 
-
   /// Effective dietary classification, falling back to keyword inference.
   ItemDietaryType get effectiveDietaryType {
     if (dietaryType != null && dietaryType != ItemDietaryType.none) {
@@ -47,12 +50,11 @@ class MenuItem {
     return ItemDietaryType.infer(name: displayName, category: categoryName);
   }
 
-  /// Effective color hex value, resolving to the dynamic category palette if unset.
-  int get resolvedColorHex =>
-      colorHex ?? ItemCategory.getColorForCategory(displayName);
+  /// Effective color hex value, resolving to parent category color.
+  int get resolvedColorHex => category.resolvedColorHex;
 
-  /// Material [Color] representation of [resolvedColorHex].
-  Color get color => Color(resolvedColorHex);
+  /// Material [Color] representation derived strictly from parent category color.
+  Color get color => category.color;
 
   /// Display name formatted with the main category name in brackets (e.g. "Veg Momos (Momos)").
   String get displayNameWithCategory {
@@ -175,6 +177,8 @@ class MenuItem {
     bool? isAvailable,
     ItemDietaryType? dietaryType,
     bool clearDietaryType = false,
+    String? description,
+    bool clearDescription = false,
   }) {
     List<String> resolvedUnavailVars =
         unavailableVariants ?? this.unavailableVariants;
@@ -208,6 +212,7 @@ class MenuItem {
       unavailableVariants: resolvedUnavailVars,
       unavailableAddons: unavailableAddons ?? this.unavailableAddons,
       dietaryType: clearDietaryType ? null : (dietaryType ?? this.dietaryType),
+      description: clearDescription ? null : (description ?? this.description),
     );
   }
 
@@ -224,6 +229,8 @@ class MenuItem {
           'unavailableAddons': unavailableAddons,
         if (dietaryType != null && dietaryType != ItemDietaryType.none)
           'dietaryType': dietaryType!.code,
+        if (description != null && description!.trim().isNotEmpty)
+          'description': description!.trim(),
       };
 
   factory MenuItem.fromJson(Map<String, dynamic> map) {
@@ -317,6 +324,7 @@ class MenuItem {
       unavailableVariants: parsedUnavailableVariants,
       unavailableAddons: parsedUnavailableAddons,
       dietaryType: parsedDietary != ItemDietaryType.none ? parsedDietary : null,
+      description: map['description']?.toString(),
     );
   }
 

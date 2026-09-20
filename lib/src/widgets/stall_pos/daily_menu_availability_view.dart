@@ -23,11 +23,46 @@ class DailyMenuAvailabilityView extends StatefulWidget {
 class _DailyMenuAvailabilityViewState extends State<DailyMenuAvailabilityView> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String _selectedCategory = 'All';
+  ItemDietaryType? _selectedDietary;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Widget _buildDietaryFilterChip(
+    BuildContext context, {
+    Key? key,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required Color color,
+    ItemDietaryType? dietaryType,
+  }) {
+    return ChoiceChip(
+      key: key,
+      avatar: dietaryType != null
+          ? DietarySymbol(type: dietaryType, size: 12)
+          : null,
+      label: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+          fontSize: 12,
+          color: isSelected ? color : null,
+        ),
+      ),
+      selected: isSelected,
+      selectedColor: color.withAlpha(40),
+      side: BorderSide(
+        color: isSelected ? color : Colors.grey.withAlpha(80),
+        width: isSelected ? 1.5 : 1,
+      ),
+      showCheckmark: false,
+      onSelected: (_) => onTap(),
+    );
   }
 
   @override
@@ -38,12 +73,25 @@ class _DailyMenuAvailabilityViewState extends State<DailyMenuAvailabilityView> {
     return ListenableBuilder(
       listenable: widget.controller,
       builder: (context, _) {
-        final allItems = widget.controller.menu;
-        final availableCount = allItems.where((item) => item.isAvailable).length;
-        final totalCount = allItems.length;
+        final allCategoryNames = [
+          'All',
+          ...widget.controller.categories.where((c) => c.trim().toLowerCase() != 'all'),
+        ];
 
-        // Group items by category (respecting search filter via centralized helper)
-        final filteredItems = widget.controller.filterMenuItems(query: _searchQuery);
+        // Group items by category (respecting search filter, category filter, and dietary filter via centralized helper)
+        final filteredItems = widget.controller.filterMenuItems(
+          query: _searchQuery,
+          categoryId: _selectedCategory == 'All' ? null : _selectedCategory,
+          dietary: _selectedDietary ?? ItemDietaryType.none,
+        );
+        final filteredAvailableCount =
+            filteredItems.where((item) => item.isAvailable).length;
+        final filteredTotalCount = filteredItems.length;
+
+        final isFiltered = _selectedCategory != 'All' ||
+            _selectedDietary != null ||
+            _searchQuery.isNotEmpty;
+
         final Map<String, List<MenuItem>> grouped = {};
         for (final item in filteredItems) {
           final groupKey = item.categoryName;
@@ -96,6 +144,124 @@ class _DailyMenuAvailabilityViewState extends State<DailyMenuAvailabilityView> {
                   ),
                   const SizedBox(height: 10),
 
+                  // Category Filter Chips
+                  if (allCategoryNames.length > 1) ...[
+                    SizedBox(
+                      height: 36,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: allCategoryNames.length,
+                        separatorBuilder: (context, index) => const SizedBox(width: 6),
+                        itemBuilder: (context, idx) {
+                          final cat = allCategoryNames[idx];
+                          final isSelected = _selectedCategory == cat;
+                          final catColor = cat == 'All'
+                              ? theme.colorScheme.primary
+                              : widget.getCategoryColor(cat);
+                          return ChoiceChip(
+                            key: ValueKey('daily_category_filter_${cat.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}'),
+                            avatar: cat == 'All'
+                                ? null
+                                : Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: catColor,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                            label: Text(
+                              cat,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                color: isSelected ? catColor : null,
+                              ),
+                            ),
+                            selected: isSelected,
+                            selectedColor: catColor.withAlpha(40),
+                            side: BorderSide(
+                              color: isSelected ? catColor : Colors.grey.withAlpha(80),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                            showCheckmark: false,
+                            onSelected: (_) {
+                              HapticFeedback.selectionClick();
+                              setState(() => _selectedCategory = cat);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+
+                  // Dietary Type Quick Filters (All, Veg, Non-Veg)
+                  SizedBox(
+                    height: 34,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _buildDietaryFilterChip(
+                          context,
+                          key: const ValueKey('daily_dietary_filter_all'),
+                          label: 'All',
+                          isSelected: _selectedDietary == null,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _selectedDietary = null);
+                          },
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        _buildDietaryFilterChip(
+                          context,
+                          key: const ValueKey('daily_dietary_filter_veg'),
+                          label: 'Veg',
+                          isSelected: _selectedDietary == ItemDietaryType.veg,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _selectedDietary =
+                                _selectedDietary == ItemDietaryType.veg ? null : ItemDietaryType.veg);
+                          },
+                          dietaryType: ItemDietaryType.veg,
+                          color: const Color(0xFF2E7D32),
+                        ),
+                        const SizedBox(width: 6),
+                        _buildDietaryFilterChip(
+                          context,
+                          key: const ValueKey('daily_dietary_filter_non_veg'),
+                          label: 'Non-Veg',
+                          isSelected: _selectedDietary == ItemDietaryType.nonVeg,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _selectedDietary =
+                                _selectedDietary == ItemDietaryType.nonVeg ? null : ItemDietaryType.nonVeg);
+                          },
+                          dietaryType: ItemDietaryType.nonVeg,
+                          color: const Color(0xFFC62828),
+                        ),
+                        if (widget.controller.menu.any((i) => i.effectiveDietaryType == ItemDietaryType.egg)) ...[
+                          const SizedBox(width: 6),
+                          _buildDietaryFilterChip(
+                            context,
+                            key: const ValueKey('daily_dietary_filter_egg'),
+                            label: 'Egg',
+                            isSelected: _selectedDietary == ItemDietaryType.egg,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _selectedDietary =
+                                  _selectedDietary == ItemDietaryType.egg ? null : ItemDietaryType.egg);
+                            },
+                            dietaryType: ItemDietaryType.egg,
+                            color: const Color(0xFFE65100),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
                   // Availability badge & Batch toggles
                   Row(
                     children: [
@@ -105,60 +271,80 @@ class _DailyMenuAvailabilityViewState extends State<DailyMenuAvailabilityView> {
                           vertical: 5,
                         ),
                         decoration: BoxDecoration(
-                          color: availableCount == totalCount
+                          color: filteredAvailableCount == filteredTotalCount && filteredTotalCount > 0
                               ? Colors.green.withAlpha(25)
-                              : (availableCount == 0
+                              : (filteredAvailableCount == 0
                                   ? Colors.red.withAlpha(25)
                                   : theme.colorScheme.primaryContainer.withAlpha(60)),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: availableCount == totalCount
-                                ? Colors.green.withAlpha(120)
-                                : (availableCount == 0
-                                    ? Colors.red.withAlpha(120)
-                                    : theme.colorScheme.primary.withAlpha(100)),
+                            color: filteredAvailableCount == filteredTotalCount && filteredTotalCount > 0
+                              ? Colors.green.withAlpha(120)
+                              : (filteredAvailableCount == 0
+                                  ? Colors.red.withAlpha(120)
+                                  : theme.colorScheme.primary.withAlpha(100)),
                           ),
                         ),
                         child: Text(
-                          '$availableCount / $totalCount Active',
+                          '$filteredAvailableCount / $filteredTotalCount Active',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: availableCount == totalCount
+                            color: filteredAvailableCount == filteredTotalCount && filteredTotalCount > 0
                                 ? Colors.green.shade800
-                                : (availableCount == 0
+                                : (filteredAvailableCount == 0
                                     ? Colors.red.shade800
                                     : theme.colorScheme.primary),
                           ),
                         ),
                       ),
                       const Spacer(),
-                      TextButton.icon(
-                        key: const ValueKey('enable_all_items_btn'),
-                        onPressed: () {
-                          HapticFeedback.selectionClick();
-                          widget.controller.setAllItemsAvailability(true);
-                        },
-                        icon: const Icon(Icons.check_circle_outline, size: 16),
-                        label: const Text('Enable All'),
-                        style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                      Tooltip(
+                        message: isFiltered
+                            ? 'Enable all filtered items (${filteredItems.length})'
+                            : 'Enable all menu items',
+                        child: TextButton.icon(
+                          key: const ValueKey('enable_all_items_btn'),
+                          onPressed: filteredItems.isEmpty
+                              ? null
+                              : () {
+                                  HapticFeedback.selectionClick();
+                                  widget.controller.setItemsAvailability(
+                                    filteredItems.map((e) => e.id),
+                                    true,
+                                  );
+                                },
+                          icon: const Icon(Icons.check_circle_outline, size: 16),
+                          label: const Text('Enable All'),
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 4),
-                      TextButton.icon(
-                        key: const ValueKey('disable_all_items_btn'),
-                        onPressed: () {
-                          HapticFeedback.selectionClick();
-                          widget.controller.setAllItemsAvailability(false);
-                        },
-                        icon: const Icon(Icons.remove_circle_outline, size: 16),
-                        label: const Text('Disable All'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: theme.colorScheme.error,
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                      Tooltip(
+                        message: isFiltered
+                            ? 'Disable all filtered items (${filteredItems.length})'
+                            : 'Disable all menu items',
+                        child: TextButton.icon(
+                          key: const ValueKey('disable_all_items_btn'),
+                          onPressed: filteredItems.isEmpty
+                              ? null
+                              : () {
+                                  HapticFeedback.selectionClick();
+                                  widget.controller.setItemsAvailability(
+                                    filteredItems.map((e) => e.id),
+                                    false,
+                                  );
+                                },
+                          icon: const Icon(Icons.remove_circle_outline, size: 16),
+                          label: const Text('Disable All'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: theme.colorScheme.error,
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
                         ),
                       ),
                     ],
@@ -267,7 +453,7 @@ class _DailyMenuAvailabilityViewState extends State<DailyMenuAvailabilityView> {
                                     onChanged: (bool val) {
                                       HapticFeedback.lightImpact();
                                       widget.controller
-                                          .setCategoryAvailability(category, val);
+                                          .setItemsAvailability(items.map((e) => e.id), val);
                                     },
                                   ),
                                 ),

@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:counter_app/counter_app.dart';
+import 'package:counter_app/stall_pos.dart';
+import 'package:counter_app/src/storage/app_storage.dart';
 
 void main() {
   setUp(() {

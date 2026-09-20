@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../controllers/order_controller.dart';
 import '../../models/stall_models.dart';
 import 'category_accordion_card.dart';
+import 'dietary_symbol.dart';
 import 'menu_item_card.dart';
 
 /// The primary Take Order Panel for the POS screen, containing the category selector,
@@ -137,6 +138,46 @@ class TakeOrderPanel extends StatelessWidget {
                   ),
                 );
               },
+            ),
+          ),
+
+          // Dietary Type Quick Filters (All, Veg, Non-Veg)
+          SizedBox(
+            height: 38,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              children: [
+                _buildDietaryFilterChip(
+                  context,
+                  label: 'All',
+                  isSelected: controller.selectedDietaryType == null,
+                  onTap: () => controller.selectDietary(null),
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                _buildDietaryFilterChip(
+                  context,
+                  label: 'Veg',
+                  isSelected: controller.selectedDietaryType == ItemDietaryType.veg,
+                  onTap: () => controller.selectDietary(
+                    controller.selectedDietaryType == ItemDietaryType.veg ? null : ItemDietaryType.veg,
+                  ),
+                  dietaryType: ItemDietaryType.veg,
+                  color: const Color(0xFF2E7D32),
+                ),
+                const SizedBox(width: 8),
+                _buildDietaryFilterChip(
+                  context,
+                  label: 'Non-Veg',
+                  isSelected: controller.selectedDietaryType == ItemDietaryType.nonVeg,
+                  onTap: () => controller.selectDietary(
+                    controller.selectedDietaryType == ItemDietaryType.nonVeg ? null : ItemDietaryType.nonVeg,
+                  ),
+                  dietaryType: ItemDietaryType.nonVeg,
+                  color: const Color(0xFFC62828),
+                ),
+              ],
             ),
           ),
 
@@ -702,6 +743,37 @@ class TakeOrderPanel extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDietaryFilterChip(
+    BuildContext context, {
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required Color color,
+    ItemDietaryType? dietaryType,
+  }) {
+    return ChoiceChip(
+      avatar: dietaryType != null
+          ? DietarySymbol(type: dietaryType, size: 12)
+          : null,
+      label: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+          fontSize: 12,
+          color: isSelected ? color : null,
+        ),
+      ),
+      selected: isSelected,
+      selectedColor: color.withAlpha(40),
+      side: BorderSide(
+        color: isSelected ? color : Colors.grey.withAlpha(80),
+        width: isSelected ? 1.5 : 1,
+      ),
+      showCheckmark: false,
+      onSelected: (_) => onTap(),
     );
   }
 }

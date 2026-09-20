@@ -4,11 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:counter_app/src/controllers/counter_controller.dart';
 import 'package:counter_app/src/storage/stall_storage_service.dart';
-import 'package:counter_app/src/storage/app_storage.dart';
 import 'package:counter_app/main.dart';
 import 'package:counter_app/src/models/stall_models.dart';
 import 'package:counter_app/src/controllers/order_controller.dart';
-import 'package:counter_app/src/widgets/stall_pos/category_config_dialog.dart';
+import 'package:counter_app/src/widgets/stall_pos/manage_categories_view.dart';
 import 'package:counter_app/src/widgets/stall_pos/daily_menu_availability_view.dart';
 
 void main() {
@@ -313,6 +312,8 @@ void main() {
       // Toggle off Veg Samosa
       final samosaSwitch = find.byKey(const ValueKey('item_switch_snack_1'));
       expect(samosaSwitch, findsOneWidget);
+      await tester.ensureVisible(samosaSwitch);
+      await tester.pumpAndSettle();
       await tester.tap(samosaSwitch);
       await tester.pumpAndSettle();
 
@@ -528,7 +529,7 @@ void main() {
             builder: (context) => Scaffold(
               body: Center(
                 child: ElevatedButton(
-                  onPressed: () => CategoryConfigDialog.show(
+                  onPressed: () => ManageCategoriesView.showAddEditCategoryDialog(
                     context,
                     categoryName: 'Rice / Noodles',
                     controller: controller,
@@ -650,6 +651,193 @@ void main() {
       // chicken_momo still has Fried available!
       expect(chickenAfterCat.effectiveVariants.firstWhere((v) => v.name == 'Fried').isAvailable, isTrue);
       expect(chickenAfterCat.isAvailable, isTrue);
+    });
+    testWidgets('DailyMenuAvailabilityDialog batch toggle buttons only affect filtered items and category',
+        (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({
+        'stall_menu': jsonEncode([
+          {
+            'id': 'bev_1',
+            'name': 'Masala Chai',
+            'price': 20.0,
+            'category': 'Beverages',
+            'isAvailable': true,
+          },
+          {
+            'id': 'bev_2',
+            'name': 'Filter Coffee',
+            'price': 25.0,
+            'category': 'Beverages',
+            'isAvailable': true,
+          },
+          {
+            'id': 'snack_1',
+            'name': 'Veg Samosa',
+            'price': 15.0,
+            'category': 'Snacks',
+            'isAvailable': true,
+          },
+        ]),
+        'stall_categories': jsonEncode([
+          {'id': 'cat_bev', 'name': 'Beverages'},
+          {'id': 'cat_snack', 'name': 'Snacks'},
+        ]),
+        'stall_orders': jsonEncode([]),
+        'stall_next_token': 1,
+      });
+
+      final testCtrl = OrderController(storage: StallStorageService());
+      await testCtrl.loadPersistedData();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => DailyMenuAvailabilityDialog.show(
+                  context,
+                  controller: testCtrl,
+                  getCategoryColor: (_) => Colors.blue,
+                ),
+                child: const Text('Open Availability'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Availability'));
+      await tester.pumpAndSettle();
+
+      // Filter by search query 'Samosa'
+      final searchField = find.byType(TextField).first;
+      await tester.enterText(searchField, 'Samosa');
+      await tester.pumpAndSettle();
+
+      // Tap Disable All while filtered to 'Samosa'
+      final disableBtn = find.byKey(const ValueKey('disable_all_items_btn'));
+      await tester.tap(disableBtn);
+      await tester.pumpAndSettle();
+
+      // snack_1 should be disabled, but beverages should remain untouched (true)
+      expect(testCtrl.findItem('snack_1').isAvailable, isFalse);
+      expect(testCtrl.findItem('bev_1').isAvailable, isTrue);
+      expect(testCtrl.findItem('bev_2').isAvailable, isTrue);
+
+      // Clear search
+      await tester.enterText(searchField, '');
+      await tester.pumpAndSettle();
+
+      // Now filter by category chip 'Beverages'
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Beverages'));
+      await tester.pumpAndSettle();
+
+      // Disable filtered (Beverages)
+      await tester.tap(disableBtn);
+      await tester.pumpAndSettle();
+
+      expect(testCtrl.findItem('bev_1').isAvailable, isFalse);
+      expect(testCtrl.findItem('bev_2').isAvailable, isFalse);
+      expect(testCtrl.findItem('snack_1').isAvailable, isFalse);
+
+      // Enable filtered (Beverages)
+      final enableBtn = find.byKey(const ValueKey('enable_all_items_btn'));
+      await tester.tap(enableBtn);
+      await tester.pumpAndSettle();
+
+      // Beverages re-enabled, Snacks still disabled
+      expect(testCtrl.findItem('bev_1').isAvailable, isTrue);
+      expect(testCtrl.findItem('bev_2').isAvailable, isTrue);
+      expect(testCtrl.findItem('snack_1').isAvailable, isFalse);
+    });
+
+    testWidgets('DailyMenuAvailabilityView displays single All category chip and dietary filter chips',
+        (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({
+        'stall_menu': jsonEncode([
+          {
+            'id': 'item_veg_1',
+            'name': 'Paneer Roll',
+            'price': 100.0,
+            'category': 'Rolls',
+            'dietaryType': 'veg',
+            'isAvailable': true,
+          },
+          {
+            'id': 'item_nonveg_1',
+            'name': 'Chicken Roll',
+            'price': 120.0,
+            'category': 'Rolls',
+            'dietaryType': 'non_veg',
+            'isAvailable': true,
+          },
+        ]),
+        'stall_categories': jsonEncode([
+          {'id': 'cat_rolls', 'name': 'Rolls'},
+        ]),
+      });
+      final testCtrl = OrderController(storage: StallStorageService());
+      await testCtrl.loadPersistedData();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DailyMenuAvailabilityView(
+              controller: testCtrl,
+              getCategoryColor: (_) => Colors.green,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Check category filter chips: Exactly one Category 'All' chip
+      final allCategoryChip = find.byKey(const ValueKey('daily_category_filter_All'));
+      expect(allCategoryChip, findsOneWidget);
+
+      // Check Dietary filter chips exist
+      final allDietaryChip = find.byKey(const ValueKey('daily_dietary_filter_all'));
+      final vegDietaryChip = find.byKey(const ValueKey('daily_dietary_filter_veg'));
+      final nonVegDietaryChip = find.byKey(const ValueKey('daily_dietary_filter_non_veg'));
+      expect(allDietaryChip, findsOneWidget);
+      expect(vegDietaryChip, findsOneWidget);
+      expect(nonVegDietaryChip, findsOneWidget);
+
+      // Initially both items are visible
+      expect(find.text('Paneer Roll'), findsOneWidget);
+      expect(find.text('Chicken Roll'), findsOneWidget);
+
+      // Tap 'Veg' dietary chip
+      await tester.tap(vegDietaryChip);
+      await tester.pumpAndSettle();
+
+      // Only Paneer Roll should be visible
+      expect(find.text('Paneer Roll'), findsOneWidget);
+      expect(find.text('Chicken Roll'), findsNothing);
+
+      // Tap 'Disable All' while filtered to Veg
+      final disableBtn = find.byKey(const ValueKey('disable_all_items_btn'));
+      await tester.tap(disableBtn);
+      await tester.pumpAndSettle();
+
+      // Paneer Roll disabled, Chicken Roll remains available
+      expect(testCtrl.findItem('item_veg_1').isAvailable, isFalse);
+      expect(testCtrl.findItem('item_nonveg_1').isAvailable, isTrue);
+
+      // Tap 'Non-Veg' dietary chip
+      await tester.tap(nonVegDietaryChip);
+      await tester.pumpAndSettle();
+
+      // Only Chicken Roll should be visible
+      expect(find.text('Chicken Roll'), findsOneWidget);
+      expect(find.text('Paneer Roll'), findsNothing);
+
+      // Reset dietary filter to All
+      await tester.tap(allDietaryChip);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Paneer Roll'), findsOneWidget);
+      expect(find.text('Chicken Roll'), findsOneWidget);
     });
   });
 }

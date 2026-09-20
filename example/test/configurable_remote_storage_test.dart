@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:counter_app/counter_app.dart';
+import 'package:counter_app/stall_pos.dart';
 import 'package:counter_app_example/configurable_remote_storage.dart';
 import 'package:counter_app_example/remote_storage_config_dialog.dart';
 import 'package:counter_app_example/main.dart';

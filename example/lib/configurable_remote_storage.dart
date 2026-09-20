@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:counter_app/counter_app.dart';
+import 'package:counter_app/stall_pos.dart';
 
 /// Configurable remote storage adapter implementing [StallStorage].
 ///
