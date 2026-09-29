@@ -378,4 +378,32 @@ class ConfigurableRemoteStorage implements StallStorage {
       await fallbackStorage.savePredefinedNotes(notes);
     }
   }
+
+  @override
+  bool get autoAddSingleVariant => fallbackStorage.autoAddSingleVariant;
+
+  @override
+  Future<void> setAutoAddSingleVariant(bool value) async {
+    if (enableOfflineCache) {
+      await fallbackStorage.setAutoAddSingleVariant(value);
+    }
+  }
+
+  @override
+  bool get splitVariantsAsCategories => fallbackStorage.splitVariantsAsCategories;
+
+  @override
+  Future<void> setSplitVariantsAsCategories(bool value) async {
+    if (enableOfflineCache) {
+      await fallbackStorage.setSplitVariantsAsCategories(value);
+    }
+  }
+
+  @override
+  bool get explodeSingleCategory => splitVariantsAsCategories;
+
+  @override
+  Future<void> setExplodeSingleCategory(bool value) async {
+    await setSplitVariantsAsCategories(value);
+  }
 }

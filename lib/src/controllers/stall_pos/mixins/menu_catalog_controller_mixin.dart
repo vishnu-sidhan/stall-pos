@@ -40,6 +40,18 @@ mixin MenuCatalogControllerMixin on ChangeNotifier {
     _menu.where((m) => m.isEffectivelyAvailable).map(hydrateMenuItemCategory),
   );
 
+  /// List of distinct category names that currently have available items today.
+  List<String> get availableCategories {
+    final set = <String>{};
+    for (final item in availableMenu) {
+      final cat = item.categoryName.trim().isEmpty
+          ? 'General'
+          : item.categoryName.trim();
+      set.add(cat);
+    }
+    return set.toList();
+  }
+
   /// Sets loaded menu from storage during initialization.
   @protected
   void setLoadedMenu(List<MenuItem> loaded) {

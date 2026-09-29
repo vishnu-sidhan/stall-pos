@@ -335,3 +335,40 @@ class MenuItem {
   @override
   int get hashCode => id.hashCode;
 }
+
+/// A synthetic [MenuItem] representing an item bound to a specific [CategoryOption] variant.
+/// Used when decomposing a single category into variant-based accordion sections.
+class VariantBoundMenuItem extends MenuItem {
+  final MenuItem originalItem;
+  final CategoryOption? targetVariant;
+
+  VariantBoundMenuItem({
+    required this.originalItem,
+    required this.targetVariant,
+    ItemCategory? category,
+  }) : super(
+          id: targetVariant != null
+              ? '${originalItem.id}_bound_${targetVariant.name.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}'
+              : '${originalItem.id}_bound_standard',
+          name: originalItem.name,
+          price: originalItem.priceForVariant(targetVariant),
+          category: category ?? originalItem.category,
+          dietaryType: originalItem.dietaryType,
+          description: originalItem.description,
+          unavailableVariants: originalItem.unavailableVariants,
+          unavailableAddons: originalItem.unavailableAddons,
+        );
+
+  @override
+  ItemDietaryType get effectiveDietaryType => originalItem.effectiveDietaryType;
+
+  @override
+  bool get isAvailable {
+    if (!originalItem.isAvailable) return false;
+    if (targetVariant != null) {
+      return targetVariant!.isAvailable;
+    }
+    return true;
+  }
+}
+

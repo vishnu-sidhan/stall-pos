@@ -7,6 +7,11 @@ import 'package:counter_app/src/views/stall_pos_view.dart';
 import 'package:counter_app/src/theme/app_theme.dart';
 import 'package:counter_app/src/models/stall_models.dart';
 import 'package:counter_app/src/widgets/stall_pos/unified_item_customizer_sheet.dart';
+import 'package:counter_app/src/controllers/order_controller.dart';
+import 'package:counter_app/src/storage/stall_storage_service.dart';
+import 'package:counter_app/src/widgets/stall_pos/take_order_panel.dart';
+import 'package:counter_app/src/widgets/stall_pos/category_accordion_card.dart';
+import 'package:counter_app/src/views/store_management_view.dart';
 
 void main() {
   setUp(() {
@@ -566,6 +571,7 @@ void main() {
         ]),
         'stall_orders': jsonEncode([]),
         'stall_next_token': 101,
+        'stall_explode_single_category': false,
       });
 
       await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
@@ -628,6 +634,7 @@ void main() {
         ]),
         'stall_orders': jsonEncode([]),
         'stall_next_token': 101,
+        'stall_explode_single_category': false,
       });
 
       await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
@@ -716,6 +723,7 @@ void main() {
         ]),
         'stall_orders': jsonEncode([]),
         'stall_next_token': 101,
+        'stall_explode_single_category': false,
       });
 
       await tester.pumpWidget(const MaterialApp(home: StallPosScreen()));
@@ -1174,6 +1182,7 @@ void main() {
       });
 
       SharedPreferences.setMockInitialValues({
+        'stall_explode_single_category': false,
         'stall_menu': jsonEncode([
           {
             'id': 'item_burger',
@@ -1560,6 +1569,255 @@ void main() {
       expect(find.text('PUNCH ORDER (#1) • ₹40'), findsOneWidget);
     },
   );
+
+  group('POS Counter UX & Ordering Preferences', () {
+    testWidgets(
+      'Single-variant item: taps directly add to cart when autoAddSingleVariant is true, opens customizer when false or on long-press',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        SharedPreferences.setMockInitialValues({
+          'stall_auto_add_single_variant': true,
+          'stall_explode_single_category': false,
+          'stall_menu': jsonEncode([
+            {
+              'id': 'item_coffee',
+              'name': 'Filter Coffee',
+              'price': 30.0,
+              'category': 'Coffee',
+              'options': [
+                {'name': 'Standard', 'priceDelta': 0.0, 'isAvailable': true}
+              ],
+            },
+            {
+              'id': 'item_tea',
+              'name': 'Ginger Tea',
+              'price': 20.0,
+              'category': 'Tea',
+              'options': [
+                {'name': 'Cutting', 'priceDelta': 0.0, 'isAvailable': true},
+                {'name': 'Full', 'priceDelta': 10.0, 'isAvailable': true}
+              ],
+            },
+          ]),
+          'stall_orders': jsonEncode([]),
+          'stall_next_token': 1,
+        });
+
+        final controller = OrderController(storage: StallStorageService());
+        await controller.loadPersistedData();
+
+        await tester.pumpWidget(MaterialApp(
+          home: StallPosScreen(controller: controller),
+        ));
+        await tester.pumpAndSettle();
+
+        // 1. Filter Coffee has 1 variant and no addons.
+        // With autoAddSingleVariant == true, tapping it adds it directly to cart without opening UnifiedItemCustomizerSheet.
+        expect(controller.autoAddSingleVariant, isTrue);
+        await tester.tap(find.text('Filter Coffee').first);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(UnifiedItemCustomizerSheet), findsNothing);
+        expect(controller.cartTotal, 30.0);
+        expect(controller.cartCount, 1);
+
+        // 2. Long-pressing the 1-variant card opens UnifiedItemCustomizerSheet.
+        await tester.longPress(find.text('Filter Coffee').first);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+        // Dismiss customizer sheet
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pumpAndSettle();
+        expect(find.byType(UnifiedItemCustomizerSheet), findsNothing);
+
+        // 3. Toggle autoAddSingleVariant to false
+        await controller.setAutoAddSingleVariant(false);
+        await tester.pumpAndSettle();
+        expect(controller.autoAddSingleVariant, isFalse);
+
+        // Tapping 1-variant item now opens UnifiedItemCustomizerSheet instead of bypassing
+        await tester.tap(find.text('Filter Coffee').first);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+        // Dismiss customizer sheet
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pumpAndSettle();
+
+        // 4. Verify multi-variant item (Ginger Tea) always opens customizer even when autoAddSingleVariant is true
+        await controller.setAutoAddSingleVariant(true);
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Ginger Tea').first);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Exploded view: single category flattens variants into separate cards when enabled, restores accordion when disabled, and multi-category never explodes',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        SharedPreferences.setMockInitialValues({
+          'stall_explode_single_category': true,
+          'stall_menu': jsonEncode([
+            {
+              'id': 'item_shake',
+              'name': 'Mango Shake',
+              'price': 60.0,
+              'category': 'Shakes',
+              'options': [
+                {'name': 'Regular', 'priceDelta': 0.0, 'isAvailable': true},
+                {'name': 'Large', 'priceDelta': 20.0, 'isAvailable': true},
+              ],
+            },
+            {
+              'id': 'item_water',
+              'name': 'Bottled Water',
+              'price': 20.0,
+              'category': 'Shakes',
+              'unavailableVariants': ['Regular', 'Large'],
+            },
+          ]),
+          'stall_orders': jsonEncode([]),
+          'stall_next_token': 1,
+        });
+
+        final controller = OrderController(storage: StallStorageService());
+        await controller.loadPersistedData();
+
+        await tester.pumpWidget(MaterialApp(
+          home: StallPosScreen(controller: controller),
+        ));
+        await tester.pumpAndSettle();
+
+        // 1. Single active category ('Shakes') with splitVariantsAsCategories == true:
+        // Variants are split into CategoryAccordionCard for each variant + Standard
+        expect(find.widgetWithText(CategoryAccordionCard, 'Regular'), findsOneWidget);
+        expect(find.widgetWithText(CategoryAccordionCard, 'Large'), findsOneWidget);
+        expect(find.widgetWithText(CategoryAccordionCard, 'Standard'), findsOneWidget);
+
+        // Tapping Large shake directly adds it with variant (₹60 + ₹20 = ₹80)
+        final largeAccordion = find.widgetWithText(CategoryAccordionCard, 'Large');
+        await tester.tap(find.descendant(of: largeAccordion, matching: find.text('Mango Shake')));
+        await tester.pumpAndSettle();
+        expect(controller.cartTotal, 80.0);
+        expect(controller.cartCount, 1);
+
+        // Long press on card opens UnifiedItemCustomizerSheet
+        await tester.longPress(find.text('Bottled Water'));
+        await tester.pumpAndSettle();
+        expect(find.byType(UnifiedItemCustomizerSheet), findsOneWidget);
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pumpAndSettle();
+
+        // 2. Toggle explodeSingleCategory to false: restores single parent CategoryAccordionCard
+        await controller.setExplodeSingleCategory(false);
+        await tester.pumpAndSettle();
+
+        expect(find.widgetWithText(CategoryAccordionCard, 'Shakes'), findsOneWidget);
+
+        // 3. Multi-category menu never renders in exploded mode regardless of toggle state
+        await controller.setExplodeSingleCategory(true);
+        controller.setMenu([
+          MenuItem.fromJson({
+            'id': 'item_1',
+            'name': 'Mango Shake',
+            'price': 60.0,
+            'category': 'Beverages',
+            'options': [
+              {'id': 'v1', 'name': 'Regular', 'priceDelta': 0.0, 'isEnabled': true},
+              {'id': 'v2', 'name': 'Large', 'priceDelta': 20.0, 'isEnabled': true},
+            ],
+          }),
+          MenuItem.fromJson({
+            'id': 'item_2',
+            'name': 'French Fries',
+            'price': 50.0,
+            'category': 'Snacks',
+          }),
+        ]);
+        await tester.pumpAndSettle();
+
+        expect(controller.categories.where((c) => c != 'All').length, greaterThan(1));
+        expect(find.byType(CategoryAccordionCard), findsWidgets);
+        expect(find.byType(ExplodedVariantCard), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'Store Management: Counter UX toggles reactively update and persist autoAddSingleVariant and explodeSingleCategory',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        SharedPreferences.setMockInitialValues({
+          'stall_auto_add_single_variant': true,
+          'stall_explode_single_category': true,
+          'stall_menu': jsonEncode([]),
+          'stall_orders': jsonEncode([]),
+        });
+
+        final controller = OrderController(storage: StallStorageService());
+        await controller.loadPersistedData();
+
+        await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+            body: StoreManagementView(
+              controller: controller,
+              initialTabIndex: 3, // History & Tools tab
+            ),
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        // Verify Counter UX card is present
+        expect(find.text('Counter UX & Ordering'), findsOneWidget);
+
+        // Toggle "Auto-add single variant"
+        final autoAddTile = find.widgetWithText(
+          SwitchListTile,
+          'Auto-add single variant',
+        );
+        expect(autoAddTile, findsOneWidget);
+        expect(controller.autoAddSingleVariant, isTrue);
+
+        await tester.tap(autoAddTile);
+        await tester.pumpAndSettle();
+        expect(controller.autoAddSingleVariant, isFalse);
+
+        // Toggle "Group variants as categories (Single category)"
+        final splitTile = find.widgetWithText(
+          SwitchListTile,
+          'Group variants as categories (Single category)',
+        );
+        expect(splitTile, findsOneWidget);
+        expect(controller.splitVariantsAsCategories, isTrue);
+
+        await tester.tap(splitTile);
+        await tester.pumpAndSettle();
+        expect(controller.splitVariantsAsCategories, isFalse);
+      },
+    );
+  });
 }
 
 

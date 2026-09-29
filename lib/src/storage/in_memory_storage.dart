@@ -135,6 +135,34 @@ class InMemoryStorage implements StallStorage, CounterStorage {
     _predefinedNotes = List.from(notes);
   }
 
+  bool _autoAddSingleVariant = true;
+  bool _splitVariantsAsCategories = true;
+
+  @override
+  bool get autoAddSingleVariant => _autoAddSingleVariant;
+
+  @override
+  Future<void> setAutoAddSingleVariant(bool value) async {
+    _autoAddSingleVariant = value;
+  }
+
+  @override
+  bool get splitVariantsAsCategories => _splitVariantsAsCategories;
+
+  @override
+  Future<void> setSplitVariantsAsCategories(bool value) async {
+    _splitVariantsAsCategories = value;
+  }
+
+  @override
+  bool get explodeSingleCategory => _splitVariantsAsCategories;
+
+  @override
+  Future<void> setExplodeSingleCategory(bool value) async {
+    _splitVariantsAsCategories = value;
+  }
+
+
   // ---------------------------------------------------------------------------
   // CounterStorage Implementation
   // ---------------------------------------------------------------------------

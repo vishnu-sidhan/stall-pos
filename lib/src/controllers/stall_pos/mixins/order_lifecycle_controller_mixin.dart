@@ -13,7 +13,11 @@ mixin OrderLifecycleControllerMixin on ChangeNotifier {
   Map<String, int> get cart;
   double get cartTotal;
   void clearCart();
-  void addToCart(dynamic item, [int quantity = 1]);
+  void addToCart(
+    dynamic item, {
+    int quantity = 1,
+    CategoryOption? selectedVariant,
+  });
   void removeFromCart(String itemId);
   MenuItem findItem(String id);
   MenuItem? findBaseMenuItem(String key);
@@ -135,7 +139,7 @@ mixin OrderLifecycleControllerMixin on ChangeNotifier {
 
   /// Adds a specific [OrderItem] to the cart.
   void addOrderItemToCart(OrderItem orderItem) {
-    addToCart(orderItem, orderItem.quantity);
+    addToCart(orderItem, quantity: orderItem.quantity);
   }
 
   /// Removes an [OrderItem] line from the cart.
@@ -161,7 +165,7 @@ mixin OrderLifecycleControllerMixin on ChangeNotifier {
 
     if (order.items.isNotEmpty) {
       for (final item in order.items) {
-        addToCart(item, item.quantity);
+        addToCart(item, quantity: item.quantity);
       }
     } else if (order.itemsSummary.isNotEmpty) {
       final parts = order.itemsSummary.split(',');
@@ -176,7 +180,7 @@ mixin OrderLifecycleControllerMixin on ChangeNotifier {
             orElse: () => const MenuItem(id: '', name: '', price: 0),
           );
           if (found.id.isNotEmpty) {
-            addToCart(found, qty);
+            addToCart(found, quantity: qty);
           }
         }
       }

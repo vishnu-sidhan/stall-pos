@@ -110,7 +110,12 @@ class _StallPosViewState extends State<StallPosView>
   }
 
   void _handleMenuItemTap(MenuItem item) {
-    HapticFeedback.selectionClick();
+    if (item is VariantBoundMenuItem) {
+      HapticFeedback.lightImpact();
+      final hydrated = _controller.hydrateMenuItemCategory(item.originalItem);
+      _controller.addToCart(hydrated, selectedVariant: item.targetVariant);
+      return;
+    }
 
     // 1. Check if item or all variants are available today
     if (!item.isEffectivelyAvailable) {
@@ -130,24 +135,37 @@ class _StallPosViewState extends State<StallPosView>
       return;
     }
 
-    // 2. Check if item has customizations (category variants or item addons)
+    final hydrated = _controller.hydrateMenuItemCategory(item);
+    final activeVariants =
+        hydrated.effectiveVariants.where((v) => v.isAvailable).toList();
+
+    // 2. Check if auto-add single variant condition is met
+    if (_controller.autoAddSingleVariant &&
+        activeVariants.length == 1 &&
+        hydrated.availableAddons.isEmpty) {
+      HapticFeedback.lightImpact();
+      _controller.addToCart(hydrated, selectedVariant: activeVariants.first);
+      return;
+    }
+
+    // 3. Check if item has customizations (category variants or item addons)
     final categoryOptions = item.category.options.isNotEmpty
         ? item.category.options
         : (_controller.getCategoryConfig(item.categoryName)?.options ?? const <CategoryOption>[]);
     final hasVariants = item.hasVariants || categoryOptions.isNotEmpty;
-    final hasAddons = item.availableAddons.isNotEmpty;
+    final hasAddons = hydrated.availableAddons.isNotEmpty;
 
     if (hasVariants || hasAddons) {
       UnifiedItemCustomizerSheet.show(
         context,
-        item: item,
+        item: hydrated,
         controller: _controller,
         getCategoryColor: _getCategoryColor,
       );
       return;
     }
 
-    // 3. Regular item without customizations: Direct 1-tap ordering
+    // 4. Regular item without customizations: Direct 1-tap ordering
     _addToCart(item);
   }
 
@@ -974,7 +992,21 @@ class _StallPosViewState extends State<StallPosView>
         directPaymentMethod: directPaymentMethod,
       ),
       onMenuItemTap: _handleMenuItemTap,
-      onMenuItemLongPress: null,
+      onMenuItemLongPress: (item) {
+        final original = (item is VariantBoundMenuItem) ? item.originalItem : item;
+        final targetVar = (item is VariantBoundMenuItem) ? item.targetVariant : null;
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (_) => UnifiedItemCustomizerSheet(
+            item: _controller.hydrateMenuItemCategory(original),
+            controller: _controller,
+            getCategoryColor: _getCategoryColor,
+            initialSelectedVariant: targetVar,
+          ),
+        );
+      },
     );
   }
 

@@ -10,8 +10,8 @@ import 'dietary_symbol.dart';
 /// and cart re-editing with real-time price calculation.
 class UnifiedItemCustomizerSheet extends StatefulWidget {
   final MenuItem item;
-  final OrderController controller;
-  final Color Function(String category) getCategoryColor;
+  final OrderController? controller;
+  final Color Function(String category)? getCategoryColor;
   final String buttonLabel;
   final String? initialCartItemId;
   final CategoryOption? initialSelectedVariant;
@@ -22,8 +22,8 @@ class UnifiedItemCustomizerSheet extends StatefulWidget {
   const UnifiedItemCustomizerSheet({
     super.key,
     required this.item,
-    required this.controller,
-    required this.getCategoryColor,
+    this.controller,
+    this.getCategoryColor,
     this.buttonLabel = 'Add to Cart',
     this.initialCartItemId,
     this.initialSelectedVariant,
@@ -35,8 +35,8 @@ class UnifiedItemCustomizerSheet extends StatefulWidget {
   static Future<void> show(
     BuildContext context, {
     required MenuItem item,
-    required OrderController controller,
-    required Color Function(String category) getCategoryColor,
+    OrderController? controller,
+    Color Function(String category)? getCategoryColor,
     String? buttonLabel,
     String? initialCartItemId,
     CategoryOption? initialSelectedVariant,
@@ -113,9 +113,18 @@ class _UnifiedItemCustomizerSheetState
     }
   }
 
+  OrderController get _controller => widget.controller ?? OrderController();
+
+  Color _resolveCategoryColor(String category) {
+    if (widget.getCategoryColor != null) {
+      return widget.getCategoryColor!(category);
+    }
+    return _controller.getCategoryColor(category);
+  }
+
   double get _currentUnitPrice {
     final basePrice = widget.item.priceForVariant(_selectedVariant);
-    final catCost = widget.controller.getCategoryCost(widget.item.categoryName);
+    final catCost = _controller.getCategoryCost(widget.item.categoryName);
 
     double addonsTotal = 0.0;
     for (final addon in _addons) {
@@ -142,7 +151,7 @@ class _UnifiedItemCustomizerSheetState
     HapticFeedback.mediumImpact();
 
     if (widget.initialCartItemId != null) {
-      widget.controller.removeFromCart(widget.initialCartItemId!);
+      _controller.removeFromCart(widget.initialCartItemId!);
     }
 
     final selectedAddonsList = <CategoryOption>[];
@@ -153,7 +162,7 @@ class _UnifiedItemCustomizerSheetState
       }
     }
 
-    widget.controller.addCustomizedItemToCart(
+    _controller.addCustomizedItemToCart(
       baseItem: widget.item,
       selectedVariant: _selectedVariant,
       selectedAddons: selectedAddonsList,
@@ -169,7 +178,7 @@ class _UnifiedItemCustomizerSheetState
     final theme = Theme.of(context);
     final itemColor = widget.item.colorHex != null
         ? Color(widget.item.colorHex!)
-        : widget.getCategoryColor(widget.item.categoryName);
+        : _resolveCategoryColor(widget.item.categoryName);
 
     return Container(
       constraints: BoxConstraints(

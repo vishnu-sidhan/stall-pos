@@ -25,11 +25,44 @@ class OrderController extends ChangeNotifier
   static const int maxPerAddonItem = CartControllerMixin.maxPerAddonItem;
   static const int maxAddonsPerItem = maxPerAddonItem;
 
+  bool _autoAddSingleVariant = true;
+  bool _splitVariantsAsCategories = true;
+
   OrderController({StallStorage? storage})
-      : _storageService = storage ?? InMemoryStorage();
+      : _storageService = storage ?? InMemoryStorage() {
+    _autoAddSingleVariant = _storageService.autoAddSingleVariant;
+    _splitVariantsAsCategories = _storageService.splitVariantsAsCategories;
+  }
 
   StallStorage get storage => _storageService;
   StallStorage get storageService => _storageService;
+
+  /// Whether single-variant items are added to the cart directly on tap without the sheet.
+  bool get autoAddSingleVariant => _autoAddSingleVariant;
+
+  /// Updates and persists the autoAddSingleVariant setting.
+  Future<void> setAutoAddSingleVariant(bool value) async {
+    _autoAddSingleVariant = value;
+    await _storageService.setAutoAddSingleVariant(value);
+    notifyListeners();
+  }
+
+  /// Whether variants are grouped into category accordions when only one category exists.
+  bool get splitVariantsAsCategories => _splitVariantsAsCategories;
+
+  /// Updates and persists the splitVariantsAsCategories setting.
+  Future<void> setSplitVariantsAsCategories(bool value) async {
+    _splitVariantsAsCategories = value;
+    await _storageService.setSplitVariantsAsCategories(value);
+    notifyListeners();
+  }
+
+  /// Backwards-compatible alias for [splitVariantsAsCategories].
+  bool get explodeSingleCategory => _splitVariantsAsCategories;
+
+  /// Backwards-compatible alias for [setSplitVariantsAsCategories].
+  Future<void> setExplodeSingleCategory(bool value) =>
+      setSplitVariantsAsCategories(value);
 
   @override
   Future<void> saveState() async {
@@ -65,6 +98,9 @@ class OrderController extends ChangeNotifier
 
     final loadedNotes = await _storageService.loadPredefinedNotes();
     setLoadedPredefinedNotes(loadedNotes);
+
+    _autoAddSingleVariant = _storageService.autoAddSingleVariant;
+    _splitVariantsAsCategories = _storageService.splitVariantsAsCategories;
 
     await syncCategoriesWithMenu();
 

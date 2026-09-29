@@ -10,13 +10,30 @@ class StallStorageService implements StallStorage {
   static const String _tokenKey = 'stall_next_token';
   static const String _categoriesKey = 'stall_categories';
   static const String _predefinedNotesKey = 'stall_predefined_notes';
+  static const String _autoAddSingleVariantKey = 'stall_auto_add_single_variant';
+  static const String _splitVariantsAsCategoriesKey = 'stall_split_variants_as_categories';
+  static const String _explodeSingleCategoryKey = 'stall_explode_single_category';
 
   final SharedPreferences? _prefs;
+  bool _autoAddSingleVariant = true;
+  bool _splitVariantsAsCategories = true;
 
-  StallStorageService({SharedPreferences? prefs}) : _prefs = prefs;
+  StallStorageService({SharedPreferences? prefs}) : _prefs = prefs {
+    if (prefs != null) {
+      _autoAddSingleVariant = prefs.getBool(_autoAddSingleVariantKey) ?? true;
+      _splitVariantsAsCategories = prefs.getBool(_splitVariantsAsCategoriesKey) ??
+          prefs.getBool(_explodeSingleCategoryKey) ??
+          true;
+    }
+  }
 
   Future<SharedPreferences> _getPrefs() async {
-    return _prefs ?? await SharedPreferences.getInstance();
+    final p = _prefs ?? await SharedPreferences.getInstance();
+    _autoAddSingleVariant = p.getBool(_autoAddSingleVariantKey) ?? _autoAddSingleVariant;
+    _splitVariantsAsCategories = p.getBool(_splitVariantsAsCategoriesKey) ??
+        p.getBool(_explodeSingleCategoryKey) ??
+        _splitVariantsAsCategories;
+    return p;
   }
 
   /// Loads menu items.
@@ -227,4 +244,43 @@ class StallStorageService implements StallStorage {
     final prefs = await _getPrefs();
     await prefs.setStringList(_predefinedNotesKey, notes);
   }
+
+  /// Whether to automatically add single-variant items directly to the cart without opening the customization sheet.
+  @override
+  bool get autoAddSingleVariant =>
+      _prefs?.getBool(_autoAddSingleVariantKey) ?? _autoAddSingleVariant;
+
+  /// Persists the auto-add single variant preference.
+  @override
+  Future<void> setAutoAddSingleVariant(bool value) async {
+    _autoAddSingleVariant = value;
+    final prefs = await _getPrefs();
+    await prefs.setBool(_autoAddSingleVariantKey, value);
+  }
+
+  /// Whether to group variants into individual category accordions when only one category is active.
+  @override
+  bool get splitVariantsAsCategories =>
+      _prefs?.getBool(_splitVariantsAsCategoriesKey) ??
+      _prefs?.getBool(_explodeSingleCategoryKey) ??
+      _splitVariantsAsCategories;
+
+  /// Persists the split variants as categories preference.
+  @override
+  Future<void> setSplitVariantsAsCategories(bool value) async {
+    _splitVariantsAsCategories = value;
+    final prefs = await _getPrefs();
+    await prefs.setBool(_splitVariantsAsCategoriesKey, value);
+    await prefs.setBool(_explodeSingleCategoryKey, value);
+  }
+
+  /// Alias for [splitVariantsAsCategories].
+  @override
+  bool get explodeSingleCategory => splitVariantsAsCategories;
+
+  /// Alias for [setSplitVariantsAsCategories].
+  @override
+  Future<void> setExplodeSingleCategory(bool value) =>
+      setSplitVariantsAsCategories(value);
 }
+

@@ -50,4 +50,24 @@ abstract class StallStorage {
 
   /// Persists predefined quick notes for orders.
   Future<void> savePredefinedNotes(List<String> notes) async {}
+
+  /// Whether to automatically add single-variant items directly to the cart without opening the customization sheet.
+  bool get autoAddSingleVariant => true;
+
+  /// Persists the auto-add single variant preference.
+  Future<void> setAutoAddSingleVariant(bool value) async {}
+
+  /// Whether to group variants into individual category accordions when only one category is active.
+  bool get splitVariantsAsCategories => true;
+
+  /// Persists the split variants as categories preference.
+  Future<void> setSplitVariantsAsCategories(bool value) async {}
+
+  /// Alias for [splitVariantsAsCategories].
+  bool get explodeSingleCategory => splitVariantsAsCategories;
+
+  /// Alias for [setSplitVariantsAsCategories].
+  Future<void> setExplodeSingleCategory(bool value) async =>
+      setSplitVariantsAsCategories(value);
 }
+

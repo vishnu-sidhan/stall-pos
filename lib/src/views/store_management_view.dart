@@ -432,11 +432,98 @@ class _StoreManagementViewState extends State<StoreManagementView>
     );
   }
 
+  Widget _buildCounterUxCard(ThemeData theme, bool isDark) {
+    return Card(
+      elevation: 0,
+      color: isDark
+          ? theme.colorScheme.surfaceContainerHighest
+          : theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withAlpha(80),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withAlpha(30),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.touch_app_rounded,
+                      color: theme.colorScheme.primary,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Counter UX & Ordering',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 16),
+            SwitchListTile.adaptive(
+              key: const ValueKey('switch_auto_add_single_variant'),
+              title: const Text(
+                'Auto-add single variant',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              subtitle: const Text(
+                'Add 1-variant items straight to cart on tap without opening the customization sheet.',
+                style: TextStyle(fontSize: 12),
+              ),
+              value: widget.controller.autoAddSingleVariant,
+              onChanged: (val) {
+                widget.controller.setAutoAddSingleVariant(val);
+              },
+            ),
+            SwitchListTile.adaptive(
+              key: const ValueKey('switch_split_variants_as_categories'),
+              title: const Text(
+                'Group variants as categories (Single category)',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              subtitle: const Text(
+                'When only one menu category is active, group items into category accordions by variant name (e.g., Half, Full) for 1-tap ordering.',
+                style: TextStyle(fontSize: 12),
+              ),
+              value: widget.controller.splitVariantsAsCategories,
+              onChanged: (val) {
+                widget.controller.setSplitVariantsAsCategories(val);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHistoryAndCsvTab(ThemeData theme, bool isDark) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        // Order History Tile
+    return ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
+        return ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            // Counter UX & Ordering Section
+            _buildCounterUxCard(theme, isDark),
+            const SizedBox(height: 16),
+
+            // Order History Tile
         _buildToolTile(
           theme: theme,
           isDark: isDark,
@@ -477,6 +564,8 @@ class _StoreManagementViewState extends State<StoreManagementView>
           onTap: _handleExportMenuCsv,
         ),
       ],
+    );
+      },
     );
   }
 

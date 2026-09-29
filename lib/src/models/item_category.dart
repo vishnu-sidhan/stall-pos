@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'dietary_type.dart';
 export 'dietary_type.dart';
 
-
 /// Represents an individual category option, variant, or add-on
 /// (e.g., 'Steam', 'Fried', 'Pan Fried' for Momos, or 'Extra Cheese' for a Burger).
 @immutable
@@ -36,7 +35,8 @@ class CategoryOption {
   }
 
   /// Price adjustment or differential for this variant/add-on.
-  double get priceDelta => price != null && price! > 0 ? price! : additionalCost;
+  double get priceDelta =>
+      price != null && price! > 0 ? price! : additionalCost;
 
   /// Alias for item-level availability.
   bool get isAvailable => isEnabled;
@@ -81,28 +81,30 @@ class CategoryOption {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'additionalCost': additionalCost,
-        'additional_cost': additionalCost,
-        'priceDelta': additionalCost,
-        'price_delta': additionalCost,
-        if (price != null) 'price': price,
-        'isEnabled': isEnabled,
-        'isAvailable': isEnabled,
-        'is_available': isEnabled,
-        if (dietaryType != null && dietaryType != ItemDietaryType.none)
-          'dietaryType': dietaryType!.code,
-      };
+    'id': id,
+    'name': name,
+    'additionalCost': additionalCost,
+    'additional_cost': additionalCost,
+    'priceDelta': additionalCost,
+    'price_delta': additionalCost,
+    if (price != null) 'price': price,
+    'isEnabled': isEnabled,
+    'isAvailable': isEnabled,
+    'is_available': isEnabled,
+    if (dietaryType != null && dietaryType != ItemDietaryType.none)
+      'dietaryType': dietaryType!.code,
+  };
 
   factory CategoryOption.fromJson(Map<String, dynamic> map) {
     final explicitPrice = (map['price'] as num?)?.toDouble();
-    final addCost = (map['additionalCost'] as num?)?.toDouble() ??
+    final addCost =
+        (map['additionalCost'] as num?)?.toDouble() ??
         (map['additional_cost'] as num?)?.toDouble() ??
         (map['priceDelta'] as num?)?.toDouble() ??
         (map['price_delta'] as num?)?.toDouble() ??
         0.0;
-    final enabled = map['isEnabled'] != false &&
+    final enabled =
+        map['isEnabled'] != false &&
         map['isAvailable'] != false &&
         map['is_available'] != false;
     final dietary = ItemDietaryType.fromString(
@@ -111,7 +113,8 @@ class CategoryOption {
           map['diet']?.toString(),
     );
     return CategoryOption(
-      id: map['id']?.toString() ??
+      id:
+          map['id']?.toString() ??
           'opt_${(map['name'] ?? '').toString().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
       name: map['name']?.toString() ?? '',
       additionalCost: addCost,
@@ -146,11 +149,13 @@ class CategoryOption {
       final colonIdx = part.indexOf(':');
       if (colonIdx == -1) {
         if (_ignoredVariantNames.contains(part.toLowerCase())) continue;
-        result.add(CategoryOption(
-          id: 'opt_${part.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
-          name: part,
-          additionalCost: 0.0,
-        ));
+        result.add(
+          CategoryOption(
+            id: 'opt_${part.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
+            name: part,
+            additionalCost: 0.0,
+          ),
+        );
       } else {
         final optName = part.substring(0, colonIdx).trim();
         if (_ignoredVariantNames.contains(optName.toLowerCase())) continue;
@@ -167,12 +172,14 @@ class CategoryOption {
             explicitPrice = parsed;
           }
         }
-        result.add(CategoryOption(
-          id: 'opt_${optName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
-          name: optName,
-          additionalCost: cost,
-          price: explicitPrice,
-        ));
+        result.add(
+          CategoryOption(
+            id: 'opt_${optName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
+            name: optName,
+            additionalCost: cost,
+            price: explicitPrice,
+          ),
+        );
       }
     }
     return result;
@@ -180,21 +187,25 @@ class CategoryOption {
 
   /// Formats a list of [CategoryOption]s back into pipe-delimited string format.
   static String formatVariants(List<CategoryOption> options) {
-    return options.map((opt) {
-      if (opt.price != null && opt.price! > 0) {
-        final formatted = opt.price!.toStringAsFixed(
-          opt.price!.truncateToDouble() == opt.price! ? 0 : 2,
-        );
-        return '${opt.name}:$formatted';
-      }
-      if (opt.additionalCost > 0) {
-        final formatted = opt.additionalCost.toStringAsFixed(
-          opt.additionalCost.truncateToDouble() == opt.additionalCost ? 0 : 2,
-        );
-        return '${opt.name}:+$formatted';
-      }
-      return opt.name;
-    }).join('|');
+    return options
+        .map((opt) {
+          if (opt.price != null && opt.price! > 0) {
+            final formatted = opt.price!.toStringAsFixed(
+              opt.price!.truncateToDouble() == opt.price! ? 0 : 2,
+            );
+            return '${opt.name}:$formatted';
+          }
+          if (opt.additionalCost > 0) {
+            final formatted = opt.additionalCost.toStringAsFixed(
+              opt.additionalCost.truncateToDouble() == opt.additionalCost
+                  ? 0
+                  : 2,
+            );
+            return '${opt.name}:+$formatted';
+          }
+          return opt.name;
+        })
+        .join('|');
   }
 
   @override
@@ -278,8 +289,7 @@ class ItemCategory {
   }
 
   /// Effective hex color value for this category, falling back to dynamic palette color.
-  int get resolvedColorHex =>
-      colorHex ?? getColorForCategory(displayName);
+  int get resolvedColorHex => colorHex ?? getColorForCategory(displayName);
 
   /// Resolved Material Color for chips, cards, and badges.
   Color get color => Color(resolvedColorHex);
@@ -308,11 +318,13 @@ class ItemCategory {
           .toList();
       if (segments.length > 1) {
         return segments
-            .map((s) => CategoryOption(
-                  id: 'opt_${normalize(s)}',
-                  name: s,
-                  additionalCost: 0.0,
-                ))
+            .map(
+              (s) => CategoryOption(
+                id: 'opt_${normalize(s)}',
+                name: s,
+                additionalCost: 0.0,
+              ),
+            )
             .toList();
       }
     }
@@ -334,12 +346,15 @@ class ItemCategory {
   /// Formatted helper describing extra costs.
   String get costDescription {
     if (!isEnabled) return '';
-    final activeOpts =
-        options.where((o) => o.isEnabled && o.additionalCost > 0).toList();
+    final activeOpts = options
+        .where((o) => o.isEnabled && o.additionalCost > 0)
+        .toList();
     if (activeOpts.isNotEmpty) {
       return activeOpts
-          .map((o) =>
-              '${o.name} (+₹${o.additionalCost.toStringAsFixed(o.additionalCost.truncateToDouble() == o.additionalCost ? 0 : 2)})')
+          .map(
+            (o) =>
+                '${o.name} (+₹${o.additionalCost.toStringAsFixed(o.additionalCost.truncateToDouble() == o.additionalCost ? 0 : 2)})',
+          )
           .join(', ');
     }
     if (additionalCost <= 0) return '';
@@ -394,18 +409,16 @@ class ItemCategory {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'additionalCost': additionalCost,
-        if (costReason != null && costReason!.trim().isNotEmpty)
-          'costReason': costReason!.trim(),
-        if (colorHex != null) 'colorHex': colorHex,
-        'isEnabled': isEnabled,
-        if (options.isNotEmpty)
-          'options': options.map((o) => o.toJson()).toList(),
-        if (addons.isNotEmpty)
-          'addons': addons.map((a) => a.toJson()).toList(),
-      };
+    'id': id,
+    'name': name,
+    'additionalCost': additionalCost,
+    if (costReason != null && costReason!.trim().isNotEmpty)
+      'costReason': costReason!.trim(),
+    if (colorHex != null) 'colorHex': colorHex,
+    'isEnabled': isEnabled,
+    if (options.isNotEmpty) 'options': options.map((o) => o.toJson()).toList(),
+    if (addons.isNotEmpty) 'addons': addons.map((a) => a.toJson()).toList(),
+  };
 
   factory ItemCategory.fromJson(Map<String, dynamic> map) {
     return ItemCategory(
@@ -417,14 +430,23 @@ class ItemCategory {
           : null,
       colorHex: (map['colorHex'] as num?)?.toInt(),
       isEnabled: map['isEnabled'] != false,
-      options: (map['options'] as List<dynamic>? ?? map['categoryVariants'] as List<dynamic>?)
-              ?.map((e) =>
-                  CategoryOption.fromJson(Map<String, dynamic>.from(e as Map)))
+      options:
+          (map['options'] as List<dynamic>? ??
+                  map['categoryVariants'] as List<dynamic>?)
+              ?.map(
+                (e) => CategoryOption.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
               .toList() ??
           const [],
-      addons: (map['addons'] as List<dynamic>?)
-              ?.map((e) =>
-                  CategoryOption.fromJson(Map<String, dynamic>.from(e as Map)))
+      addons:
+          (map['addons'] as List<dynamic>?)
+              ?.map(
+                (e) => CategoryOption.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
               .toList() ??
           const [],
     );
@@ -451,6 +473,9 @@ class ItemCategory {
     0xFF3F6212, // 15. Olive Green
     0xFF334155, // 16. Slate Navy
   ];
+
+  /// Alias for [palette].
+  static const List<int> categoryPalette = palette;
 
   static const Map<String, int> namedColorMap = {
     'blue': 0xFF1D4ED8,
@@ -503,12 +528,16 @@ class ItemCategory {
 
     return sqrt(
       (2.0 + rmean / 256.0) * dr * dr +
-      4.0 * dg * dg +
-      (2.0 + (255.0 - rmean) / 256.0) * db * db,
+          4.0 * dg * dg +
+          (2.0 + (255.0 - rmean) / 256.0) * db * db,
     );
   }
 
-  static bool _isVisuallyDistinct(int candidate, Set<int> existingColors, {double minDistance = 75.0}) {
+  static bool _isVisuallyDistinct(
+    int candidate,
+    Set<int> existingColors, {
+    double minDistance = 75.0,
+  }) {
     for (final existing in existingColors) {
       if (colorDistance(candidate, existing) < minDistance) {
         return false;
@@ -527,9 +556,11 @@ class ItemCategory {
     if (available.isNotEmpty) {
       if (categoryName != null && categoryName.trim().isNotEmpty) {
         final trimmed = categoryName.trim().toLowerCase();
-        final startIdx = trimmed.codeUnits
-            .fold<int>(5381, (prev, c) => ((prev << 5) + prev) ^ c)
-            .abs() % available.length;
+        final startIdx =
+            trimmed.codeUnits
+                .fold<int>(5381, (prev, c) => ((prev << 5) + prev) ^ c)
+                .abs() %
+            available.length;
 
         for (int i = 0; i < available.length; i++) {
           final candidate = available[(startIdx + i) % available.length];
@@ -561,14 +592,20 @@ class ItemCategory {
     const phiAngle = 137.507764;
     double baseHue = 217.0;
     if (categoryName != null && categoryName.trim().isNotEmpty) {
-      baseHue = (categoryName.trim().toLowerCase().hashCode.abs() % 360).toDouble();
+      baseHue = (categoryName.trim().toLowerCase().hashCode.abs() % 360)
+          .toDouble();
     }
 
     for (int step = 1; step <= 100; step++) {
       final hue = (baseHue + step * phiAngle) % 360.0;
       final saturation = 0.75 + (step % 3) * 0.10;
       final value = 0.80 - ((step ~/ 3) % 3) * 0.10;
-      final generatedColor = HSVColor.fromAHSV(1.0, hue, saturation.clamp(0.0, 1.0), value.clamp(0.0, 1.0)).toColor();
+      final generatedColor = HSVColor.fromAHSV(
+        1.0,
+        hue,
+        saturation.clamp(0.0, 1.0),
+        value.clamp(0.0, 1.0),
+      ).toColor();
       final colorHex = 0xFF000000 | (generatedColor.toARGB32() & 0x00FFFFFF);
 
       if (_isVisuallyDistinct(colorHex, usedColors, minDistance: 70.0)) {
@@ -577,7 +614,12 @@ class ItemCategory {
     }
 
     final fallbackHue = (baseHue + Random().nextDouble() * 360.0) % 360.0;
-    final fallbackColor = HSVColor.fromAHSV(1.0, fallbackHue, 0.80, 0.75).toColor();
+    final fallbackColor = HSVColor.fromAHSV(
+      1.0,
+      fallbackHue,
+      0.80,
+      0.75,
+    ).toColor();
     return 0xFF000000 | (fallbackColor.toARGB32() & 0x00FFFFFF);
   }
 
@@ -653,11 +695,20 @@ class ItemCategory {
 abstract final class CategoryColorHelper {
   static const List<int> palette = ItemCategory.palette;
   static const Map<String, int> namedColorMap = ItemCategory.namedColorMap;
-  static double colorDistance(int hex1, int hex2) => ItemCategory.colorDistance(hex1, hex2);
-  static int getUniqueColor({String? categoryName, required Set<int> usedColors}) =>
-      ItemCategory.getUniqueColor(categoryName: categoryName, usedColors: usedColors);
+  static double colorDistance(int hex1, int hex2) =>
+      ItemCategory.colorDistance(hex1, hex2);
+  static int getUniqueColor({
+    String? categoryName,
+    required Set<int> usedColors,
+  }) => ItemCategory.getUniqueColor(
+    categoryName: categoryName,
+    usedColors: usedColors,
+  );
   static int getColorForCategory(String? categoryName, {int? explicitColor}) =>
-      ItemCategory.getColorForCategory(categoryName, explicitColor: explicitColor);
+      ItemCategory.getColorForCategory(
+        categoryName,
+        explicitColor: explicitColor,
+      );
   static int? parseColor(dynamic rawColor) => ItemCategory.parseColor(rawColor);
   static int getRandomColor() => ItemCategory.getRandomColor();
   static Color getContrastingTextColor(Color background) =>

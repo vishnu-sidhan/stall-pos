@@ -232,8 +232,20 @@ mixin CartControllerMixin on ChangeNotifier {
     );
   }
 
-  /// Adds a standard item or [OrderItem] to the cart.
-  void addToCart(dynamic item, [int quantity = 1]) {
+  /// Adds a standard item or [OrderItem] to the cart, optionally specifying [selectedVariant].
+  void addToCart(
+    dynamic item, {
+    int quantity = 1,
+    CategoryOption? selectedVariant,
+  }) {
+    if (selectedVariant != null && item is MenuItem) {
+      addCustomizedItemToCart(
+        baseItem: item,
+        selectedVariant: selectedVariant,
+        quantity: quantity,
+      );
+      return;
+    }
     if (item is OrderItem) {
       final key = item.cartKey;
       _cart[key] = (_cart[key] ?? 0) + item.quantity;
