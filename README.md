@@ -288,20 +288,28 @@ flutter pub get
 flutter run -d chrome
 ```
 
-### Deploying to GitHub Pages
+### Deploying to GitHub Pages & Building APK
 
-#### 1. Automated Deployment (GitHub Actions)
-The repository includes an automated CI/CD workflow ([`.github/workflows/deploy.yml`](file:///Users/vishnusidhan/Desktop/Development/Apps/counter-app/.github/workflows/deploy.yml)).
+#### 1. Automated Deployment & APK Build (GitHub Actions)
+The repository includes an automated CI/CD workflow ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)).
 - **Trigger**: Automatically runs on every push to the `main` branch or manually via **Workflow Dispatch** in the GitHub Actions tab.
-- **Pipeline**: Runs static analysis (`dart analyze`) and automated tests (`flutter test`) for both root package and example app, compiles the web release bundle (`flutter build web --release --base-href "/stall-pos/"`), and deploys directly to the `gh-pages` branch.
+- **Pipeline**: Runs static analysis (`dart analyze`) and automated tests (`flutter test`) for both root package and example app, builds the web release bundle (`flutter build web --release --base-href "/stall-pos/"`), builds the Android release APK (`flutter build apk --release`), uploads the APK as a workflow artifact, embeds `stall-pos.apk` into the web output, and deploys directly to the `gh-pages` branch.
 
-#### 2. Building the Web Bundle Locally
-To build the production bundle locally for inspection or testing:
+#### 2. Building Locally
+
+**Web Bundle:**
 ```bash
 cd example
 flutter build web --release --base-href "/stall-pos/"
 ```
 The compiled output will be located in `example/build/web/`.
+
+**Android Release APK:**
+```bash
+cd example
+flutter build apk --release
+```
+The compiled APK will be located in `example/build/app/outputs/flutter-apk/app-release.apk`.
 
 ---
 
