@@ -54,7 +54,10 @@ class _StoreManagementViewState extends State<StoreManagementView>
     return widget.controller.getCategoryColor(cat);
   }
 
-  void _handleOpenOrderHistory() async {
+  void _handleOpenOrderHistory() =>
+      _openHistoryWithMode(OrderHistoryViewMode.orders);
+
+  void _openHistoryWithMode(OrderHistoryViewMode mode) async {
     if (widget.onOpenOrderHistory != null) {
       widget.onOpenOrderHistory!();
       return;
@@ -64,6 +67,9 @@ class _StoreManagementViewState extends State<StoreManagementView>
         builder: (ctx) => OrderHistoryScreen(
           storage: widget.controller.storage,
           controller: widget.controller,
+          defaultFilter: OrderHistoryFilter.completed,
+          defaultDateFilter: OrderDateRangeFilter.allTime,
+          defaultViewMode: mode,
           onOrdersChanged: () => widget.controller.loadPersistedData(),
         ),
       ),
@@ -516,6 +522,12 @@ class _StoreManagementViewState extends State<StoreManagementView>
     return ListenableBuilder(
       listenable: widget.controller,
       builder: (context, _) {
+        final completedOrders =
+            widget.controller.orders.where((o) => o.isCompleted).toList();
+        final completedCount = completedOrders.length;
+        final totalSales =
+            completedOrders.fold<double>(0.0, (s, o) => s + o.total);
+
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -524,47 +536,62 @@ class _StoreManagementViewState extends State<StoreManagementView>
             const SizedBox(height: 16),
 
             // Order History Tile
-        _buildToolTile(
-          theme: theme,
-          isDark: isDark,
-          icon: Icons.history_rounded,
-          iconColor: Colors.teal,
-          title: 'Full Order & Sales History',
-          subtitle:
-              'View past orders, filter by payment status or date, print summaries, and inspect tickets.',
-          buttonLabel: 'Open Order History',
-          onTap: _handleOpenOrderHistory,
-        ),
-        const SizedBox(height: 16),
+            _buildToolTile(
+              theme: theme,
+              isDark: isDark,
+              icon: Icons.history_rounded,
+              iconColor: Colors.teal,
+              title: 'Full Order & Sales History',
+              subtitle:
+                  '$completedCount completed orders · ₹${totalSales.toStringAsFixed(0)} sales · Filter by payment status or date, and inspect tickets.',
+              buttonLabel: 'Open Order History',
+              onTap: _handleOpenOrderHistory,
+            ),
+            const SizedBox(height: 16),
 
-        // CSV Import Tile
-        _buildToolTile(
-          theme: theme,
-          isDark: isDark,
-          icon: Icons.upload_file_rounded,
-          iconColor: Colors.blue,
-          title: 'Upload Menu CSV',
-          subtitle:
-              'Bulk import new menu items, update prices, or replace your entire catalog from a CSV file.',
-          buttonLabel: 'Import Menu CSV',
-          onTap: _handleOpenCsvImport,
-        ),
-        const SizedBox(height: 16),
+            // Item Sales Summary Breakdown Tile
+            _buildToolTile(
+              theme: theme,
+              isDark: isDark,
+              icon: Icons.analytics_outlined,
+              iconColor: Colors.purple,
+              title: 'Items Sales & Cost Breakdown',
+              subtitle:
+                  'View completed orders by item volume, unit costs, add-on breakdown, and export CSV.',
+              buttonLabel: 'Items Breakdown',
+              onTap: () =>
+                  _openHistoryWithMode(OrderHistoryViewMode.itemSummary),
+            ),
+            const SizedBox(height: 16),
 
-        // CSV Export Tile (Objective 4)
-        _buildToolTile(
-          theme: theme,
-          isDark: isDark,
-          icon: Icons.download_rounded,
-          iconColor: Colors.green,
-          title: 'Export Menu (CSV)',
-          subtitle:
-              'Backup catalog items, categories, surcharge rules, and variants to CSV for safekeeping or sharing.',
-          buttonLabel: 'Export Menu (CSV)',
-          onTap: _handleExportMenuCsv,
-        ),
-      ],
-    );
+            // CSV Import Tile
+            _buildToolTile(
+              theme: theme,
+              isDark: isDark,
+              icon: Icons.upload_file_rounded,
+              iconColor: Colors.blue,
+              title: 'Upload Menu CSV',
+              subtitle:
+                  'Bulk import new menu items, update prices, or replace your entire catalog from a CSV file.',
+              buttonLabel: 'Import Menu CSV',
+              onTap: _handleOpenCsvImport,
+            ),
+            const SizedBox(height: 16),
+
+            // CSV Export Tile (Objective 4)
+            _buildToolTile(
+              theme: theme,
+              isDark: isDark,
+              icon: Icons.download_rounded,
+              iconColor: Colors.green,
+              title: 'Export Menu (CSV)',
+              subtitle:
+                  'Backup catalog items, categories, surcharge rules, and variants to CSV for safekeeping or sharing.',
+              buttonLabel: 'Export Menu (CSV)',
+              onTap: _handleExportMenuCsv,
+            ),
+          ],
+        );
       },
     );
   }

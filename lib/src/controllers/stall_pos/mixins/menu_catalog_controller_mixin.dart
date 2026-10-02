@@ -95,7 +95,8 @@ mixin MenuCatalogControllerMixin on ChangeNotifier {
     for (final m in _menu) {
       if (firstPart == m.id ||
           firstPart.startsWith('${m.id}_var_') ||
-          firstPart.startsWith('${m.id}_cat_')) {
+          firstPart.startsWith('${m.id}_cat_') ||
+          firstPart.startsWith('${m.id}_bound_')) {
         return m;
       }
     }

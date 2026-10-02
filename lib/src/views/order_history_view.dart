@@ -8,12 +8,15 @@ import '../services/csv_export_service.dart';
 import '../widgets/stall_pos/delete_order_dialog.dart';
 
 enum OrderHistoryFilter { all, completed, pending, fullyPaid, partial, unpaid }
-enum OrderDateRangeFilter { allTime, today, yesterday, last7Days }
+enum OrderDateRangeFilter { allTime, today, yesterday, last7Days, thisMonth, custom }
+enum OrderHistoryViewMode { orders, itemSummary }
+enum ItemSalesSortOption { revenueDesc, quantityDesc, nameAsc }
 
-/// Headless embeddable Order History View.
+/// Headless embeddable Order History & Analytics View.
 ///
 /// Houses order history metrics, status and date-range filters,
-/// token/customer search, expandable order details, and CSV export/archive tools.
+/// token/customer/item search, expandable order details, itemized
+/// sales & cost breakdown, and CSV export/archive tools.
 /// When [wrapInScaffold] is true, includes a top [AppBar] with quick action buttons.
 class OrderHistoryView extends StatefulWidget {
   final StallStorage? storage;
@@ -22,6 +25,9 @@ class OrderHistoryView extends StatefulWidget {
   final VoidCallback? onOrdersChanged;
   final bool wrapInScaffold;
   final bool showHeaderActions;
+  final OrderHistoryFilter defaultFilter;
+  final OrderDateRangeFilter defaultDateFilter;
+  final OrderHistoryViewMode defaultViewMode;
 
   const OrderHistoryView({
     super.key,
@@ -31,6 +37,9 @@ class OrderHistoryView extends StatefulWidget {
     this.onOrdersChanged,
     this.wrapInScaffold = false,
     this.showHeaderActions = false,
+    this.defaultFilter = OrderHistoryFilter.all,
+    this.defaultDateFilter = OrderDateRangeFilter.allTime,
+    this.defaultViewMode = OrderHistoryViewMode.orders,
   });
 
   @override
@@ -40,8 +49,12 @@ class OrderHistoryView extends StatefulWidget {
 class _OrderHistoryViewState extends State<OrderHistoryView> {
   List<StallOrder> _orders = [];
   bool _isLoading = true;
-  OrderHistoryFilter _filter = OrderHistoryFilter.all;
-  OrderDateRangeFilter _dateFilter = OrderDateRangeFilter.allTime;
+  late OrderHistoryFilter _filter;
+  late OrderDateRangeFilter _dateFilter;
+  late OrderHistoryViewMode _viewMode;
+  ItemSalesSortOption _itemSortOption = ItemSalesSortOption.revenueDesc;
+  DateTimeRange? _customDateRange;
+
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -54,6 +67,10 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
   @override
   void initState() {
     super.initState();
+    _filter = widget.defaultFilter;
+    _dateFilter = widget.defaultDateFilter;
+    _viewMode = widget.defaultViewMode;
+
     if (widget.controller != null) {
       widget.controller!.addListener(_onControllerChanged);
     }
@@ -109,21 +126,43 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
+  bool _matchesDateFilter(StallOrder o, DateTime now) {
+    switch (_dateFilter) {
+      case OrderDateRangeFilter.allTime:
+        return true;
+      case OrderDateRangeFilter.today:
+        return _isSameDay(o.timestamp, now);
+      case OrderDateRangeFilter.yesterday:
+        final yesterday = now.subtract(const Duration(days: 1));
+        return _isSameDay(o.timestamp, yesterday);
+      case OrderDateRangeFilter.last7Days:
+        return now.difference(o.timestamp).inDays <= 7 &&
+            o.timestamp.isBefore(now.add(const Duration(days: 1)));
+      case OrderDateRangeFilter.thisMonth:
+        return o.timestamp.year == now.year && o.timestamp.month == now.month;
+      case OrderDateRangeFilter.custom:
+        if (_customDateRange == null) return true;
+        final start = DateTime(
+          _customDateRange!.start.year,
+          _customDateRange!.start.month,
+          _customDateRange!.start.day,
+        );
+        final end = DateTime(
+          _customDateRange!.end.year,
+          _customDateRange!.end.month,
+          _customDateRange!.end.day,
+          23,
+          59,
+          59,
+        );
+        return o.timestamp.isAfter(start.subtract(const Duration(seconds: 1))) &&
+            o.timestamp.isBefore(end.add(const Duration(seconds: 1)));
+    }
+  }
+
   List<StallOrder> get _ordersForDateFilter {
     final now = DateTime.now();
-    return _orders.where((o) {
-      switch (_dateFilter) {
-        case OrderDateRangeFilter.allTime:
-          return true;
-        case OrderDateRangeFilter.today:
-          return _isSameDay(o.timestamp, now);
-        case OrderDateRangeFilter.yesterday:
-          final yesterday = now.subtract(const Duration(days: 1));
-          return _isSameDay(o.timestamp, yesterday);
-        case OrderDateRangeFilter.last7Days:
-          return now.difference(o.timestamp).inDays <= 7;
-      }
-    }).toList();
+    return _orders.where((o) => _matchesDateFilter(o, now)).toList();
   }
 
   String _getDateFilterLabel(OrderDateRangeFilter filter) {
@@ -136,29 +175,19 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
         return 'Yesterday';
       case OrderDateRangeFilter.last7Days:
         return 'Last 7 Days';
+      case OrderDateRangeFilter.thisMonth:
+        return 'This Month';
+      case OrderDateRangeFilter.custom:
+        if (_customDateRange != null) {
+          final f = DateFormat('dd MMM');
+          return '${f.format(_customDateRange!.start)} - ${f.format(_customDateRange!.end)}';
+        }
+        return 'Custom';
     }
   }
 
   List<StallOrder> get _filteredOrders {
-    final now = DateTime.now();
-    return _orders.where((o) {
-      // Date filter
-      switch (_dateFilter) {
-        case OrderDateRangeFilter.allTime:
-          break;
-        case OrderDateRangeFilter.today:
-          if (!_isSameDay(o.timestamp, now)) return false;
-          break;
-        case OrderDateRangeFilter.yesterday:
-          final yesterday = now.subtract(const Duration(days: 1));
-          if (!_isSameDay(o.timestamp, yesterday)) return false;
-          break;
-        case OrderDateRangeFilter.last7Days:
-          final diff = now.difference(o.timestamp).inDays;
-          if (diff > 7) return false;
-          break;
-      }
-
+    return _ordersForDateFilter.where((o) {
       // Status / Payment filter
       switch (_filter) {
         case OrderHistoryFilter.all:
@@ -180,7 +209,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
           break;
       }
 
-      // Search query filter
+      // Search query filter (when searching in order tickets)
       if (_searchQuery.isNotEmpty) {
         final tokenStr = '#${o.token}';
         final customer = (o.customerName ?? '').toLowerCase();
@@ -202,22 +231,119 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
     }).toList();
   }
 
+  int get _ordersCount => _ordersForDateFilter.length;
   double get _totalRevenue =>
-      _orders.fold<double>(0.0, (sum, o) => sum + o.total);
+      _ordersForDateFilter.fold<double>(0.0, (sum, o) => sum + o.total);
 
   double get _avgOrderValue =>
-      _orders.isEmpty ? 0 : _totalRevenue / _orders.length;
+      _ordersCount == 0 ? 0 : _totalRevenue / _ordersCount;
 
-  int get _completedCount => _orders.where((o) => o.isCompleted).length;
-  int get _pendingCount => _orders.where((o) => !o.isCompleted).length;
+  int get _completedCount =>
+      _ordersForDateFilter.where((o) => o.isCompleted).length;
+  int get _pendingCount =>
+      _ordersForDateFilter.where((o) => !o.isCompleted).length;
+
+  int get _totalItemsCount => _ordersForDateFilter.fold<int>(
+        0,
+        (sum, o) => sum + o.items.fold<int>(0, (iSum, item) => iSum + item.quantity),
+      );
+
+  int get _completedItemsCount => _ordersForDateFilter
+      .where((o) => o.isCompleted)
+      .fold<int>(
+        0,
+        (sum, o) => sum + o.items.fold<int>(0, (iSum, item) => iSum + item.quantity),
+      );
+
+  int get _allCompletedCount => _orders.where((o) => o.isCompleted).length;
+
+  List<ItemSalesSummary> get _itemSummaries {
+    // When aggregating item sales breakdown, aggregate orders matching the current date & filter
+    // (If 'all' filter is selected, aggregate completed orders to present actual realized item sales)
+    final targetOrders = (_filter == OrderHistoryFilter.all)
+        ? _ordersForDateFilter.where((o) => o.isCompleted).toList()
+        : _filteredOrders;
+
+    final summaries = targetOrders.aggregateItemSales();
+
+    // Search query filter
+    final filtered = _searchQuery.isEmpty
+        ? summaries
+        : summaries.where((item) {
+            final q = _searchQuery;
+            return item.displayName.toLowerCase().contains(q) ||
+                item.categoryName.toLowerCase().contains(q);
+          }).toList();
+
+    // Sort options
+    switch (_itemSortOption) {
+      case ItemSalesSortOption.revenueDesc:
+        filtered.sort((a, b) => b.totalRevenue.compareTo(a.totalRevenue));
+        break;
+      case ItemSalesSortOption.quantityDesc:
+        filtered.sort((a, b) => b.totalQuantity.compareTo(a.totalQuantity));
+        break;
+      case ItemSalesSortOption.nameAsc:
+        filtered.sort((a, b) => a.displayName.compareTo(b.displayName));
+        break;
+    }
+    return filtered;
+  }
+
+  Future<void> _pickCustomDateRange() async {
+    final now = DateTime.now();
+    final initial = _customDateRange ??
+        DateTimeRange(
+          start: now.subtract(const Duration(days: 7)),
+          end: now,
+        );
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: initial,
+      firstDate: DateTime(2020),
+      lastDate: now.add(const Duration(days: 1)),
+    );
+    if (picked != null) {
+      setState(() {
+        _customDateRange = picked;
+        _dateFilter = OrderDateRangeFilter.custom;
+      });
+    }
+  }
 
   Future<void> _exportCsv() async {
-    final targetOrders = _filteredOrders.isNotEmpty ? _filteredOrders : _orders;
-    await CsvExportService.exportOrdersCsv(orders: targetOrders);
+    if (_viewMode == OrderHistoryViewMode.itemSummary) {
+      final itemsToExport = _itemSummaries;
+      if (itemsToExport.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No item sales to export for this period.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      await CsvExportService.exportItemSalesSummaryCsv(
+        items: itemsToExport,
+        dateRangeLabel: _getDateFilterLabel(_dateFilter),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Item sales summary exported.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } else {
+      final targetOrders =
+          _filteredOrders.isNotEmpty ? _filteredOrders : _ordersForDateFilter;
+      await CsvExportService.exportOrdersCsv(orders: targetOrders);
+    }
   }
 
   Future<void> _confirmArchiveCompleted() async {
-    if (_completedCount == 0) {
+    if (_allCompletedCount == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No completed orders to archive.'),
@@ -232,7 +358,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
       builder: (ctx) => AlertDialog(
         title: const Text('Archive Completed Orders?'),
         content: Text(
-          'This will permanently archive $_completedCount completed orders. They will be saved to your archive history file and cleared from the active list.',
+          'This will permanently archive $_allCompletedCount completed orders. They will be saved to your archive history file and cleared from the active list.',
         ),
         actions: [
           TextButton(
@@ -268,7 +394,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
   }
 
   Future<void> _confirmClearCompleted() async {
-    if (_completedCount == 0) {
+    if (_allCompletedCount == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No completed orders to clear.'),
@@ -283,7 +409,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
       builder: (ctx) => AlertDialog(
         title: const Text('Clear Completed Orders?'),
         content: Text(
-          'This will permanently remove $_completedCount completed orders from history. Active/pending orders will be kept.',
+          'This will permanently remove $_allCompletedCount completed orders from history. Active/pending orders will be kept.',
         ),
         actions: [
           TextButton(
@@ -323,18 +449,20 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
     return [
       IconButton(
         icon: const Icon(Icons.download_rounded),
-        tooltip: 'Download CSV',
+        tooltip: _viewMode == OrderHistoryViewMode.itemSummary
+            ? 'Download Items Sales CSV'
+            : 'Download CSV',
         onPressed: _orders.isEmpty ? null : _exportCsv,
       ),
       IconButton(
         icon: const Icon(Icons.archive_outlined),
         tooltip: 'Archive Completed',
-        onPressed: _completedCount == 0 ? null : _confirmArchiveCompleted,
+        onPressed: _allCompletedCount == 0 ? null : _confirmArchiveCompleted,
       ),
       IconButton(
         icon: const Icon(Icons.delete_sweep_rounded),
         tooltip: 'Clear Completed',
-        onPressed: _completedCount == 0 ? null : _confirmClearCompleted,
+        onPressed: _allCompletedCount == 0 ? null : _confirmClearCompleted,
       ),
     ];
   }
@@ -358,7 +486,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Order History',
+                        'Order History & Analytics',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       Row(children: _buildActionButtons()),
@@ -369,13 +497,18 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
               // Summary Metrics Banner
               _buildSummaryBanner(theme),
 
+              // View Mode Switcher: Orders List vs Items Breakdown
+              _buildViewSwitcher(theme),
+
               // Search Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Search by #Token, Customer, or Items...',
+                    hintText: _viewMode == OrderHistoryViewMode.itemSummary
+                        ? 'Search items by name or category...'
+                        : 'Search by #Token, Customer, or Items...',
                     prefixIcon: const Icon(Icons.search, size: 20),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
@@ -395,14 +528,35 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
                 ),
               ),
 
-              // Filter Chips (Status)
+              // Date Range Chips
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
+                  children: [
+                    _buildDateFilterChip('All Time', OrderDateRangeFilter.allTime),
+                    const SizedBox(width: 6),
+                    _buildDateFilterChip('Today', OrderDateRangeFilter.today),
+                    const SizedBox(width: 6),
+                    _buildDateFilterChip('Yesterday', OrderDateRangeFilter.yesterday),
+                    const SizedBox(width: 6),
+                    _buildDateFilterChip('Last 7 Days', OrderDateRangeFilter.last7Days),
+                    const SizedBox(width: 6),
+                    _buildDateFilterChip('This Month', OrderDateRangeFilter.thisMonth),
+                    const SizedBox(width: 6),
+                    _buildCustomDateFilterChip(),
+                  ],
+                ),
+              ),
+
+              // Status / Payment filter chips (for orders mode or filtering scope)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: Row(
                   children: [
                     _buildFilterChip(
-                      label: 'All (${_orders.length})',
+                      label: 'All (${_ordersForDateFilter.length})',
                       filter: OrderHistoryFilter.all,
                     ),
                     const SizedBox(width: 8),
@@ -415,36 +569,30 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
                       label: 'Pending ($_pendingCount)',
                       filter: OrderHistoryFilter.pending,
                     ),
-                    const SizedBox(width: 12),
-                    Container(width: 1, height: 24, color: Colors.grey.withAlpha(80)),
-                    const SizedBox(width: 12),
-                    // Date Range Chips
-                    _buildDateFilterChip('All Time', OrderDateRangeFilter.allTime),
-                    const SizedBox(width: 6),
-                    _buildDateFilterChip('Today', OrderDateRangeFilter.today),
-                    const SizedBox(width: 6),
-                    _buildDateFilterChip('Yesterday', OrderDateRangeFilter.yesterday),
-                    const SizedBox(width: 6),
-                    _buildDateFilterChip('Last 7 Days', OrderDateRangeFilter.last7Days),
                   ],
                 ),
               ),
-              // End-of-Day Quick Settlement Summary
-              _buildSettlementSummaryCard(theme),
+
+              // Orders mode settlement summary
+              if (_viewMode == OrderHistoryViewMode.orders)
+                _buildSettlementSummaryCard(theme),
+
               const Divider(height: 1),
 
-              // Orders List
+              // Main Content: Orders List vs Items Breakdown
               Expanded(
-                child: _filteredOrders.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(12),
-                        itemCount: _filteredOrders.length,
-                        itemBuilder: (context, index) {
-                          final order = _filteredOrders[index];
-                          return _buildOrderCard(order, theme);
-                        },
-                      ),
+                child: _viewMode == OrderHistoryViewMode.orders
+                    ? (_filteredOrders.isEmpty
+                        ? _buildEmptyState()
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(12),
+                            itemCount: _filteredOrders.length,
+                            itemBuilder: (context, index) {
+                              final order = _filteredOrders[index];
+                              return _buildOrderCard(order, theme);
+                            },
+                          ))
+                    : _buildItemSummaryView(theme),
               ),
             ],
           );
@@ -467,8 +615,8 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
 
   Widget _buildSummaryBanner(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withAlpha(120),
         borderRadius: BorderRadius.circular(16),
@@ -481,7 +629,9 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
         children: [
           _buildStatItem('Total Revenue', '₹${_totalRevenue.toStringAsFixed(0)}', theme.colorScheme.primary),
           _buildDivider(),
-          _buildStatItem('Orders', '${_orders.length}', theme.colorScheme.onSurface),
+          _buildStatItem('Orders', '$_ordersCount', theme.colorScheme.onSurface),
+          _buildDivider(),
+          _buildStatItem('Items Sold', '$_totalItemsCount', Colors.teal),
           _buildDivider(),
           _buildStatItem('Avg Value', '₹${_avgOrderValue.toStringAsFixed(0)}', theme.colorScheme.secondary),
         ],
@@ -504,7 +654,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
         Text(
           value,
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 17,
             fontWeight: FontWeight.w900,
             color: valueColor,
           ),
@@ -515,6 +665,374 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
           style: const TextStyle(fontSize: 11, color: Colors.grey),
         ),
       ],
+    );
+  }
+
+  Widget _buildViewSwitcher(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SizedBox(
+        width: double.infinity,
+        child: SegmentedButton<OrderHistoryViewMode>(
+          showSelectedIcon: false,
+          style: ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            shape: WidgetStateProperty.all(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+          segments: [
+            ButtonSegment(
+              value: OrderHistoryViewMode.orders,
+              icon: const Icon(Icons.receipt_long_rounded, size: 16),
+              label: Text('Orders List ($_ordersCount)'),
+            ),
+            ButtonSegment(
+              value: OrderHistoryViewMode.itemSummary,
+              icon: const Icon(Icons.bar_chart_rounded, size: 16),
+              label: Text('Items Breakdown ($_completedItemsCount sold)'),
+            ),
+          ],
+          selected: {_viewMode},
+          onSelectionChanged: (newSelection) {
+            setState(() => _viewMode = newSelection.first);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemSummaryView(ThemeData theme) {
+    final summaries = _itemSummaries;
+    final totalUnits = summaries.fold<int>(0, (sum, i) => sum + i.totalQuantity);
+    final totalSales = summaries.fold<double>(0.0, (sum, i) => sum + i.totalRevenue);
+
+    if (summaries.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.analytics_outlined,
+              size: 56,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'No completed items sold for this period',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Items from completed orders within the selected filter will appear here.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // Sort Chips & Totals Header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${summaries.length} items · $totalUnits units · ₹${totalSales.toStringAsFixed(0)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              PopupMenuButton<ItemSalesSortOption>(
+                initialValue: _itemSortOption,
+                tooltip: 'Sort items',
+                onSelected: (option) => setState(() => _itemSortOption = option),
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: ItemSalesSortOption.revenueDesc,
+                    child: Text('Sort by Highest Sales (₹)'),
+                  ),
+                  const PopupMenuItem(
+                    value: ItemSalesSortOption.quantityDesc,
+                    child: Text('Sort by Most Units Sold'),
+                  ),
+                  const PopupMenuItem(
+                    value: ItemSalesSortOption.nameAsc,
+                    child: Text('Sort by Name (A-Z)'),
+                  ),
+                ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _itemSortOption == ItemSalesSortOption.revenueDesc
+                          ? Icons.trending_up
+                          : (_itemSortOption == ItemSalesSortOption.quantityDesc
+                              ? Icons.inventory_2_outlined
+                              : Icons.sort_by_alpha),
+                      size: 16,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _itemSortOption == ItemSalesSortOption.revenueDesc
+                          ? 'Sales ₹'
+                          : (_itemSortOption == ItemSalesSortOption.quantityDesc
+                              ? 'Units'
+                              : 'A-Z'),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const Icon(Icons.arrow_drop_down, size: 16),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Items List
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            itemCount: summaries.length,
+            itemBuilder: (context, index) {
+              final summary = summaries[index];
+              return _buildItemSalesCard(
+                summary: summary,
+                rank: index + 1,
+                totalSalesSum: totalSales,
+                theme: theme,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildItemSalesCard({
+    required ItemSalesSummary summary,
+    required int rank,
+    required double totalSalesSum,
+    required ThemeData theme,
+  }) {
+    final pct = totalSalesSum > 0 ? (summary.totalRevenue / totalSalesSum) : 0.0;
+
+    Color rankColor;
+    Color rankTextColor = Colors.white;
+    if (rank == 1) {
+      rankColor = const Color(0xFFD4AF37); // Gold
+    } else if (rank == 2) {
+      rankColor = const Color(0xFF90A4AE); // Silver
+    } else if (rank == 3) {
+      rankColor = const Color(0xFFB07253); // Bronze
+    } else {
+      rankColor = theme.colorScheme.surfaceContainerHighest;
+      rankTextColor = theme.colorScheme.onSurfaceVariant;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withAlpha(90),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Rank Avatar
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: rankColor,
+                  child: Text(
+                    '#$rank',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: rankTextColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // Name and Category
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          if (summary.isVeg != null) _buildDietaryBadge(summary.isVeg!),
+                          Expanded(
+                            child: Text(
+                              summary.displayName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              summary.categoryName,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${summary.totalQuantity} sold · Base ₹${summary.baseUnitPrice.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Revenue Amount
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '₹${summary.totalRevenue.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    Text(
+                      '${(pct * 100).toStringAsFixed(1)}% of sales',
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // Sales Share Progress Indicator
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: pct.clamp(0.0, 1.0),
+                minHeight: 5,
+                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+
+            // Add-ons Breakdown
+            if (summary.hasAddons) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant.withAlpha(60),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Add-ons Breakdown:',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...summary.addonsBreakdown.map(
+                      (addon) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 1),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '• ${addon.name} (x${addon.quantity})',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            Text(
+                              '+₹${addon.totalRevenue.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDietaryBadge(bool isVeg) {
+    final color = isVeg ? const Color(0xFF2E7D32) : const Color(0xFFC62828);
+    return Container(
+      width: 12,
+      height: 12,
+      margin: const EdgeInsets.only(right: 6),
+      decoration: BoxDecoration(
+        border: Border.all(color: color, width: 1.5),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      alignment: Alignment.center,
+      child: Container(
+        width: 5,
+        height: 5,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+        ),
+      ),
     );
   }
 
@@ -538,8 +1056,8 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
     final totalSales = cashInDrawer + upiOnline;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withAlpha(90),
         borderRadius: BorderRadius.circular(12),
@@ -555,14 +1073,14 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
             children: [
               Icon(
                 Icons.point_of_sale_rounded,
-                size: 16,
+                size: 15,
                 color: theme.colorScheme.primary,
               ),
               const SizedBox(width: 6),
               Text(
                 'Settlement Summary',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.primary,
                 ),
@@ -578,7 +1096,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -590,7 +1108,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
                   color: Colors.teal,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                 child: _buildSettlementTile(
                   theme,
@@ -600,7 +1118,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
                   color: Colors.green,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                 child: _buildSettlementTile(
                   theme,
@@ -610,7 +1128,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
                   color: Colors.blue,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                 child: _buildSettlementTile(
                   theme,
@@ -635,7 +1153,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
@@ -649,7 +1167,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 14, color: color),
+              Icon(icon, size: 12, color: color),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
@@ -657,7 +1175,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     color: theme.colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
@@ -665,14 +1183,14 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
               value,
               style: TextStyle(
-                fontSize: 15,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
                 color: theme.colorScheme.onSurface,
               ),
@@ -701,6 +1219,25 @@ class _OrderHistoryViewState extends State<OrderHistoryView> {
       label: Text(label),
       selected: isSelected,
       onSelected: (_) => setState(() => _dateFilter = dateFilter),
+    );
+  }
+
+  Widget _buildCustomDateFilterChip() {
+    final isSelected = _dateFilter == OrderDateRangeFilter.custom;
+    final label = _customDateRange != null
+        ? '${DateFormat('dd MMM').format(_customDateRange!.start)} - ${DateFormat('dd MMM').format(_customDateRange!.end)}'
+        : 'Custom...';
+    return FilterChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.calendar_today_rounded, size: 13, color: isSelected ? Colors.white : null),
+          const SizedBox(width: 4),
+          Text(label),
+        ],
+      ),
+      selected: isSelected,
+      onSelected: (_) => _pickCustomDateRange(),
     );
   }
 
@@ -953,6 +1490,9 @@ class OrderHistoryScreen extends StatelessWidget {
   final StallStorage? storage;
   final OrderController? controller;
   final VoidCallback? onOrdersChanged;
+  final OrderHistoryFilter defaultFilter;
+  final OrderDateRangeFilter defaultDateFilter;
+  final OrderHistoryViewMode defaultViewMode;
 
   const OrderHistoryScreen({
     super.key,
@@ -960,6 +1500,9 @@ class OrderHistoryScreen extends StatelessWidget {
     this.storage,
     this.controller,
     this.onOrdersChanged,
+    this.defaultFilter = OrderHistoryFilter.all,
+    this.defaultDateFilter = OrderDateRangeFilter.allTime,
+    this.defaultViewMode = OrderHistoryViewMode.orders,
   }) : assert(storageService != null || storage != null || controller != null);
 
   @override
@@ -970,7 +1513,9 @@ class OrderHistoryScreen extends StatelessWidget {
       controller: controller,
       onOrdersChanged: onOrdersChanged,
       wrapInScaffold: true,
+      defaultFilter: defaultFilter,
+      defaultDateFilter: defaultDateFilter,
+      defaultViewMode: defaultViewMode,
     );
   }
 }
-

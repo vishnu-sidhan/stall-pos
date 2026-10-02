@@ -19,6 +19,7 @@ mixin OrderLifecycleControllerMixin on ChangeNotifier {
     CategoryOption? selectedVariant,
   });
   void removeFromCart(String itemId);
+  CartItemBreakdown? getCartItemBreakdown(String itemId);
   MenuItem findItem(String id);
   MenuItem? findBaseMenuItem(String key);
   MenuItem? getItemById(String id);
@@ -119,11 +120,14 @@ mixin OrderLifecycleControllerMixin on ChangeNotifier {
           ? resolvedItem.name
           : (baseItem.name.contains('/') ? resolvedItem.name : baseItem.name);
 
+      final breakdown = getCartItemBreakdown(cartKey);
+      final effectiveBasePrice = breakdown != null ? breakdown.basePrice : baseItem.price;
+
       list.add(
         OrderItem(
           itemId: cartKey,
           itemName: cleanItemName,
-          price: baseItem.price,
+          price: effectiveBasePrice,
           quantity: qty,
           selectedVariant: selectedVariant,
           selectedAddons: selectedAddons,

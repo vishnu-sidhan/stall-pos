@@ -215,6 +215,58 @@ class CsvExportService {
     await downloadCsv(csvContent, filename);
   }
 
+  /// Converts a list of [ItemSalesSummary] into RFC 4180 CSV string.
+  static String generateItemSalesSummaryCsv({
+    required List<ItemSalesSummary> items,
+    String? dateRangeLabel,
+  }) {
+    final buffer = StringBuffer();
+    if (dateRangeLabel != null && dateRangeLabel.isNotEmpty) {
+      buffer.writeln('# Sales Summary Period: $dateRangeLabel');
+    }
+    buffer.writeln('Item Name,Base Name,Variant,Category,Quantity Sold,Average Unit Price,Total Sales,Add-ons Breakdown');
+
+    for (final item in items) {
+      final safeName = _escapeCsv(item.displayName);
+      final safeBase = _escapeCsv(item.baseName);
+      final safeVariant = _escapeCsv(item.variantName ?? '');
+      final safeCat = _escapeCsv(item.categoryName);
+      final safeAddons = _escapeCsv(item.addonSummaryString);
+
+      buffer.writeln(
+        '$safeName,'
+        '$safeBase,'
+        '$safeVariant,'
+        '$safeCat,'
+        '${item.totalQuantity},'
+        '${item.averageUnitPrice.toStringAsFixed(2)},'
+        '${item.totalRevenue.toStringAsFixed(2)},'
+        '$safeAddons',
+      );
+    }
+    return buffer.toString();
+  }
+
+  /// Exports item sales summary to CSV and prompts download or share.
+  static Future<void> exportItemSalesSummaryCsv({
+    required List<ItemSalesSummary> items,
+    String? dateRangeLabel,
+    String filenamePrefix = 'item_sales_summary',
+  }) async {
+    if (items.isEmpty) return;
+    final csvContent = generateItemSalesSummaryCsv(
+      items: items,
+      dateRangeLabel: dateRangeLabel,
+    );
+    final nowStr = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final filename = '${filenamePrefix}_$nowStr.csv';
+
+    await saveOrShareCsv(
+      csvContent: csvContent,
+      filename: filename,
+    );
+  }
+
   static String _escapeCsv(String val) {
     if (val.contains(',') || val.contains('"') || val.contains('\n') || val.contains('\r')) {
       return '"${val.replaceAll('"', '""')}"';

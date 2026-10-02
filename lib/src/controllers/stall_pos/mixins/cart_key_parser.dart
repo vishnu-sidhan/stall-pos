@@ -27,9 +27,13 @@ class CartKeyParser {
     return catIndex != -1 ? afterVar.substring(0, catIndex) : afterVar;
   }
 
-  /// Parses raw catalog item ID by stripping variant, category, and addon suffixes.
+  /// Parses raw catalog item ID by stripping variant, category, bound variant, and addon suffixes.
   static String parseBaseIdFromKey(String key) {
-    final firstPart = key.split('+').first;
+    var firstPart = key.split('+').first;
+    final boundIndex = firstPart.indexOf('_bound_');
+    if (boundIndex != -1) {
+      firstPart = firstPart.substring(0, boundIndex);
+    }
     final varIndex = firstPart.indexOf('_var_');
     if (varIndex != -1) {
       return firstPart.substring(0, varIndex);

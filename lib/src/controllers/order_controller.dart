@@ -119,7 +119,10 @@ class OrderController extends ChangeNotifier
         final dietary = item.dietaryType != ItemDietaryType.none
             ? item.dietaryType
             : (menuItem.dietaryType ?? ItemDietaryType.none);
-        final price = menuItem.price > 0 ? menuItem.price : item.price;
+        final price = item.price > 0
+            ? item.price
+            : (findBaseMenuItem(item.itemId)?.price ??
+                (menuItem.price > 0 ? menuItem.price : item.price));
         return item.copyWith(
           itemName: name,
           categoryName: cat,
