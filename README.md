@@ -288,12 +288,12 @@ flutter pub get
 flutter run -d chrome
 ```
 
-### Deploying to GitHub Pages & Building APK
+### Deploying to GitHub Pages
 
-#### 1. Automated Deployment & APK Build (GitHub Actions)
+#### 1. Automated Deployment (GitHub Actions)
 The repository includes an automated CI/CD workflow ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)).
 - **Trigger**: Automatically runs on every push to the `main` branch or manually via **Workflow Dispatch** in the GitHub Actions tab.
-- **Pipeline**: Runs static analysis (`dart analyze`) and automated tests (`flutter test`) for both root package and example app, builds the web release bundle (`flutter build web --release --base-href "/stall-pos/"`), builds the Android release APK (`flutter build apk --release`), uploads the APK as a workflow artifact, embeds `stall-pos.apk` into the web output, and deploys directly to the `gh-pages` branch.
+- **Pipeline**: Runs static analysis (`dart analyze`) and automated tests (`flutter test`) for both root package and example app, builds the web release bundle (`flutter build web --release --base-href "/stall-pos/"`), and deploys directly to the `gh-pages` branch.
 
 #### 2. Building Locally
 

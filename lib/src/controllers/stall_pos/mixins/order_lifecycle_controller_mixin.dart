@@ -465,4 +465,18 @@ mixin OrderLifecycleControllerMixin on ChangeNotifier {
     await saveState();
     notifyListeners();
   }
+
+  /// List of orders placed on the current calendar day.
+  List<StallOrder> get todayOrders {
+    final now = DateTime.now();
+    return _orders.where((o) =>
+      o.timestamp.year == now.year &&
+      o.timestamp.month == now.month &&
+      o.timestamp.day == now.day,
+    ).toList();
+  }
+
+  /// Total revenue of all orders placed on the current calendar day.
+  double get todayTotalRevenue =>
+      todayOrders.fold<double>(0.0, (sum, o) => sum + o.total);
 }

@@ -1085,10 +1085,8 @@ class _StallPosScreenState extends State<StallPosScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final totalRevenue = _controller.orders.fold<double>(
-      0,
-      (sum, o) => sum + o.total,
-    );
+    final todayOrders = _controller.todayOrders;
+    final todayRevenue = _controller.todayTotalRevenue;
 
     return Scaffold(
       appBar: AppBar(
@@ -1102,7 +1100,7 @@ class _StallPosScreenState extends State<StallPosScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Center(
                 child: Text(
-                  'Orders: ${_controller.orders.length} | ₹${totalRevenue.toStringAsFixed(0)}',
+                  'Orders: ${todayOrders.length} | ₹${todayRevenue.toStringAsFixed(0)}',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 12,

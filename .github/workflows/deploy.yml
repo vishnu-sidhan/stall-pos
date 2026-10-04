@@ -1,4 +1,4 @@
-name: Deploy Example to GitHub Pages & Build APK
+name: Deploy Example to GitHub Pages
 
 on:
   push:
@@ -20,12 +20,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -60,21 +54,6 @@ jobs:
       - name: Build Web release bundle
         working-directory: example
         run: flutter build web --release --base-href "/stall-pos/"
-
-      - name: Build Android Release APK
-        working-directory: example
-        run: flutter build apk --release
-
-      - name: Upload Release APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: stall-pos-release-apk
-          path: example/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
-
-      # Copies the APK into the web output so it can also be downloaded directly from GitHub Pages
-      - name: Copy APK to Web bundle
-        run: cp example/build/app/outputs/flutter-apk/app-release.apk example/build/web/stall-pos.apk
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
