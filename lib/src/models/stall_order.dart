@@ -251,6 +251,12 @@ extension StallOrderLifecycleExtension on StallOrder {
   /// Legacy alias for order token number.
   int get tokenNumber => token;
 
+  /// User-friendly order ticket number.
+  int get orderNumber => token;
+
+  /// String identifier for order.
+  String get id => token.toString();
+
   /// Count of completed/served items in this order.
   int get completedItemsCount => items
       .where((i) => i.isReady || i.isServed)

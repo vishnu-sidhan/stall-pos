@@ -32,6 +32,7 @@ class OrderItem {
   final String? categoryName;
   final int? colorHex;
   final ItemDietaryType dietaryType;
+  final bool isPrepared;
 
   const OrderItem({
     required this.itemId,
@@ -47,6 +48,7 @@ class OrderItem {
     this.categoryName,
     this.colorHex,
     this.dietaryType = ItemDietaryType.none,
+    this.isPrepared = false,
   });
 
   /// Deterministic cart line key for grouping identical item customizations in the cart.
@@ -89,6 +91,7 @@ class OrderItem {
     int? colorHex,
     bool clearColorHex = false,
     ItemDietaryType? dietaryType,
+    bool? isPrepared,
   }) {
     return OrderItem(
       itemId: itemId ?? this.itemId,
@@ -108,6 +111,7 @@ class OrderItem {
           clearCategoryName ? null : (categoryName ?? this.categoryName),
       colorHex: clearColorHex ? null : (colorHex ?? this.colorHex),
       dietaryType: dietaryType ?? this.dietaryType,
+      isPrepared: isPrepared ?? this.isPrepared,
     );
   }
 
@@ -128,6 +132,7 @@ class OrderItem {
         if (colorHex != null) 'colorHex': colorHex,
         if (dietaryType != ItemDietaryType.none)
           'dietaryType': dietaryType.name,
+        if (isPrepared) 'isPrepared': isPrepared,
       };
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
@@ -160,6 +165,7 @@ class OrderItem {
       categoryName: json['categoryName']?.toString(),
       colorHex: (json['colorHex'] as num?)?.toInt(),
       dietaryType: ItemDietaryType.fromString(json['dietaryType']?.toString()),
+      isPrepared: json['isPrepared'] == true,
     );
   }
 
@@ -173,7 +179,8 @@ class OrderItem {
           price == other.price &&
           categoryAdditionalCost == other.categoryAdditionalCost &&
           preparationStatus == other.preparationStatus &&
-          paidQuantity == other.paidQuantity);
+          paidQuantity == other.paidQuantity &&
+          isPrepared == other.isPrepared);
 
   @override
   int get hashCode => Object.hash(
@@ -183,11 +190,12 @@ class OrderItem {
         categoryAdditionalCost,
         preparationStatus,
         paidQuantity,
+        isPrepared,
       );
 
   @override
   String toString() =>
-      'OrderItem(itemId: $itemId, name: $itemName, qty: $quantity, prep: ${preparationStatus.label}, paidQty: $paidQuantity, cartKey: $cartKey)';
+      'OrderItem(itemId: $itemId, name: $itemName, qty: $quantity, prep: ${preparationStatus.label}, isPrepared: $isPrepared, paidQty: $paidQuantity, cartKey: $cartKey)';
 }
 
 /// Calculations, presentation helpers, and lifecycle getters for [OrderItem].
@@ -224,13 +232,13 @@ extension OrderItemLifecycleExtension on OrderItem {
   bool get isPartiallyPaid => paidQuantity > 0 && paidQuantity < quantity;
 
   /// Whether this item has been marked as ready for pickup / serving.
-  bool get isReady => preparationStatus == ItemPreparationStatus.ready;
+  bool get isReady => isPrepared || preparationStatus == ItemPreparationStatus.ready;
 
   /// Whether this item has been served to the customer.
   bool get isServed => preparationStatus == ItemPreparationStatus.served;
 
   /// Whether this item has reached ready or served fulfillment.
-  bool get isCompletedItem => isReady || isServed;
+  bool get isCompletedItem => isPrepared || isReady || isServed;
 
   /// Completed count for fulfillment calculation.
   int get completedQuantity => isCompletedItem ? quantity : 0;

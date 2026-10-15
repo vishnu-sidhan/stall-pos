@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../controllers/order_controller.dart';
 import '../../models/stall_models.dart';
 import 'dietary_symbol.dart';
@@ -10,6 +11,7 @@ class ItemSummaryPanel extends StatelessWidget {
   final Color Function(String category)? getCategoryColor;
   final void Function(int token, String itemId, String itemName, int quantity)? onCompleteTicketItem;
   final void Function(String itemId, String itemName)? onCompleteAllItem;
+  final bool isCompactStrip;
 
   const ItemSummaryPanel({
     super.key,
@@ -17,6 +19,7 @@ class ItemSummaryPanel extends StatelessWidget {
     this.getCategoryColor,
     this.onCompleteTicketItem,
     this.onCompleteAllItem,
+    this.isCompactStrip = false,
   });
 
   Color _resolveCategoryColor(String category, int? itemColorHex) {
@@ -32,6 +35,131 @@ class ItemSummaryPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final combined = controller.combinedActiveOrders;
+
+    if (isCompactStrip) {
+      if (combined.isEmpty) {
+        return Container(
+          key: const ValueKey('wok_radar_clear'),
+          height: 28,
+          width: double.infinity,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.green.shade900.withAlpha(50),
+            border: Border(bottom: BorderSide(color: Colors.green.shade700, width: 1)),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.check_circle_outline, size: 14, color: Colors.greenAccent),
+              SizedBox(width: 6),
+              Text(
+                '✅ Wok Clear — No Pending Prep',
+                style: TextStyle(
+                  color: Colors.greenAccent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Container(
+        key: const ValueKey('wok_radar_strip'),
+        constraints: const BoxConstraints(maxHeight: 72),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF1E222D)
+              : Colors.orange.shade50,
+          border: Border(
+            bottom: BorderSide(
+              color: Colors.orange.shade700.withAlpha(120),
+              width: 1.5,
+            ),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: combined.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final item = combined[index];
+            return InkWell(
+              key: ValueKey('prep_pill_${item.cartKey}'),
+              onTap: () async {
+                HapticFeedback.mediumImpact();
+                final outcome = await controller.completeOldestItemByCartKey(item.cartKey);
+                if (outcome != null && context.mounted) {
+                  ScaffoldMessenger.of(context).clearSnackBars();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        outcome.isOrderFullyCompleted
+                            ? 'Marked 1x ${outcome.itemName} Prepared (Order #${outcome.token} READY!)'
+                            : 'Marked 1x ${outcome.itemName} Prepared (Order #${outcome.token})',
+                      ),
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade900.withAlpha(180),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.orange.shade400, width: 1.5),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 3,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DietarySymbol(type: item.effectiveDietaryType, size: 12),
+                    const SizedBox(width: 5),
+                    Text(
+                      item.displayName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.amberAccent,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '× ${item.totalQuantity}',
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
 
     if (combined.isEmpty) {
       return const Center(

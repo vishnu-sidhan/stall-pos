@@ -29,10 +29,10 @@ class StallPosView extends StatefulWidget {
   });
 
   @override
-  State<StallPosView> createState() => _StallPosViewState();
+  State<StallPosView> createState() => StallPosViewState();
 }
 
-class _StallPosViewState extends State<StallPosView>
+class StallPosViewState extends State<StallPosView>
     with TickerProviderStateMixin {
   late final OrderController _controller;
   late final bool _internalController;
@@ -77,6 +77,23 @@ class _StallPosViewState extends State<StallPosView>
       if (mounted) ScaffoldMessenger.of(context).clearSnackBars();
     }
   }
+
+  void toggleQueueView() {
+    if (mounted) {
+      if (_mobileTabController.length > 1) {
+        if (_mobileTabController.index == 1) {
+          _mobileTabController.animateTo(0);
+        } else {
+          _mobileTabController.animateTo(1);
+        }
+      }
+      if (_desktopTabController.length > 0) {
+        _desktopTabController.animateTo(0);
+      }
+    }
+  }
+
+  void switchToActiveOrders() => toggleQueueView();
 
   @override
   void dispose() {
@@ -920,6 +937,12 @@ class _StallPosViewState extends State<StallPosView>
                 ),
                 Tab(
                   icon: Badge(
+                    backgroundColor: pendingOrders.any((o) => o.paymentMethod == 'PENDING' || !o.isPaid)
+                        ? Colors.amber.shade700
+                        : null,
+                    textColor: pendingOrders.any((o) => o.paymentMethod == 'PENDING' || !o.isPaid)
+                        ? Colors.black
+                        : null,
                     label: Text('${pendingOrders.length}'),
                     isLabelVisible: pendingOrders.isNotEmpty,
                     child: const Icon(Icons.restaurant_rounded),
@@ -1018,6 +1041,11 @@ class _StallPosViewState extends State<StallPosView>
       onDeleteOrder: _confirmDeleteOrder,
       onCompleteOrder: _completeOrder,
       onToggleItemCompletion: _handleToggleItemCompletion,
+      onTakeOrder: () {
+        if (_mobileTabController.length > 0) {
+          _mobileTabController.animateTo(0);
+        }
+      },
     );
   }
 
@@ -1053,6 +1081,7 @@ class StallPosScreen extends StatefulWidget {
 class _StallPosScreenState extends State<StallPosScreen> {
   late final OrderController _controller;
   late final bool _internalController;
+  final GlobalKey<StallPosViewState> _posViewKey = GlobalKey<StallPosViewState>();
 
   @override
   void initState() {
@@ -1108,6 +1137,133 @@ class _StallPosScreenState extends State<StallPosScreen> {
                 ),
               ),
             ),
+          // Solo Mode Toggle
+          Builder(
+            builder: (context) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final isCompact = MediaQuery.of(context).size.width < 500;
+              final isSolo = _controller.isSoloMode;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: InkWell(
+                  key: const Key('solo_mode_toggle_btn'),
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _controller.toggleSoloMode(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isSolo
+                          ? Colors.amber.withValues(alpha: isDark ? 0.25 : 0.15)
+                          : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSolo
+                            ? (isDark ? Colors.amberAccent : Colors.amber.shade700)
+                            : (isDark ? Colors.white24 : Colors.black12),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.bolt_rounded,
+                          size: 15,
+                          color: isSolo
+                              ? (isDark ? Colors.amberAccent : Colors.amber.shade800)
+                              : (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          isCompact
+                              ? (isSolo ? 'Solo: ON' : 'Solo')
+                              : (isSolo ? '⚡ Solo Mode: ON' : '⚡ Solo Mode: OFF'),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isSolo
+                                ? (isDark ? Colors.amberAccent : Colors.amber.shade900)
+                                : (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          // Queue live badge button
+          Builder(
+            builder: (context) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final isCompact = MediaQuery.of(context).size.width < 500;
+              final activeOrders = _controller.orders.where((o) => !o.isCompleted).toList();
+              final hasPendingPayment = activeOrders.any((o) => o.paymentMethod == 'PENDING' || !o.isPaid);
+
+              final Color badgeBg;
+              final Color badgeBorder;
+              final Color badgeFg;
+
+              if (hasPendingPayment) {
+                // High-visibility amber alert for unpaid orders in kitchen
+                badgeBg = isDark ? Colors.amber.shade700 : Colors.amber.shade400;
+                badgeBorder = isDark ? Colors.amberAccent : Colors.amber.shade800;
+                badgeFg = Colors.black;
+              } else if (activeOrders.isNotEmpty) {
+                // Active kitchen orders in queue
+                badgeBg = isDark ? const Color(0xFF1E3A5F) : Colors.blue.shade50;
+                badgeBorder = isDark ? Colors.blueAccent : Colors.blue.shade300;
+                badgeFg = isDark ? Colors.white : Colors.blue.shade900;
+              } else {
+                // Empty queue
+                badgeBg = isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05);
+                badgeBorder = isDark ? Colors.white24 : Colors.black12;
+                badgeFg = isDark ? Colors.white70 : Colors.grey.shade800;
+              }
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: InkWell(
+                  key: const Key('queue_badge_btn'),
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _posViewKey.currentState?.switchToActiveOrders(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: badgeBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: badgeBorder,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.receipt_long_rounded,
+                          size: 15,
+                          color: badgeFg,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          isCompact
+                              ? 'Queue: ${activeOrders.length}'
+                              : '📋 Queue: ${activeOrders.length}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: badgeFg,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
           if (widget.extraActions != null) ...widget.extraActions!,
           ListenableBuilder(
             listenable: ThemeController.instance,
@@ -1130,6 +1286,7 @@ class _StallPosScreenState extends State<StallPosScreen> {
         ],
       ),
       body: StallPosView(
+        key: _posViewKey,
         controller: _controller,
         storage: widget.storage ?? widget.storageService,
         extraActions: widget.extraActions,

@@ -38,21 +38,21 @@ mixin KitchenPrepControllerMixin on ChangeNotifier {
 
   /// Returns active orders that have pending (unpaid) items to confirm payment.
   List<StallOrder> get toConfirmPaymentOrders =>
-      activeOrders.where((o) => !o.isPaid && getPendingOrderItems(o).isNotEmpty).toList();
+      activeOrders.where((o) => !o.isPaid && (getPendingOrderItems(o).isNotEmpty || o.items.isEmpty)).toList();
 
   /// Consolidated items view across all active orders with confirmed payment.
   /// Aggregates total quantities per item.
   List<OrderItem> get combinedActiveOrders {
     final eligibleOrders = rawOrders
-        .where((o) => !o.isCompleted && (o.isPaid || o.items.any((i) => i.paidQuantity > 0)))
+        .where((o) => !o.isCompleted && (o.isPaid || o.paymentMethod == 'PENDING' || o.items.any((i) => i.paidQuantity > 0)))
         .toList();
 
     final Map<String, List<OrderItem>> groups = {};
     for (final order in eligibleOrders) {
       for (final item in order.items) {
-        if (item.isServed) continue;
-        if (!order.isPaid && item.paidQuantity <= 0) continue;
-        final qty = order.isPaid ? item.quantity : item.paidQuantity;
+        if (item.isServed || item.isReady || item.isPrepared) continue;
+        if (!order.isPaid && order.paymentMethod != 'PENDING' && item.paidQuantity <= 0) continue;
+        final qty = (order.isPaid || order.paymentMethod == 'PENDING') ? item.quantity : item.paidQuantity;
         if (qty <= 0) continue;
 
         groups.putIfAbsent(item.cartKey, () => []).add(item.copyWith(quantity: qty));
@@ -77,16 +77,16 @@ mixin KitchenPrepControllerMixin on ChangeNotifier {
     String itemIdOrCartKey,
   ) {
     final eligibleOrders = rawOrders
-        .where((o) => !o.isCompleted && (o.isPaid || o.items.any((i) => i.paidQuantity > 0)))
+        .where((o) => !o.isCompleted && (o.isPaid || o.paymentMethod == 'PENDING' || o.items.any((i) => i.paidQuantity > 0)))
         .toList();
 
     final tickets = <({int token, int quantity, bool isParcel, String? orderNotes})>[];
     for (final order in eligibleOrders) {
       for (final item in order.items) {
-        if (item.isServed) continue;
-        if (!order.isPaid && item.paidQuantity <= 0) continue;
+        if (item.isServed || item.isReady || item.isPrepared) continue;
+        if (!order.isPaid && order.paymentMethod != 'PENDING' && item.paidQuantity <= 0) continue;
         if (item.cartKey == itemIdOrCartKey || item.itemId == itemIdOrCartKey) {
-          final qty = order.isPaid ? item.quantity : item.paidQuantity;
+          final qty = (order.isPaid || order.paymentMethod == 'PENDING') ? item.quantity : item.paidQuantity;
           if (qty > 0) {
             tickets.add((
               token: order.token,
@@ -264,4 +264,79 @@ mixin KitchenPrepControllerMixin on ChangeNotifier {
     }
     return null;
   }
+
+  /// Completes the oldest pending unprepared item matching [cartKey] in FIFO order.
+  ///
+  /// Finds the first active order containing an unprepared item matching [cartKey],
+  /// marks 1 quantity of that item as prepared.
+  /// If all items in that order are prepared AND [order.isPaid] is true,
+  /// automatically completes the order.
+  Future<({int token, bool isOrderFullyCompleted, String itemName})?> completeOldestItemByCartKey(
+    String cartKey,
+  ) async {
+    for (int orderIdx = 0; orderIdx < rawOrders.length; orderIdx++) {
+      final order = rawOrders[orderIdx];
+      if (order.isCompleted) continue;
+
+      final itemIdx = order.items.indexWhere(
+        (i) =>
+            !i.isServed &&
+            !i.isReady &&
+            !i.isPrepared &&
+            (i.cartKey == cartKey ||
+                i.itemId == cartKey ||
+                i.itemName.toLowerCase() == cartKey.toLowerCase()),
+      );
+
+      if (itemIdx != -1) {
+        final targetItem = order.items[itemIdx];
+        final updatedItems = List<OrderItem>.from(order.items);
+
+        if (targetItem.quantity > 1) {
+          final preparedPart = targetItem.copyWith(
+            quantity: 1,
+            isPrepared: true,
+            preparationStatus: ItemPreparationStatus.ready,
+          );
+          final remainingPart = targetItem.copyWith(
+            quantity: targetItem.quantity - 1,
+            paidQuantity: targetItem.paidQuantity > 1
+                ? (targetItem.paidQuantity - 1)
+                : targetItem.paidQuantity,
+            isPrepared: false,
+            preparationStatus: targetItem.preparationStatus,
+          );
+          updatedItems[itemIdx] = preparedPart;
+          updatedItems.insert(itemIdx + 1, remainingPart);
+        } else {
+          updatedItems[itemIdx] = targetItem.copyWith(
+            isPrepared: true,
+            preparationStatus: ItemPreparationStatus.ready,
+          );
+        }
+
+        final allItemsPrepared = updatedItems
+            .every((i) => i.isPrepared || i.isReady || i.isServed);
+        final shouldCompleteOrder = allItemsPrepared && order.isPaid;
+
+        rawOrders[orderIdx] = order.copyWith(
+          items: updatedItems,
+          isCompleted: shouldCompleteOrder ? true : order.isCompleted,
+          completedAt: shouldCompleteOrder
+              ? (order.completedAt ?? DateTime.now())
+              : order.completedAt,
+        );
+
+        await saveState();
+        notifyListeners();
+        return (
+          token: order.token,
+          isOrderFullyCompleted: shouldCompleteOrder,
+          itemName: targetItem.displayName,
+        );
+      }
+    }
+    return null;
+  }
 }
+

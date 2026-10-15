@@ -388,6 +388,80 @@ mixin OrderLifecycleControllerMixin on ChangeNotifier {
     }
   }
 
+  /// 1-Tap Express Checkout for Solo Operator Mode.
+  ///
+  /// Immediately punches a new order from current cart items without opening any dialogs,
+  /// accepting [paymentMethod] as 'CASH', 'UPI', or 'PENDING'.
+  /// When [paymentMethod] is 'PENDING', the order is created with [isPaid] = false,
+  /// immediately entering the kitchen prep queue.
+  Future<StallOrder?> quickPunchSoloOrder({required String paymentMethod}) async {
+    if (cart.isEmpty) return null;
+
+    final isPaid = paymentMethod != 'PENDING';
+    final orderItems = cartOrderItems.map((item) {
+      return item.copyWith(
+        paidQuantity: isPaid ? item.quantity : 0,
+        preparationStatus: ItemPreparationStatus.pending,
+      );
+    }).toList();
+
+    final newOrder = StallOrder(
+      token: _nextToken,
+      timestamp: DateTime.now(),
+      isPaid: isPaid,
+      paymentMethod: paymentMethod,
+      items: orderItems,
+      isParcel: false,
+    );
+
+    _orders.add(newOrder);
+    _nextToken++;
+    clearCart();
+    await saveState();
+    notifyListeners();
+    return newOrder;
+  }
+
+  /// 1-Tap Deferred Payment Settlement & Handoff.
+  ///
+  /// Updates the order's [paymentMethod] (if transitioning from 'PENDING' to 'CASH' or 'UPI'),
+  /// sets [isPaid] = true, marks all items as served, marks order as completed,
+  /// and updates storage.
+  Future<void> settleAndCompleteOrder(
+    dynamic orderIdOrToken, {
+    String? finalPaymentMethod,
+  }) async {
+    final token = (orderIdOrToken is int)
+        ? orderIdOrToken
+        : int.tryParse(orderIdOrToken.toString());
+    if (token == null) return;
+
+    final idx = _orders.indexWhere((o) => o.token == token);
+    if (idx != -1) {
+      final existing = _orders[idx];
+      final method = finalPaymentMethod ?? existing.paymentMethod ?? 'CASH';
+      final updatedItems = existing.items
+          .map(
+            (i) => i.copyWith(
+              paidQuantity: i.quantity,
+              preparationStatus: ItemPreparationStatus.served,
+              isPrepared: true,
+            ),
+          )
+          .toList();
+
+      _orders[idx] = existing.copyWith(
+        isPaid: true,
+        isCompleted: true,
+        completedAt: DateTime.now(),
+        paymentMethod: method,
+        items: updatedItems,
+      );
+      await saveState();
+      notifyListeners();
+    }
+  }
+
   /// Confirms payment for an order and persists the change.
   Future<void> confirmPayment({
     required int token,

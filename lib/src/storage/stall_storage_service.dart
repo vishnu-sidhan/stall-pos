@@ -13,10 +13,12 @@ class StallStorageService implements StallStorage {
   static const String _autoAddSingleVariantKey = 'stall_auto_add_single_variant';
   static const String _splitVariantsAsCategoriesKey = 'stall_split_variants_as_categories';
   static const String _explodeSingleCategoryKey = 'stall_explode_single_category';
+  static const String _isSoloModeKey = 'stall_is_solo_mode';
 
   final SharedPreferences? _prefs;
   bool _autoAddSingleVariant = true;
   bool _splitVariantsAsCategories = true;
+  bool _isSoloMode = false;
 
   StallStorageService({SharedPreferences? prefs}) : _prefs = prefs {
     if (prefs != null) {
@@ -24,6 +26,7 @@ class StallStorageService implements StallStorage {
       _splitVariantsAsCategories = prefs.getBool(_splitVariantsAsCategoriesKey) ??
           prefs.getBool(_explodeSingleCategoryKey) ??
           true;
+      _isSoloMode = prefs.getBool(_isSoloModeKey) ?? false;
     }
   }
 
@@ -33,6 +36,7 @@ class StallStorageService implements StallStorage {
     _splitVariantsAsCategories = p.getBool(_splitVariantsAsCategoriesKey) ??
         p.getBool(_explodeSingleCategoryKey) ??
         _splitVariantsAsCategories;
+    _isSoloMode = p.getBool(_isSoloModeKey) ?? _isSoloMode;
     return p;
   }
 
@@ -282,5 +286,19 @@ class StallStorageService implements StallStorage {
   @override
   Future<void> setExplodeSingleCategory(bool value) =>
       setSplitVariantsAsCategories(value);
+
+  /// Whether Solo Operator Mode is enabled.
+  @override
+  bool get isSoloMode =>
+      _prefs?.getBool(_isSoloModeKey) ?? _isSoloMode;
+
+  /// Persists the Solo Operator Mode preference.
+  @override
+  Future<void> setSoloMode(bool value) async {
+    _isSoloMode = value;
+    final prefs = await _getPrefs();
+    await prefs.setBool(_isSoloModeKey, value);
+  }
 }
+
 

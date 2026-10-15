@@ -27,15 +27,27 @@ class OrderController extends ChangeNotifier
 
   bool _autoAddSingleVariant = true;
   bool _splitVariantsAsCategories = true;
+  bool _isSoloMode = false;
 
   OrderController({StallStorage? storage})
       : _storageService = storage ?? InMemoryStorage() {
     _autoAddSingleVariant = _storageService.autoAddSingleVariant;
     _splitVariantsAsCategories = _storageService.splitVariantsAsCategories;
+    _isSoloMode = _storageService.isSoloMode;
   }
 
   StallStorage get storage => _storageService;
   StallStorage get storageService => _storageService;
+
+  /// Whether Solo Operator Mode is enabled.
+  bool get isSoloMode => _isSoloMode;
+
+  /// Toggles or sets Solo Operator Mode and persists it.
+  void toggleSoloMode([bool? value]) {
+    _isSoloMode = value ?? !_isSoloMode;
+    _storageService.setSoloMode(_isSoloMode);
+    notifyListeners();
+  }
 
   /// Whether single-variant items are added to the cart directly on tap without the sheet.
   bool get autoAddSingleVariant => _autoAddSingleVariant;
@@ -101,6 +113,7 @@ class OrderController extends ChangeNotifier
 
     _autoAddSingleVariant = _storageService.autoAddSingleVariant;
     _splitVariantsAsCategories = _storageService.splitVariantsAsCategories;
+    _isSoloMode = _storageService.isSoloMode;
 
     await syncCategoriesWithMenu();
 

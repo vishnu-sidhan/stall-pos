@@ -236,6 +236,67 @@ class MenuItemCard extends StatelessWidget {
                           ),
                         );
                       }),
+                      if (controller?.isSoloMode == true &&
+                          item is! VariantBoundMenuItem &&
+                          boundVariant == null) ...[
+                        Builder(builder: (context) {
+                          final hydrated = controller!.hydrateMenuItemCategory(item);
+                          final activeVariants = hydrated.effectiveVariants.where((v) => v.isAvailable).toList();
+                          if (activeVariants.isEmpty) return const SizedBox.shrink();
+
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Wrap(
+                              spacing: 4,
+                              runSpacing: 4,
+                              alignment: WrapAlignment.center,
+                              children: [
+                                ...activeVariants.map((v) => ActionChip(
+                                      key: ValueKey('variant_chip_${item.id}_${v.id}'),
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                                      labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      backgroundColor: itemColor.withAlpha(35),
+                                      side: BorderSide(color: itemColor.withAlpha(120), width: 0.8),
+                                      label: Text(
+                                        v.priceDelta != 0
+                                            ? '${v.name} ${v.priceDelta > 0 ? "+₹${v.priceDelta.toStringAsFixed(0)}" : "-₹${(-v.priceDelta).toStringAsFixed(0)}"}'
+                                            : v.name,
+                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                                      ),
+                                      onPressed: () {
+                                        HapticFeedback.lightImpact();
+                                        controller?.addToCart(hydrated, selectedVariant: v);
+                                      },
+                                    )),
+                                if (hydrated.availableAddons.isNotEmpty)
+                                  ActionChip(
+                                    key: ValueKey('custom_chip_${item.id}'),
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                                    labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    avatar: const Icon(Icons.settings, size: 11),
+                                    label: const Text('⚙️ Custom', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                    onPressed: () {
+                                      showModalBottomSheet(
+                                        context: context,
+                                        backgroundColor: Colors.transparent,
+                                        isScrollControlled: true,
+                                        builder: (_) => UnifiedItemCustomizerSheet(
+                                          item: hydrated,
+                                          controller: controller,
+                                          getCategoryColor: getCategoryColor,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
                       if (inCartQty > 0)
                         Container(
                           margin: const EdgeInsets.only(top: 5),

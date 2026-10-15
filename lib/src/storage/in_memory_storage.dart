@@ -162,6 +162,16 @@ class InMemoryStorage implements StallStorage, CounterStorage {
     _splitVariantsAsCategories = value;
   }
 
+  bool _isSoloMode = false;
+
+  @override
+  bool get isSoloMode => _isSoloMode;
+
+  @override
+  Future<void> setSoloMode(bool value) async {
+    _isSoloMode = value;
+  }
+
 
   // ---------------------------------------------------------------------------
   // CounterStorage Implementation

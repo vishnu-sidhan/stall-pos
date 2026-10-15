@@ -406,4 +406,14 @@ class ConfigurableRemoteStorage implements StallStorage {
   Future<void> setExplodeSingleCategory(bool value) async {
     await setSplitVariantsAsCategories(value);
   }
+
+  @override
+  bool get isSoloMode => fallbackStorage.isSoloMode;
+
+  @override
+  Future<void> setSoloMode(bool value) async {
+    if (enableOfflineCache) {
+      await fallbackStorage.setSoloMode(value);
+    }
+  }
 }

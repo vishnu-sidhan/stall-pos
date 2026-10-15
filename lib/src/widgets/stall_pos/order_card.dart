@@ -172,7 +172,7 @@ class _OrderCardState extends State<OrderCard> {
                                 ),
                               ),
                             ),
-                          if (isConfirmedPayment)
+                          if (isConfirmedPayment || order.isPaid)
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 6,
@@ -183,9 +183,11 @@ class _OrderCardState extends State<OrderCard> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                order.hasPartialPayment
-                                    ? 'Paid ₹${order.paidAmount.toStringAsFixed(0)} • ${order.paymentMethod ?? 'UPI'}'
-                                    : 'Paid • ${order.paymentMethod ?? 'UPI'}',
+                                controller.isSoloMode
+                                    ? '✅ PAID (${order.paymentMethod ?? 'PAID'})'
+                                    : (order.hasPartialPayment
+                                        ? 'Paid ₹${order.paidAmount.toStringAsFixed(0)} • ${order.paymentMethod ?? 'UPI'}'
+                                        : 'Paid • ${order.paymentMethod ?? 'UPI'}'),
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
@@ -200,17 +202,28 @@ class _OrderCardState extends State<OrderCard> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.orange.shade100,
+                                color: (controller.isSoloMode || order.paymentMethod == 'PENDING')
+                                    ? Colors.amber.shade100
+                                    : Colors.orange.shade100,
                                 borderRadius: BorderRadius.circular(4),
+                                border: (controller.isSoloMode || order.paymentMethod == 'PENDING')
+                                    ? Border.all(color: Colors.amber.shade800, width: 0.8)
+                                    : null,
                               ),
                               child: Text(
-                                order.hasPartialPayment
-                                    ? '₹${order.remainingDue.toStringAsFixed(0)} Due • Paid ₹${order.paidAmount.toStringAsFixed(0)}'
-                                    : 'Payment Pending',
+                                (controller.isSoloMode || order.paymentMethod == 'PENDING')
+                                    ? '⚠️ UNPAID - COOKING'
+                                    : (order.hasPartialPayment
+                                        ? '₹${order.remainingDue.toStringAsFixed(0)} Due • Paid ₹${order.paidAmount.toStringAsFixed(0)}'
+                                        : 'Payment Pending'),
                                 style: TextStyle(
                                   fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.orange.shade900,
+                                  fontWeight: (controller.isSoloMode || order.paymentMethod == 'PENDING')
+                                      ? FontWeight.w800
+                                      : FontWeight.w700,
+                                  color: (controller.isSoloMode || order.paymentMethod == 'PENDING')
+                                      ? Colors.amber.shade900
+                                      : Colors.orange.shade900,
                                 ),
                               ),
                             ),
@@ -480,31 +493,84 @@ class _OrderCardState extends State<OrderCard> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (!isConfirmedPayment) ...[
-                      FilledButton.icon(
-                        key: ValueKey('confirm_payment_btn_${order.token}'),
-                        onPressed: () => widget.onConfirmPayment?.call(order),
-                        icon: const Icon(Icons.payments_rounded, size: 14),
-                        label: Text(
-                          order.hasPartialPayment
-                              ? 'Confirm ₹${order.remainingDue.toStringAsFixed(0)}'
-                              : 'Confirm Payment',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                    if (!order.isPaid || order.paymentMethod == 'PENDING') ...[
+                      if (controller.isSoloMode || order.paymentMethod == 'PENDING') ...[
+                        FilledButton.icon(
+                          key: ValueKey('cash_serve_btn_${order.token}'),
+                          onPressed: () => controller.settleAndCompleteOrder(
+                            order.id,
+                            finalPaymentMethod: 'CASH',
+                          ),
+                          icon: const Icon(Icons.payments_rounded, size: 14),
+                          label: const Text(
+                            '💵 Cash & Serve',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.green.shade700,
+                            foregroundColor: Colors.white,
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
+                            ),
                           ),
                         ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.orange.shade800,
-                          foregroundColor: Colors.white,
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 6,
+                        const SizedBox(width: 4),
+                        FilledButton.icon(
+                          key: ValueKey('upi_serve_btn_${order.token}'),
+                          onPressed: () => controller.settleAndCompleteOrder(
+                            order.id,
+                            finalPaymentMethod: 'UPI',
+                          ),
+                          icon: const Icon(Icons.qr_code_rounded, size: 14),
+                          label: const Text(
+                            '📱 UPI & Serve',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.indigo.shade700,
+                            foregroundColor: Colors.white,
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
+                        const SizedBox(width: 4),
+                      ] else if (!isConfirmedPayment) ...[
+                        FilledButton.icon(
+                          key: ValueKey('confirm_payment_btn_${order.token}'),
+                          onPressed: () => widget.onConfirmPayment?.call(order),
+                          icon: const Icon(Icons.payments_rounded, size: 14),
+                          label: Text(
+                            order.hasPartialPayment
+                                ? 'Confirm ₹${order.remainingDue.toStringAsFixed(0)}'
+                                : 'Confirm Payment',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.orange.shade800,
+                            foregroundColor: Colors.white,
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                     ],
 
                     IconButton(
@@ -530,11 +596,17 @@ class _OrderCardState extends State<OrderCard> {
                       constraints: const BoxConstraints(),
                     ),
 
-                    if (isConfirmedPayment) ...[
+                    if (order.isPaid || isConfirmedPayment) ...[
                       const SizedBox(width: 6),
                       FilledButton.tonal(
                         key: ValueKey('complete_order_btn_${order.token}'),
-                        onPressed: () => widget.onCompleteOrder?.call(order.token),
+                        onPressed: () {
+                          if (widget.onCompleteOrder != null) {
+                            widget.onCompleteOrder!(order.token);
+                          } else {
+                            controller.completeOrder(order.token);
+                          }
+                        },
                         style: FilledButton.styleFrom(
                           backgroundColor: Colors.green.shade100,
                           foregroundColor: Colors.green.shade900,
@@ -544,9 +616,11 @@ class _OrderCardState extends State<OrderCard> {
                             vertical: 6,
                           ),
                         ),
-                        child: const Text(
-                          '✓ Done',
-                          style: TextStyle(
+                        child: Text(
+                          controller.isSoloMode
+                              ? '🚀 SERVE #${order.orderNumber}'
+                              : '✓ Done',
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 13,
                           ),

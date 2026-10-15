@@ -69,5 +69,12 @@ abstract class StallStorage {
   /// Alias for [setSplitVariantsAsCategories].
   Future<void> setExplodeSingleCategory(bool value) async =>
       setSplitVariantsAsCategories(value);
+
+  /// Whether Solo Operator Mode is enabled.
+  bool get isSoloMode => false;
+
+  /// Persists the Solo Operator Mode preference.
+  Future<void> setSoloMode(bool value) async {}
 }
+
 

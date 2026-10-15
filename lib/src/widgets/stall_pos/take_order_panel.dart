@@ -6,6 +6,7 @@ import 'category_accordion_card.dart';
 import 'dietary_symbol.dart';
 import 'menu_item_card.dart';
 import 'unified_item_customizer_sheet.dart';
+import 'item_summary_panel.dart';
 
 /// Represents a flattened item or variant card entry for single-category exploded POS mode.
 class ExplodedVariantEntry {
@@ -82,6 +83,13 @@ class TakeOrderPanel extends StatelessWidget {
 
     return Column(
       children: [
+        if (controller.isSoloMode)
+          ItemSummaryPanel(
+            key: const ValueKey('compact_wok_radar_strip'),
+            controller: controller,
+            getCategoryColor: getCategoryColor,
+            isCompactStrip: true,
+          ),
         // Category Filter Bar
         if (menu.isNotEmpty && categories.length > 1)
           Container(
@@ -477,106 +485,254 @@ class TakeOrderPanel extends StatelessWidget {
                 ),
               ),
 
-              // Cart Items Bar (taps to open bottomsheet)
-              if (cart.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: InkWell(
-                    onTap: onShowCartBottomSheet,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+              // Cart and Checkout Buttons
+              if (controller.isSoloMode && !controller.isEditing) ...[
+                if (cart.isNotEmpty) ...[
+                  // Top row of Solo Bar: Summary + Clear + Edit Cart
+                  Container(
+                    key: const ValueKey('solo_express_bar_header'),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
                       ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.shopping_cart_rounded,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '🛒 ${controller.cartTotalQuantity} Items • ₹${controller.cartTotal.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          key: const ValueKey('solo_clear_cart_btn'),
+                          onPressed: onClearCart,
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          child: const Text('Clear'),
+                        ),
+                        const SizedBox(width: 4),
+                        FilledButton.tonalIcon(
+                          key: const ValueKey('solo_edit_cart_btn'),
+                          onPressed: onShowCartBottomSheet,
+                          icon: const Icon(Icons.edit_outlined, size: 14),
+                          label: const Text('Edit Cart', style: TextStyle(fontSize: 12)),
+                          style: FilledButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Bottom row: 3 Thumb-Friendly Checkout Buttons (52px height)
+                  Row(
+                    children: [
+                      // CASH Button
+                      Expanded(
+                        child: SizedBox(
+                          height: 52,
+                          child: FilledButton.icon(
+                            key: const ValueKey('solo_cash_btn'),
+                            onPressed: () => controller.quickPunchSoloOrder(paymentMethod: 'CASH'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.green.shade700,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                            ),
+                            icon: const Icon(Icons.payments_rounded, size: 20),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '💵 CASH',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.shopping_cart_outlined,
-                            size: 20,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Items in Cart (${controller.cartItemCount})',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                Text(
-                                  cart.entries
-                                      .map((e) {
-                                        final displayName = controller
-                                            .getCartItemDisplayName(e.key);
-                                        return '${e.value}x $displayName';
-                                      })
-                                      .join(', '),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton.tonalIcon(
-                            onPressed: onShowCartBottomSheet,
-                            icon: const Icon(
-                              Icons.expand_less_rounded,
-                              size: 18,
-                            ),
-                            label: const Text(
-                              'View Cart',
-                              style: TextStyle(fontSize: 12),
-                            ),
+                      const SizedBox(width: 6),
+                      // UPI Button
+                      Expanded(
+                        child: SizedBox(
+                          height: 52,
+                          child: FilledButton.icon(
+                            key: const ValueKey('solo_upi_btn'),
+                            onPressed: () => controller.quickPunchSoloOrder(paymentMethod: 'UPI'),
                             style: FilledButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
+                              backgroundColor: Colors.indigo.shade700,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                            ),
+                            icon: const Icon(Icons.qr_code_rounded, size: 20),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '📱 UPI',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          TextButton(
-                            onPressed: onClearCart,
-                            style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // COOK (Unpaid) Button
+                      Expanded(
+                        child: SizedBox(
+                          height: 52,
+                          child: FilledButton.icon(
+                            key: const ValueKey('solo_cook_btn'),
+                            onPressed: () => controller.quickPunchSoloOrder(paymentMethod: 'PENDING'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.orange.shade800,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                            ),
+                            icon: const Icon(Icons.local_fire_department_rounded, size: 20),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '🔥 COOK',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
-                            child: const Text('Clear'),
                           ),
-                        ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ] else ...[
+                // Cart Items Bar (taps to open bottomsheet)
+                if (cart.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: InkWell(
+                      onTap: onShowCartBottomSheet,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outlineVariant,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.shopping_cart_outlined,
+                              size: 20,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Items in Cart (${controller.cartItemCount})',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  Text(
+                                    cart.entries
+                                        .map((e) {
+                                          final displayName = controller
+                                              .getCartItemDisplayName(e.key);
+                                          return '${e.value}x $displayName';
+                                        })
+                                        .join(', '),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton.tonalIcon(
+                              onPressed: onShowCartBottomSheet,
+                              icon: const Icon(
+                                Icons.expand_less_rounded,
+                                size: 18,
+                              ),
+                              label: const Text(
+                                'View Cart',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              style: FilledButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            TextButton(
+                              onPressed: onClearCart,
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                              ),
+                              child: const Text('Clear'),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-              // Order Confirmation Action Buttons: Single row for fast checkout & punch order
-              if (!controller.isEditing)
-                if (cart.isNotEmpty)
+                // Order Confirmation Action Buttons: Single row for fast checkout & punch order
+                if (!controller.isEditing) ...[
+                  if (cart.isNotEmpty)
                   Row(
                     children: [
                       // 1-Tap Fast Cash Checkout
@@ -744,7 +900,8 @@ class TakeOrderPanel extends StatelessWidget {
                         ),
                       ),
                     ],
-                  )
+                  ),
+              ]
               else
                 // Primary Update Button when editing
                 SizedBox(
@@ -773,6 +930,7 @@ class TakeOrderPanel extends StatelessWidget {
                     ),
                   ),
                 ),
+              ],
             ],
           ),
         ),

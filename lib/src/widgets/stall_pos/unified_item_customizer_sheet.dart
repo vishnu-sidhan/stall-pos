@@ -314,6 +314,9 @@ class _UnifiedItemCustomizerSheetState
                                       setState(() {
                                         _selectedVariant = v;
                                       });
+                                      if (_controller.isSoloMode && _addons.isEmpty) {
+                                        _onAddToCart();
+                                      }
                                     }
                                   },
                           );

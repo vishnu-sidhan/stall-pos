@@ -236,4 +236,14 @@ class _MockCloudStallStorage implements StallStorage {
   Future<void> setExplodeSingleCategory(bool value) async {
     _splitVariantsAsCategories = value;
   }
+
+  bool _isSoloMode = false;
+
+  @override
+  bool get isSoloMode => _isSoloMode;
+
+  @override
+  Future<void> setSoloMode(bool value) async {
+    _isSoloMode = value;
+  }
 }

@@ -14,6 +14,8 @@ class ActiveOrdersPanel extends StatelessWidget {
   final ValueChanged<int>? onCompleteOrder;
   final void Function(int token, String itemId, bool complete)? onToggleItemCompletion;
 
+  final VoidCallback? onTakeOrder;
+
   const ActiveOrdersPanel({
     super.key,
     required this.controller,
@@ -22,6 +24,7 @@ class ActiveOrdersPanel extends StatelessWidget {
     this.onDeleteOrder,
     this.onCompleteOrder,
     this.onToggleItemCompletion,
+    this.onTakeOrder,
   });
 
   @override
@@ -30,16 +33,24 @@ class ActiveOrdersPanel extends StatelessWidget {
     final toConfirm = controller.toConfirmPaymentOrders;
 
     if (confirmed.isEmpty && toConfirm.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
-            SizedBox(height: 12),
-            Text(
+            const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
+            const SizedBox(height: 12),
+            const Text(
               'All caught up! No pending orders.',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
+            if (onTakeOrder != null) ...[
+              const SizedBox(height: 16),
+              FilledButton.tonalIcon(
+                onPressed: onTakeOrder,
+                icon: const Icon(Icons.point_of_sale_rounded),
+                label: const Text('Take New Order'),
+              ),
+            ],
           ],
         ),
       );
